@@ -28,46 +28,43 @@ const DEV_PID: u16 = 0xb04d;
 const INTERFACE_NUMBER: i32 = 5;
 
 const PACKET_SIZE: usize = 64; // TODO Autodetect
-const SLEEP_DURATION: u64 = 1000;
+const SLEEP_DURATION: u64 = 5;
 
 
 /// HIDUSBDevice Struct
 ///
 /// Contains HIDUSB device thread information
 /// Required to communicate with device thread
-struct HIDUSBDevice<'a> {
-    device     : hidapi::HidDevice<'a>,
+struct HIDUSBDevice {
+    //device     : hidapi::HidDevice<'a>,
     deviceinfo : hidapi::HidDeviceInfo,
 }
 
 
-impl<'a> HIDUSBDevice<'a> {
-    // hidusb device processing
-    fn process(&self) -> hidapi::HidResult<usize> {
-        println!("yay");
+/// hidusb device processing
+fn process_device(device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
+    println!("yay");
 
-            // Send dummy command (REMOVEME)
-            let res = self.device.write("Test".as_bytes());
-            match res {
-                Ok(result) => {
-                    println!("Ok");
-                    println!("Retval: {}", result);
-                },
-                Err(e) => {
-                    warn!("Warning! {}", e);
-                    return res;
-                },
-            }
-            //println!("{}", self.device.check_error().unwrap());
+    // Send dummy command (REMOVEME)
+    let res = device.write("Test".as_bytes());
+    match res {
+        Ok(result) => {
+            println!("Ok");
+            println!("Retval: {}", result);
+        },
+        Err(e) => {
+            warn!("Warning! {}", e);
             return res;
-
-            /*
-            let res = device_list[index].0.get_indexed_string(1).unwrap();
-            let res = device_list[index].0.get_indexed_string(10).unwrap();
-            println!("Retval: {}", res);
-            */
+        },
     }
+    //println!("{}", self.device.check_error().unwrap());
+    return res;
 
+    /*
+    let res = device_list[index].0.get_indexed_string(1).unwrap();
+    let res = device_list[index].0.get_indexed_string(10).unwrap();
+    println!("Retval: {}", res);
+    */
 }
 
 
@@ -83,19 +80,9 @@ fn processing() {
     // Initialize HID interface
     let mut api = hidapi::HidApi::new().expect("HID API object creation failed");
 
-    // Connected devices/threads
-    let mut device_list: Vec<HIDUSBDevice> = Vec::new();
-
-
     /// Loop infinitely, the watcher only exits if the daemon is quit
     loop {
-        // Refresh devices list
-        // TODO
-        //api.refresh_devices();
-
-        // Connected/validated device info
-        let mut device_info_list: Vec<hidapi::HidDeviceInfo> = Vec::new();
-
+        let mut remove_list: Vec<usize> = Vec::new();
 
         // Iterate over found USB interfaces and select usable ones
         for device_info in api.devices() {
@@ -110,52 +97,41 @@ fn processing() {
                 continue;
             }
 
-            // Interface found, add to list
-            device_info_list.push(device_info)
-        }
-
-
-        // Connect to each device where a connection does not yet exist
-        'outer: for device_info in device_info_list {
-            // Make sure we haven't already connected
-            for device in &device_list {
-                if device_info.path == device.deviceinfo.path {
-                    continue 'outer;
-                }
-            }
-
+            // Add device
             info!("Connecting to {:#?}", device_info);
 
             // Add to connected list
             let path = device_info.path.clone();
 
             // Connect to device
-            let device = api.open_path(&path).expect("Failed to open device");
+            let device = match api.open_path(&path) {
+                Ok(result) => result,
+                Err(e) => {
+                    // Could not open device (likely removed)
+                    warn!("{} {:#?}", e, device_info);
+                    break;
+                    e
+                }
+            };
 
-            // Add device to processing list
-            device_list.push(HIDUSBDevice {deviceinfo: device_info, device: device});
-        }
-
-        // Iterate over devices doing writes and reads
-        let mut remove_list: Vec<usize> = Vec::new();
-        for (index, device) in device_list.iter().enumerate() {
             // Process device
-            match device.process() {
+            match process_device(device) {
                 Ok(result) => {},
                 Err(e) => {
-                    info!("Removing {:#?}", device.deviceinfo);
-                    remove_list.push(index);
+                    // Remove problematic devices, will be re-added on the next loop if available
+                    warn!("Device issue {:#?}", device_info);
+                    break;
                 },
-            }
+            };
         }
 
-        // Remove problematic devices, will be re-added on the next loop if available
-        for index in remove_list {
-            device_list.remove(index);
-        }
+        // Refresh devices list
+        api.refresh_devices();
 
 
         // Sleep so we don't starve the CPU
+        // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
+        // TODO (HaaTa) - If there was any IO, on any of the devices, do not sleep, only sleep when all devices are idle
         thread::sleep(Duration::from_millis(SLEEP_DURATION));
     }
 }
