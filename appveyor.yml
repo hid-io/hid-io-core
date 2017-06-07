@@ -1,0 +1,37 @@
+# appveyor integration for the hid-io device daemon
+
+# Select environments
+# NOTE: x86_64-pc-windows-gnu isn't supported
+environment:
+  matrix:
+  # stable
+  - TARGET: x86_64-pc-windows-msvc
+    CHANNEL: 1.17.0
+  - TARGET: i686-pc-windows-msvc
+    CHANNEL: 1.17.0
+  - TARGET: i686-pc-windows-gnu
+    CHANNEL: 1.17.0
+  # beta
+  - TARGET: x86_64-pc-windows-msvc
+    CHANNEL: beta
+  - TARGET: i686-pc-windows-msvc
+    CHANNEL: beta
+  - TARGET: i686-pc-windows-gnu
+    CHANNEL: beta
+
+# Setup rust compiler
+install:
+  - ps: Start-FileDownload "https://static.rust-lang.org/dist/rust-${env:CHANNEL}-${env:TARGET}.exe"
+  - rust-%CHANNEL%-%TARGET%.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
+  - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
+  - SET PATH=%PATH%;C:\MinGW\bin
+  - rustc -V
+  - cargo -V
+
+build: false
+
+# Build commands
+test_script:
+  - cargo build --verbose
+  - cargo test --verbose
+

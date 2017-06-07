@@ -43,14 +43,12 @@ struct HIDUSBDevice {
 
 /// hidusb device processing
 fn process_device(device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
-    println!("yay");
-
     // Send dummy command (REMOVEME)
     let res = device.write("Test".as_bytes());
     match res {
         Ok(result) => {
-            println!("Ok");
-            println!("Retval: {}", result);
+            //println!("Ok");
+            //println!("Retval: {}", result);
         },
         Err(e) => {
             warn!("Warning! {}", e);
@@ -104,25 +102,25 @@ fn processing() {
             let path = device_info.path.clone();
 
             // Connect to device
-            let device = match api.open_path(&path) {
-                Ok(result) => result,
+            match api.open_path(&path) {
+                Ok(device) => {
+                    // Process device
+                    match process_device(device) {
+                        Ok(result) => {},
+                        Err(e) => {
+                            // Remove problematic devices, will be re-added on the next loop if available
+                            warn!("{} {:#?}", e, device_info);
+                            break;
+                        },
+                    };
+                },
                 Err(e) => {
                     // Could not open device (likely removed)
                     warn!("{} {:#?}", e, device_info);
                     break;
-                    e
                 }
             };
 
-            // Process device
-            match process_device(device) {
-                Ok(result) => {},
-                Err(e) => {
-                    // Remove problematic devices, will be re-added on the next loop if available
-                    warn!("Device issue {:#?}", device_info);
-                    break;
-                },
-            };
         }
 
         // Refresh devices list

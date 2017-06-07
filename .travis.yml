@@ -1,0 +1,28 @@
+# travis-ci integration for the hid-io device daemon
+
+sudo: enabled
+dist: trusty
+
+language:
+  - rust
+
+rust:
+  - stable
+  - beta
+
+os:
+  - linux
+  - osx
+
+# Ignores
+matrix:
+  allow_failures:
+    - rust: beta
+
+# Package Setup
+before_install:
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev -y; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git reset --hard origin/master && brew update && cd -; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
+
