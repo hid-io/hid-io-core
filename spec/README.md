@@ -172,7 +172,7 @@ While most of the Ids are optionally implemented, there are a few that are requi
 
 The next sections will use the following format.
 
-<Name>
+\<Name>
 ```
 <Id> [payload]
 
