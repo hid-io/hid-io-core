@@ -1,12 +1,24 @@
 [package]
-name    = "hidio"
+name    = "hid-io"
 version = "0.1.0"
 authors = ["Jacob Alexander <haata@kiibohd.com>"]
+build   = "build.rs"
+
+
+[[bin]]
+name =  "hid-io"
+
+
+[build-dependencies]
+capnpc        = "0.8.5"
+rustc_version = "0.2.1"
+
 
 [dependencies]
+capnp      = "0.8.10"
+env_logger = "0.4.3"
 hidapi     = "0.3"
 log        = "0.3.8"
-env_logger = "0.4.3"
 
 # TODO (HaaTa) Make conditional
 #xkbcommon = { version = "0.2", features = ["x11"] }

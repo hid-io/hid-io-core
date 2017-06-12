@@ -5,6 +5,12 @@ HIDIO Client Side Library and Daemon
 
 [![Visit our IRC channel](https://kiwiirc.com/buttons/irc.freenode.net/hid-io.png)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 
+## Dependencies
+
+* Rust >= 1.1.17 (may relax this over time)
+* capnproto >= 0.6.0
+
+
 ## Building
 
 ```bash
