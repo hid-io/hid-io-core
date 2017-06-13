@@ -15,10 +15,13 @@ rustc_version = "0.2.1"
 
 
 [dependencies]
-capnp      = "0.8.10"
-env_logger = "0.4.3"
-hidapi     = "0.3"
-log        = "0.3.8"
+bincode      = "0.8.0"
+capnp        = "0.8.10"
+env_logger   = "0.4.3"
+hidapi       = "0.3"
+log          = "0.3.8"
+serde        = "1.0"
+serde_derive = "1.0"
 
 # TODO (HaaTa) Make conditional
 #xkbcommon = { version = "0.2", features = ["x11"] }

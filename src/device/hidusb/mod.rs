@@ -36,15 +36,14 @@ const SLEEP_DURATION: u64 = 5;
 /// Contains HIDUSB device thread information
 /// Required to communicate with device thread
 struct HIDUSBDevice {
-    //device     : hidapi::HidDevice<'a>,
-    deviceinfo : hidapi::HidDeviceInfo,
+    deviceinfo: hidapi::HidDeviceInfo,
 }
 
 
 /// hidusb device processing
 fn process_device(device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
     // Send dummy command (REMOVEME)
-    let res = device.write("Test".as_bytes());
+    let res = device.write(&(super::packet_gen()));
     match res {
         Ok(result) => {
             //println!("Ok");
