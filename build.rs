@@ -14,45 +14,22 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-#[macro_use]
-extern crate serde_derive;
+extern crate capnpc;
+extern crate rustc_version;
 
-use std::{thread, time};
+use rustc_version::{version, version_meta, Channel, Version};
 
-mod module;
-mod device;
-
-// TODO MOVEME
-
-
-
-
-
-/// Main entry point
 fn main() {
-    // Setup logging mechanism
-    env_logger::init().unwrap();
-    info!("Initializing HID-IO daemon...");
+    // Assert if we don't meet the minimum version
+    assert!(version().unwrap() >= Version::parse("1.17.0").unwrap());
 
-    // Initialize Modules
-    module::initialize();
-
-    // Initialize Devices
-    device::initialize();
-
-    // XXX (jacob) Is an infinite loop needed here?
-    loop {
-        thread::sleep(time::Duration::from_millis(2000));
-    }
-
+    // Generate Cap'n Proto rust files
     /*
-    debug!("Debug message");
-    error!("Error message");
-    warn!("Warn message");
-    trace!("Trace message");
+    capnpc::CompilerCommand::new()
+        .src_prefix("schema")
+        .file("schema/test.capnp")
+        .run()
+        .expect("schema compiler command");
     */
 }
 
