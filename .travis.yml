@@ -1,28 +1,36 @@
+
 # travis-ci integration for the hid-io device daemon
 
 sudo: enabled
 dist: trusty
 
 language:
-  - rust
+- rust
 
 rust:
-  - stable
-  - beta
+- stable
+- beta
 
 os:
-  - linux
-  - osx
+- linux
+- osx
 
-# Ignores
 matrix:
   allow_failures:
-    - rust: beta
-
-# Package Setup
+  	- rust: beta
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev -y; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git reset --hard origin/master && brew update && cd -; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev
+  -y; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git
+  reset --hard origin/master && brew update && cd -; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
 
+after_success:
+- bash deploy.sh
+
+env:
+  global:
+  - secure: JRBWFRSHFtrjlnnCgNIcEMxOC04SmRaMCwbMFtT+uugX9uy5Qd9ZdeQJHivQ81vpRAVIT5h8aGap198fR8SrnWoquN58K2Adl9hYO82UyklfU6GUfEuae4dD+IQhs21SKgVYYq0iZ22mL1WQVsI8mbC3cVmLJsGNZekeIwG8BRVMVRDJ7PWU4eC2JXCh3gieY4Js3FFYrQd7aBct9M8v51JhgLyzTMHl3rvJU5wMKOyTfZQFiPC7gLs/MoupVbnpBOcaTY7AhZTQAZY+tpfUD79RIMZad+GUdwBeZq7sWskf3K0DRqhsjxrsFSO05ywpnJ5uuM1WtYKwkTbbhBncSKttyjd9ygPS8sEIlqq67o73B2wXsq9jaoFYuejmuYcMRro49SMXt8WX5sMWen6cq9PRDxM7J/45Qb/T6QuHaQOcFTVV2oWgtEpq8ZhyJS7i8EK6yLK33g2jI5lgIKjN6SxKMxGr9ohyHDM8GYLPaMhOXQ4Cmwlf+rAD3ObiCxUTp0XTwItu+zMvnwTlEKeaNly2aohZ3Kj1IAHwynfrqRsJXi7DlOA3veNWY/bLM8nSiWICt7R1kF5tBZprLKzy7PiTZuzCuidSlnWrIWtsnT9TbtZrQm5dl8CFlVMeJRi404xK3g+oA1iliP3UMeu8HQ77mhudBapzj/HTHkLo8dg=
+  - secure: g5CrrFvXEjFKFFrVVypN6cuYNt3/QxDBm+qrwfJgVEIzDbgQJkVdNYp871OScdyxnFpYNYejkgx5tRgxhcmJ/ixN/l7dHMhYaTRdGlYxLG0pIBqnOis0pnxpznbsdXcultWFEAB9GSwhB+RlAhpsj84VRPq64tz/+Cb7FFmaicbo9P2uwO7lPDhrdYyqSGvy5en1EMa5654DTz5ET2Mw9FjdNga659EY60ouuCVVbFpudAkCOXdaewMmHG51w7wwhLiJ5w10K01SiRYqy28iLmN36Axez+XemS7b56hcZMP1rRbamt95soPZxvfiQII1/hTyUhZp5op/ta32mozKUDNKIQVpJWxIZhT/RfoD4J85Bhdam6eJZ/q+VCeybsMn2FyRVUdrmC88dx1y6bhzKs/vlrCc3BWvCO59QVCxeUzl5euTaym5zscB48TrNRj8LJkLhQZRUfxkGF9113j1vnmYaIa2glg3y4ulR8C6M1UdfJuZ1f3IraqxBpaqNz1+1zF6stIUSkJklO6ven8GKfTlkb+siKxs0aHCo6kfLIV9qGRL640H2aUTCCI72PxS7TGXiaMbGAwuOK++1tRzx4bMcXMJpzwLPlU6JXETI5+BXYnW1u6iMGntPOa/xevnedXl65N0ajKDNwI8XdHvRl9AHpXYN4yJtRg8GGiZq1U=
+  - secure: akM0fV1JeYpUZuJr7sOWb1p/S/HitDT1+/uN4YepUIHUvOTnCpt+vwpS7kA8K+f3FXO/OUZjxceo8fPZ1NMA96dSHgraYYkjb+HtKWV4PJWXGfvbS5Hg3E6tpng6bSHDXxakiVzB1FA24fWAgsBxevelfiQhEFANWYK24CjjT7eKRvqqSanhHEV2YT5HhI598FsmE2Owvlxf5yAtISGMFjRXQ+Nmw8MeC58OAkP0wFw1JSniME/LzEVU7UdE1e9fN87Oh0NMPzD9P0bwrK8Kcar2RyBKV/JRPFFJxGLzouxIObPYF8xdYrD9qn2ThKtEThFS4vJ9b/sq1NWPqCWrqhBNNjgtl5sL4m4WTzofw/NqcoLSY+RK/gCftBB7dAm3qPC+qWI0zzBtXDAoBHcEsGHzIXM/VlgfxGUh2ser2V9GRIFuVa7oMyv6rQ+4Hb7pzerr3bMwnCHERWohjklPJehT7QaX6NYhycK703CHsW/vrzU+yZyoR5nOzGYhw2J+Gt7ZdI1faBCYnE5n9PlIqteLI6QUlL5EWo+8xFa/qI5Y8wOH+Nbxe9V/YLPRlO5K3KmlR54J2/XMMcui6xRf43VVBm3J1IoZHvmZY12nmZDX0aWkRErwHBIAl0b0faXoCfZ8n8WRXAHf2ZOCjuAo803Boby2dzCdEFQra0h6+4w=
