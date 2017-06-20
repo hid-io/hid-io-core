@@ -1,28 +1,25 @@
-# travis-ci integration for the hid-io device daemon
-
 sudo: enabled
 dist: trusty
-
 language:
-  - rust
-
+- rust
 rust:
-  - stable
-  - beta
-
+- stable
+- beta
 os:
-  - linux
-  - osx
-
-# Ignores
+- linux
+- osx
 matrix:
   allow_failures:
-    - rust: beta
-
-# Package Setup
+  - rust: beta
+after_success:
+- bash deploy.sh
 before_install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev -y; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git reset --hard origin/master && brew update && cd -; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
-
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev
+  -y; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git
+  reset --hard origin/master && brew update && cd -; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
+env:
+  global:
+    secure: cRHAmBHjT3SIegILl5B++chRe7jHzTl08Qn5Jpq8IOURhzvF1asSeDnAPeAQWkbY3li/9OCi4Ik+A+VFJ/q0IAHJoV7E4vCnutqDmBPJN3REA5E9Gh5WsKTLrF0X3ffv/OK5XbB18qgqUbthy+9HV/17ispe0DVgnOlWFhT6SmSyafe5AsdBkSVwVRvsdltdmNU96fgr2fw/q1tuCRM51xzDNuAm5SFhE3YB2OQJjPe62Gn6HqvXHU8Un1nfap7DYw79GtXODuFteb4W7+/wTkzrYarqYh3CnGWNNr4d0Q9Z55gLBOq61DmxtdBKHlEVE7hDvnHdvS6pxYPYoqSD8a2RV3sW6qMB1xrrHwToGI0oIjyHkf/vId0xYUtmJ5xaG+Nn4NSmYQNXGYIzxoVUHfobTjfOpVuqjtlr8eYcbPLksfDC+uTZCQxcYOH9jBXUxBmfZYSarDzmbKgHnPEnVrfWJuiIUzmLwfI2eJ0VwUGTBkmebaamckzKA6B3kTeMoeAeEJ/S6Qo5dkT0MObf/xIOkgIzGpNjZTFTYaPsj2XXMTjRseykbD44DAE1C1sfKYw0Nnkqi4mqmFaSaTj+GM9W61vHMlzR4vcf2N/PZL/ZpTcHpn2A5zMvZKZkGpBfw9vrpbMsed+tJTwh4RfnIFXb8YODdMHJ33M5tslvAos=
