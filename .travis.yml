@@ -24,7 +24,7 @@ before_install:
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
 
 after_success:
-- bash deploy.sh
+- bash deploy.bash
 
 env:
   global:
