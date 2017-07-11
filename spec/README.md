@@ -5,7 +5,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 
 ### Modifications
 * 2016-02-14 - Initial Draft (HaaTa)
-* 2017-06-XX - Initial Implementation - v0.1.0 (HaaTa)
+* 2017-07-XX - Initial Implementation - v0.1.0 (HaaTa)
 
 ## Glossary
 
@@ -75,6 +75,7 @@ __Requirements of transmission__
 * Every data packet must be responded by an Ack or Nak packet.
 * Each side periodically (~1-5 seconds) sends Sync packets as a keep-alive. If more than one Sync is received while waiting for an Ack or Nak the previous data packet was not successfully processed. Sync packets should only be sent if the device/host has not sent a packet during a given time interval.
 * If a request is received while sending its own query, finish sending the query, then immediately process the request. Do not send a Sync between unless sending a packet using the max payload. In this case a Sync packet should be sent immediately after to tell the receiver that the packet will not be continued.
+* When receiving a Nak packet, any pending continued packets for that sequence must be dropped. Nak packet may, or may not contain a payload. No payload indicates that the request is not suported.
 
 
 **Packet Types**
@@ -82,11 +83,12 @@ __Requirements of transmission__
 HID-IO has a 5 different packet types: Data **b000**, Acknowledge **b001**, Negative Acknowledge **b002**, Sync **b003** and Continued **b004** packets. Packets labels 5 through 7 are reserved. These 3 bits are included in the Header byte of each packet.
 
 ```
-WWWX YYZZ
-WWW - Packet type
-  X - Continued
- YY - Id width
-ZZZ - Upper length bits
+VVVW XYZZ
+VVV - Packet type
+  W - Continued
+  X - Id width
+  Y - Reserved
+ ZZ - Upper length bits
 
 0110 0000 (0x60) - Sync packet
 
@@ -104,10 +106,8 @@ b1 - An additional continued packet is necessary
 (last packet sets to b0 to indicate complete)
 
 |Id Widths|
-b00 - 8 bit
-b01 - 16 bit
-b10 - 24 bit
-b11 - 32 bit
+b0 - 16 bit
+b1 - 32 bit
 
 |Upper Length Bits|
 b11 1111 1111 - 1023
@@ -120,15 +120,14 @@ The length field is the a value between 1 and <max packet size> - 2. In addition
 
 All payloads are Id specific and may include any sort of day without restriction as long as it fits within the max payload size. If the payload is larger, the payload may be chunked into Continued packets. The receiving side will need to keep track of the previous packet type to process the continued packet.
 
-The Id Width is the number of bytes used to construct the Id. The Id width is increased using 8 bit increments and must be shifted onto the accumulator. This means with a 32 bit Id using 8 byte packets there can be a maximum payload of 2 bytes. Continued packets do not include the Id so 6 bytes of data can be sent in each successive packet.
-The first byte in the Id is the LSB (least signifiant byte), or in otherwords, little-endian.
+The Id Width field indicates whether the Id is 16 bits or 32 bits wide. As long as the Id is lower than 2^16, a 16 bit field is always supported. Only use 32 bit Ids when required, not all firmwares will support 32 bit Ids.
 
 __Data Packet__
 ```
 <data> <length> <Id> [payload]
 
-Data Packet, 32 bit Id, 4 byte length (actual length 6), Id 15
-0x10 0x04 0x0F 0x00 0x00 0x00
+Data Packet, 32 bit Id, Continued, 4 byte length (actual length 6), Id 15
+0x18 0x04 0x0F 0x00 0x00 0x00
 ```
 
 __Acknowledge Packet__
@@ -136,23 +135,23 @@ __Acknowledge Packet__
 <ack> <length> <Id> [payload]
 
 Ack packet, 16 bit id, 3 byte length (actual length 5), Id 1025, Payload 0x32
-0x28 0x03 0x01 0x04 0x32
+0x20 0x03 0x01 0x04 0x32
 ```
 
 __Negative Acknowledge Packet__
 ```
 <nak> <length> <Id> [payload]
 
-Nak packet, 8 bit id, 260 byte length (actual length 262), Id 40, Payload starts from ...
-0x41 0x04 0x28 ...
+Nak packet, 16 bit id, 260 byte length (actual length 262), Id 40, Payload starts from ...
+0x40 0x04 0x28 0x00 ...
 ```
 
 __Continued Packet__
 ```
 <cont> <length> <Id> [payload]
 
-Continued packet, 8 bit id, 2 length (actual length 4), Id 10, Payload 0xFE
-0x80 0x02 0x0A 0xFE
+Continued packet, 16 bit id, 2 length (actual length 4), Id 10, Payload 0xFE
+0x80 0x02 0x0A 0x00 0xFE
 ```
 
 __Sync Packet__
