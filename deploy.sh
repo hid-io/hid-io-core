@@ -13,7 +13,6 @@ fi
 
 rev=$(git rev-parse --short HEAD)
 
-cd stage/_book
 mkdir -p target/doc
 cd target/doc
 
