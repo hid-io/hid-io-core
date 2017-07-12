@@ -5,6 +5,11 @@ HID-IO Client Side Library and Daemon
 
 [![Visit our IRC channel](https://kiwiirc.com/buttons/irc.freenode.net/hid-io.png)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 
+### API Documentation
+
+* [master](https://hid-io.github.io/hid_io)
+
+
 ## Getting
 
 Currently you have to build the HID-IO daemon yourself. But it will be made available in binary form once we are ready for a beta.
