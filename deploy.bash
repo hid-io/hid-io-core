@@ -17,17 +17,17 @@ mkdir -p target/doc
 cd target/doc
 
 git init
-git config user.name "Daniel Ho"
-git config user.email "ho@berkeley.edu"
+git config user.name "Jacob Alexander"
+git config user.email "haata@kiibohd.com"
 
 git remote add upstream "https://$GH_TOKEN@github.com/hid-io/hid-io.github.io"
 git fetch upstream
-git reset upstream/gh-pages
+git reset upstream/master
 
 touch .
 
 cargo doc
 git add -A .
 git commit -m "rebuild pages at ${rev}"
-git push -q upstream HEAD:gh-pages
+git push -q upstream HEAD:master
 
