@@ -17,18 +17,29 @@
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-#[macro_use]
-extern crate serde_derive;
+//#[macro_use]
+//extern crate serde_derive;
 
 use std::{thread, time};
 
-mod module;
-mod device;
+pub mod device;
+pub mod module;
+pub mod protocol;
 
 // TODO MOVEME
 
 
 
+/// Test Function
+///
+/// # Remarks
+///
+/// Much remark. So thing. wow.
+///
+pub fn test_func() {
+    info!("YUSSS");
+    assert!(1i32 == 1i32);
+}
 
 
 /// Main entry point

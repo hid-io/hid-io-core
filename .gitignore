@@ -50,3 +50,14 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+## Rust specific ##
+# Compiled files
+/target/
+
+# Remove Cargo.lock only for executable targets
+Cargo.lock
+
+# Backup files from rustfmt
+**/*.rs.bk
+

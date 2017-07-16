@@ -14,25 +14,6 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//use std::thread;
 
-
-/// DeviceInfo struct
-/*
-pub struct DeviceInfo {
-    serial  : &'static str, // Device serial number
-    address : &'static str, // Device hardware address
-    name    : &'static str, // Device name
-}
-*/
-
-
-/// Device initialization
-/// Sets up a scanning thread per Device type.
-/// Each scanning thread will create a new thread per device found.
-/// The scanning thread is required in case devices are plugged/unplugged while running.
-/// If a device is unplugged, the Device thread will exit.
-pub fn initialize() {
-    info!("Initializing modules...");
-}
+pub mod hidio;
 

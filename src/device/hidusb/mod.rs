@@ -16,9 +16,9 @@
 
 extern crate hidapi;
 
-use std::string;
+//use std::string;
 use std::thread;
-use std::thread::sleep;
+//use std::thread::sleep;
 use std::time::Duration;
 
 
@@ -27,7 +27,7 @@ const DEV_VID: u16 = 0x1c11;
 const DEV_PID: u16 = 0xb04d;
 const INTERFACE_NUMBER: i32 = 5;
 
-const PACKET_SIZE: usize = 64; // TODO Autodetect
+//const PACKET_SIZE: usize = 64; // TODO Autodetect
 const SLEEP_DURATION: u64 = 5;
 
 
@@ -35,14 +35,17 @@ const SLEEP_DURATION: u64 = 5;
 ///
 /// Contains HIDUSB device thread information
 /// Required to communicate with device thread
+/*
 struct HIDUSBDevice {
     deviceinfo: hidapi::HidDeviceInfo,
 }
+*/
 
 
 /// hidusb device processing
 fn process_device(device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
     // Send dummy command (REMOVEME)
+    /*
     let res = device.write(&(super::packet_gen()));
     match res {
         Ok(result) => {
@@ -56,6 +59,8 @@ fn process_device(device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
     }
     //println!("{}", self.device.check_error().unwrap());
     return res;
+    */
+    return Ok(1);
 
     /*
     let res = device_list[index].0.get_indexed_string(1).unwrap();
@@ -79,7 +84,7 @@ fn processing() {
 
     /// Loop infinitely, the watcher only exits if the daemon is quit
     loop {
-        let mut remove_list: Vec<usize> = Vec::new();
+        //let mut remove_list: Vec<usize> = Vec::new();
 
         // Iterate over found USB interfaces and select usable ones
         for device_info in api.devices() {
@@ -138,7 +143,7 @@ fn processing() {
 ///
 /// Sets up a processing thread for hidusb.
 pub fn initialize() {
-    info!("Initializing hidusb...");
+    info!("Initializing device/hidusb...");
 
     // Spawn watcher thread
     thread::spawn(processing);

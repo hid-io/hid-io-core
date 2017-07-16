@@ -14,25 +14,39 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//use std::thread;
+//use std::string;
+use std::thread;
+//use std::thread::sleep;
+use std::time::Duration;
 
 
-/// DeviceInfo struct
-/*
-pub struct DeviceInfo {
-    serial  : &'static str, // Device serial number
-    address : &'static str, // Device hardware address
-    name    : &'static str, // Device name
+const SLEEP_DURATION: u64 = 1000;
+
+
+/// debug processing
+fn processing() {
+    info!("Spawning device/debug spawning thread...");
+
+    /// Loop infinitely, the watcher only exits if the daemon is quit
+    loop {
+        // Sleep so we don't starve the CPU
+        thread::sleep(Duration::from_millis(SLEEP_DURATION));
+    }
 }
-*/
 
 
-/// Device initialization
-/// Sets up a scanning thread per Device type.
-/// Each scanning thread will create a new thread per device found.
-/// The scanning thread is required in case devices are plugged/unplugged while running.
-/// If a device is unplugged, the Device thread will exit.
+/// device debug module initialization
+///
+/// # Arguments
+///
+/// # Remarks
+///
+/// Sets up a processing thread for the debug module.
+///
 pub fn initialize() {
-    info!("Initializing modules...");
+    info!("Initializing device/debug...");
+
+    // Spawn watcher thread
+    thread::spawn(processing);
 }
 

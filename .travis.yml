@@ -17,12 +17,19 @@ matrix:
   allow_failures:
   - rust: beta
 
+# Environment setup
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev -y; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git reset --hard origin/master && brew update && cd -; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
 
+# Overrides default rust build commands
+script:
+  - cargo build --verbose --color=always
+  - cargo test --verbose --color=always
+
+# Deployment
 after_success:
 - bash deploy.bash
 
