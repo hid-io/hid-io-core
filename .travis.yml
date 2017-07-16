@@ -6,6 +6,7 @@ language:
 - rust
 
 rust:
+- 1.17.0 # Minimum version
 - stable
 - beta
 

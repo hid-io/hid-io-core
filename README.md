@@ -17,7 +17,7 @@ Currently you have to build the HID-IO daemon yourself. But it will be made avai
 
 ## Dependencies
 
-* Rust >= 1.1.17 (may relax this over time)
+* Rust >= 1.17.0 (may relax (or tighten) this over time)
 * capnproto >= 0.6.0
 
 
@@ -31,6 +31,12 @@ cargo build
 
 ```bash
 RUST_LOG=info RUST_BACKTRACE=1 cargo run
+```
+
+### Running Unit Tests
+
+```bash
+cargo test
 ```
 
 ## Supported Keyboard Firmware

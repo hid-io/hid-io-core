@@ -11,6 +11,13 @@ environment:
     CHANNEL: 1.18.0
   - TARGET: i686-pc-windows-gnu
     CHANNEL: 1.18.0
+  # min-version
+  - TARGET: x86_64-pc-windows-msvc
+    CHANNEL: 1.17.0
+  - TARGET: i686-pc-windows-msvc
+    CHANNEL: 1.17.0
+  - TARGET: i686-pc-windows-gnu
+    CHANNEL: 1.17.0
   # beta
   - TARGET: x86_64-pc-windows-msvc
     CHANNEL: beta
