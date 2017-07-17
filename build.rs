@@ -14,14 +14,28 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// ----- Crates -----
+
+extern crate built;
 extern crate capnpc;
 extern crate rustc_version;
 
-use rustc_version::{version, version_meta, Channel, Version};
+
+
+// ----- Modules -----
+
+use rustc_version::{version, Version};
+
+
+
+// ----- Functions -----
 
 fn main() {
     // Assert if we don't meet the minimum version
     assert!(version().unwrap() >= Version::parse("1.17.0").unwrap());
+
+    // Generate build-time information
+    built::write_built_file().expect("Failed to acquire build-time information");
 
     // Generate Cap'n Proto rust files
     /*

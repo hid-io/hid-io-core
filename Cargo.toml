@@ -1,8 +1,17 @@
 [package]
-name    = "hid-io"
-version = "0.1.0"
-authors = ["Jacob Alexander <haata@kiibohd.com>"]
-build   = "build.rs"
+name          = "hid-io"
+version       = "0.1.0-alpha"
+authors       = ["Jacob Alexander <haata@kiibohd.com>"]
+license       = "GPLv3"
+description   = """
+HID-IO is a host-side daemon for advanced HID devices.
+"""
+
+homepage      = "https://github.com/hid-io/hid-io"
+repository    = "https://github.com/hid-io/hid-io"
+documentation = "https://hid-io.github.io/hid_io/"
+
+build         = "build.rs"
 
 
 [[bin]]
@@ -10,6 +19,7 @@ name =  "hid-io"
 
 
 [build-dependencies]
+built         = "0.1.0"
 capnpc        = "0.8.5"
 rustc_version = "0.2.1"
 
@@ -17,12 +27,21 @@ rustc_version = "0.2.1"
 [dependencies]
 bincode      = "0.8.0"
 capnp        = "0.8.10"
+clap         = "2.25.0"
 env_logger   = "0.4.3"
 hidapi       = "0.3"
 log          = "0.3.8"
 serde        = "1.0"
-serde_derive = "1.0"
 
-# TODO (HaaTa) Make conditional
-#xkbcommon = { version = "0.2", features = ["x11"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+xkbcommon = { version = "0.2", features = ["x11"] }
+
+
+#[target.'cfg(windows)'.dependencies]
+# TODO
+
+
+#[target.'cfg(target_os = "macos")'.dependencies]
+# TODO
 
