@@ -1,16 +1,17 @@
 # appveyor integration for the hid-io device daemon
 
 # Select environments
-# NOTE: x86_64-pc-windows-gnu isn't supported
+# NOTE: x86_64-pc-windows-gnu isn't supported (due to hidapi)
 environment:
   matrix:
   # stable
   - TARGET: x86_64-pc-windows-msvc
-    CHANNEL: 1.18.0
+    CHANNEL: stable
   - TARGET: i686-pc-windows-msvc
-    CHANNEL: 1.18.0
+    CHANNEL: stable
   - TARGET: i686-pc-windows-gnu
-    CHANNEL: 1.18.0
+    CHANNEL: stable
+    MSYS_BITS: 32
   # min-version
   - TARGET: x86_64-pc-windows-msvc
     CHANNEL: 1.17.0
@@ -18,6 +19,7 @@ environment:
     CHANNEL: 1.17.0
   - TARGET: i686-pc-windows-gnu
     CHANNEL: 1.17.0
+    MSYS_BITS: 32
   # beta
   - TARGET: x86_64-pc-windows-msvc
     CHANNEL: beta
@@ -25,15 +27,18 @@ environment:
     CHANNEL: beta
   - TARGET: i686-pc-windows-gnu
     CHANNEL: beta
+    MSYS_BITS: 32
+  # environment variables
+  RUST_BACKTRACE: full
 
 # Setup rust compiler
 install:
-  - ps: Start-FileDownload "https://static.rust-lang.org/dist/rust-${env:CHANNEL}-${env:TARGET}.exe"
-  - rust-%CHANNEL%-%TARGET%.exe /VERYSILENT /NORESTART /DIR="C:\Program Files (x86)\Rust"
-  - SET PATH=%PATH%;C:\Program Files (x86)\Rust\bin
-  - SET PATH=%PATH%;C:\MinGW\bin
-  - rustc -V
-  - cargo -V
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs/
+  - rustup-init.exe -y --default-host %TARGET% --default-toolchain %CHANNEL%
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - if defined MSYS_BITS set PATH=%PATH%;C:\msys64\mingw%MSYS_BITS%\bin;C:\msys64\usr\bin
+  - rustc -Vv
+  - cargo -Vv
 
 build: false
 

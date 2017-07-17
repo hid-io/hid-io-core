@@ -15,6 +15,14 @@ HID-IO Client Side Library and Daemon
 Currently you have to build the HID-IO daemon yourself. But it will be made available in binary form once we are ready for a beta.
 
 
+## Usage
+
+```bash
+hid-io
+hid-io --help
+```
+
+
 ## Dependencies
 
 * Rust >= 1.17.0 (may relax (or tighten) this over time)
@@ -27,11 +35,13 @@ Currently you have to build the HID-IO daemon yourself. But it will be made avai
 cargo build
 ```
 
+
 ## Testing
 
 ```bash
 RUST_LOG=info RUST_BACKTRACE=1 cargo run
 ```
+
 
 ### Running Unit Tests
 
