@@ -29,6 +29,11 @@ hid-io --help
 * capnproto >= 0.6.0
 
 
+### i686-pc-windows-gnu Dependencies
+
+* `make` must be path
+
+
 ## Building
 
 ```bash
