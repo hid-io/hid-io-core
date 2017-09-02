@@ -28,6 +28,7 @@ extern crate log;
 use clap::App;
 use std::{thread, time};
 
+pub mod api;
 pub mod device;
 pub mod module;
 pub mod protocol;
@@ -80,6 +81,9 @@ fn main() {
 
     // Initialize Devices
     device::initialize();
+
+    // Initialize Cap'n'Proto API Server
+    api::initialize();
 
     // XXX (jacob) Is an infinite loop needed here?
     loop {

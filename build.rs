@@ -38,12 +38,15 @@ fn main() {
     built::write_built_file().expect("Failed to acquire build-time information");
 
     // Generate Cap'n Proto rust files
-    /*
     capnpc::CompilerCommand::new()
         .src_prefix("schema")
-        .file("schema/test.capnp")
+        .file("schema/common.capnp")
+        .file("schema/devicefunction.capnp")
+        .file("schema/hidio.capnp")
+        .file("schema/hidiowatcher.capnp")
+        .file("schema/hostmacro.capnp")
+        .file("schema/usbkeyboard.capnp")
         .run()
         .expect("schema compiler command");
-    */
 }
 
