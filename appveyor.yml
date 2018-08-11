@@ -14,11 +14,11 @@ environment:
     MSYS_BITS: 32
   # min-version
   - TARGET: x86_64-pc-windows-msvc
-    CHANNEL: 1.17.0
+    CHANNEL: 1.27.1
   - TARGET: i686-pc-windows-msvc
-    CHANNEL: 1.17.0
+    CHANNEL: 1.27.1
   - TARGET: i686-pc-windows-gnu
-    CHANNEL: 1.17.0
+    CHANNEL: 1.27.1
     MSYS_BITS: 32
   # beta
   - TARGET: x86_64-pc-windows-msvc
@@ -31,8 +31,11 @@ environment:
   # environment variables
   RUST_BACKTRACE: full
 
-# Setup rust compiler
+# Setup rust compiler and capnproto
 install:
+  - curl -sSf -o capnproto-c++-win32-0.6.1.zip https://capnproto.org/capnproto-c++-win32-0.6.1.zip
+  - 7z x -oC:\capnp capnproto-c++-win32-0.6.1.zip
+  - set PATH=%PATH%;C:\capnp\capnproto-tools-win32-0.6.1
   - curl -sSf -o rustup-init.exe https://win.rustup.rs/
   - rustup-init.exe -y --default-host %TARGET% --default-toolchain %CHANNEL%
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin

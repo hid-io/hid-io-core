@@ -6,7 +6,7 @@ language:
 - rust
 
 rust:
-- 1.17.0 # Minimum version
+- 1.27.1 # Minimum version
 - stable
 - beta
 
@@ -22,13 +22,19 @@ matrix:
 env:
   global:
     - RUST_BACKTRACE=full
+    - export PATH="$PATH:$HOME/bin"
+    - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$HOME/lib"
 
 # Environment setup
 before_install:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -qq; fi
-- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev -y; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libusb-1.0-0-dev gcc g++ -y; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git reset --hard origin/master && brew update && cd -; fi
-- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb; fi
+- if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb capnp; fi
+
+install:
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl -O "https://capnproto.org/capnproto-c++-0.6.1.tar.gz"; tar xf "capnproto-c++-0.6.1.tar.gz"; fi
+- if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cd "capnproto-c++-0.6.1" && ./configure --prefix=$HOME && make -j3 && make install && cd ..; fi
 
 # Overrides default rust build commands
 script:
