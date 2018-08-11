@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2018 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ extern crate serde;
 
 use std::fmt;
 
-use self::bincode::{serialize, Infinite};
+use self::bincode::serialize;
 use self::serde::ser::{self, Serialize, Serializer, SerializeSeq};
 
 
@@ -404,8 +404,7 @@ impl HIDIOPacketBuffer {
     /// Removes some of the header that Serialize from serde prepends.
     pub fn serialize_buffer(&mut self) -> Result<Vec<u8>, HIDIOParseError> {
         // Serialize
-        // We don't care about how large the result buffer is, so we used Infinite
-        let serialized: Vec<u8> = serialize(&self, Infinite).unwrap();
+        let serialized: Vec<u8> = serialize(&self).unwrap();
 
         // Make sure serialization worked
         if serialized.len() < 10 {
