@@ -28,14 +28,14 @@ rustc_version = "0.2.3"
 bincode      = "1.0.1"
 capnp        = "0.9.0"
 clap         = "2.32.0"
-env_logger   = "0.4.3"
+env_logger   = "0.5.12"
 hidapi       = "0.5.0"
 log          = "0.4.3"
 serde        = "1.0.71"
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-xkbcommon = { version = "0.2.3", features = ["x11"] }
+xkbcommon = { version = "0.3.0", features = ["x11"] }
 
 
 #[target.'cfg(windows)'.dependencies]
