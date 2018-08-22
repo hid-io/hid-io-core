@@ -30,4 +30,3 @@
 pub fn initialize() {
     info!("Initializing api...");
 }
-

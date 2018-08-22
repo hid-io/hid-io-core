@@ -14,8 +14,8 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pub mod hidusb;
 pub mod debug;
+pub mod hidusb;
 
 /// Module initialization
 ///
@@ -32,4 +32,3 @@ pub fn initialize() {
     hidusb::initialize();
     debug::initialize();
 }
-

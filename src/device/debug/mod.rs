@@ -27,7 +27,7 @@ const SLEEP_DURATION: u64 = 1000;
 fn processing() {
     info!("Spawning device/debug spawning thread...");
 
-    /// Loop infinitely, the watcher only exits if the daemon is quit
+    // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
         // Sleep so we don't starve the CPU
         thread::sleep(Duration::from_millis(SLEEP_DURATION));
@@ -49,4 +49,3 @@ pub fn initialize() {
     // Spawn watcher thread
     thread::spawn(processing);
 }
-

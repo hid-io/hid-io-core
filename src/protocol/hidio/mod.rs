@@ -26,7 +26,7 @@ extern crate serde;
 use std::fmt;
 
 use self::bincode::serialize;
-use self::serde::ser::{self, Serialize, Serializer, SerializeSeq};
+use self::serde::ser::{self, Serialize, SerializeSeq, Serializer};
 
 
 
@@ -39,13 +39,13 @@ use self::serde::ser::{self, Serialize, Serializer, SerializeSeq};
 #[derive(PartialEq, Clone, Copy)]
 pub enum HIDIOPacketType {
     /// Data packet
-    Data      = 0,
+    Data = 0,
     /// ACK packet
-    ACK       = 1,
+    ACK = 1,
     /// NAK packet
-    NAK       = 2,
+    NAK = 2,
     /// Sync packet
-    Sync      = 3,
+    Sync = 3,
     /// Continued packet
     Continued = 4,
 }
@@ -61,22 +61,21 @@ pub enum HIDIOPacketType {
 #[derive(PartialEq, Clone)]
 pub struct HIDIOPacketBuffer {
     /// Type of packet (Continued is automatically set if needed)
-    pub ptype:   HIDIOPacketType,
+    pub ptype: HIDIOPacketType,
     /// Packet Id
-    pub id:      u32,
+    pub id: u32,
     /// Packet length for serialization (in bytes)
     pub max_len: u32,
     /// Payload data, chunking is done automatically by serializer
-    pub data:    Vec<u8>,
+    pub data: Vec<u8>,
     /// Set False if buffer is not complete, True if it is
-    pub done:    bool,
+    pub done: bool,
 }
 
 /// HID-IO Parse Error
 ///
 /// # Remarks thrown when there's an issue processing byte stream.
-pub struct HIDIOParseError {
-}
+pub struct HIDIOParseError {}
 
 
 
@@ -102,7 +101,7 @@ pub fn packet_type(packet_data: &mut Vec<u8>) -> Result<HIDIOPacketType, HIDIOPa
 
     // Check if the byte stream is large enough
     if packet_data_len < 1 {
-        return Err(HIDIOParseError{});
+        return Err(HIDIOParseError {});
     }
 
     // Extract first 3 bits from first byte
@@ -115,7 +114,7 @@ pub fn packet_type(packet_data: &mut Vec<u8>) -> Result<HIDIOPacketType, HIDIOPa
         2 => Ok(HIDIOPacketType::NAK),
         3 => Ok(HIDIOPacketType::Sync),
         4 => Ok(HIDIOPacketType::Continued),
-        _ => Err(HIDIOParseError{}),
+        _ => Err(HIDIOParseError {}),
     }
 }
 
@@ -141,7 +140,7 @@ pub fn payload_len(packet_data: &mut Vec<u8>) -> Result<u32, HIDIOParseError> {
 
     // Check if the byte stream is large enough
     if packet_data_len < 2 {
-        return Err(HIDIOParseError{});
+        return Err(HIDIOParseError {});
     }
 
     // Extract upper_len and len
@@ -173,14 +172,14 @@ pub fn packet_id_width(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseErr
 
     // Check if the byte stream is large enough
     if packet_data_len < 2 {
-        return Err(HIDIOParseError{});
+        return Err(HIDIOParseError {});
     }
 
     // Extract id_width
     match packet_data[0] & 0x08 {
         0x00 => Ok(2), // 16 bit
         0x08 => Ok(4), // 32 bit
-        _ =>    Err(HIDIOParseError{}),
+        _ => Err(HIDIOParseError {}),
     }
 }
 
@@ -208,18 +207,18 @@ pub fn packet_id(packet_data: &mut Vec<u8>) -> Result<u32, HIDIOParseError> {
 
     // Make sure there are enough possible bytes
     if payload_len(packet_data)? < id_width as u32 {
-        return Err(HIDIOParseError{});
+        return Err(HIDIOParseError {});
     }
 
     // Make sure there enough actual bytes
     if packet_data_len < id_width + 2 {
-        return Err(HIDIOParseError{});
+        return Err(HIDIOParseError {});
     }
 
     // Iterate over bytes, constructing Id of either 16 or 32 bit width
     let mut id: u32 = 0;
     let offset = 2;
-    for idx in 0 .. id_width as usize {
+    for idx in 0..id_width as usize {
         id |= (packet_data[offset + idx] as u32) << (idx * 8);
     }
 
@@ -245,7 +244,7 @@ pub fn continued_packet(packet_data: &mut Vec<u8>) -> Result<bool, HIDIOParseErr
 
     // Check if the byte stream is large enough
     if packet_data_len < 1 {
-        return Err(HIDIOParseError{});
+        return Err(HIDIOParseError {});
     }
 
     // Extract cont field
@@ -253,7 +252,7 @@ pub fn continued_packet(packet_data: &mut Vec<u8>) -> Result<bool, HIDIOParseErr
     match packet_data[0] & 0x10 {
         0x10 => Ok(true),
         0x00 => Ok(false),
-        _ =>    Err(HIDIOParseError{}),
+        _ => Err(HIDIOParseError {}),
     }
 }
 
@@ -343,7 +342,11 @@ impl HIDIOPacketBuffer {
 
         // Make sure there's actually payload_len available
         if packet_data_len - 2 < payload_len {
-            warn!("Dropping. Not enough bytes available in packet stream. got:{}, expected:{}", packet_data_len - 2, payload_len);
+            warn!(
+                "Dropping. Not enough bytes available in packet stream. got:{}, expected:{}",
+                packet_data_len - 2,
+                payload_len
+            );
             return Ok(packet_data_len);
         }
 
@@ -390,7 +393,8 @@ impl HIDIOPacketBuffer {
         self.done = !continued_packet(packet_data)?;
 
         // Add payload
-        let slice = &packet_data[payload_start .. payload_start + payload_len as usize - id_width_len];
+        let slice =
+            &packet_data[payload_start..payload_start + payload_len as usize - id_width_len];
         self.data.append(&mut slice.to_vec());
 
         // Finished
@@ -408,11 +412,11 @@ impl HIDIOPacketBuffer {
 
         // Make sure serialization worked
         if serialized.len() < 10 {
-            return Err(HIDIOParseError{});
+            return Err(HIDIOParseError {});
         }
 
         // Slice off the first 8 header bytes from serde
-        let slice = &serialized[8 .. ];
+        let slice = &serialized[8..];
         let serialized = slice.to_vec();
 
         Ok(serialized)
@@ -437,7 +441,10 @@ impl Serialize for HIDIOPacketBuffer {
     ///    uint8_t           data[0];     // Start of data payload (may start with Id)
     /// };
     /// ```
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
         // Check if buffer is ready to serialize
         if !self.done {
             return Err(ser::Error::custom("HIDIOPacketBuffer is not 'done'"));
@@ -447,7 +454,7 @@ impl Serialize for HIDIOPacketBuffer {
 
         // Determine id_width
         let id_width: u8 = match (&self).id {
-            0x00...0xFFFF =>         0, // 16 bit Id
+            0x00...0xFFFF => 0,         // 16 bit Id
             0x010000...0xFFFFFFFF => 1, // 32 bit Id
             _ => 0,
         };
@@ -474,7 +481,7 @@ impl Serialize for HIDIOPacketBuffer {
         // Determine packet len
         let packet_len: u16 = match cont {
             // Full payload length
-            true  => payload_len as u16 + id_width_len as u16,
+            true => payload_len as u16 + id_width_len as u16,
             // Calculate payload length with what's left
             false => data_len as u16 + id_width_len as u16,
         };
@@ -485,16 +492,16 @@ impl Serialize for HIDIOPacketBuffer {
 
         // Determine ptype
         let ptype: u8 = match (&self).ptype {
-            HIDIOPacketType::Data      => 0,
-            HIDIOPacketType::ACK       => 1,
-            HIDIOPacketType::NAK       => 2,
-            HIDIOPacketType::Sync      => 3,
+            HIDIOPacketType::Data => 0,
+            HIDIOPacketType::ACK => 1,
+            HIDIOPacketType::NAK => 2,
+            HIDIOPacketType::Sync => 3,
             HIDIOPacketType::Continued => 4,
         };
 
         // Convert Id into bytes
         let mut id_vec: Vec<u8> = Vec::new();
-        for idx in 0 .. id_width_len {
+        for idx in 0..id_width_len {
             let id = ((&self).id >> idx * 8) as u8;
             id_vec.push(id);
         }
@@ -513,7 +520,8 @@ impl Serialize for HIDIOPacketBuffer {
             (upper_len & 0x3);
 
         // Calculate total length of serialized output
-        let serialized_len = ( data_len / payload_len ) * payload_len + data_len % payload_len + hdr_len as u32;
+        let serialized_len =
+            (data_len / payload_len) * payload_len + data_len % payload_len + hdr_len as u32;
 
         // Serialize as a sequence
         let mut state = serializer.serialize_seq(Some(serialized_len as usize))?;
@@ -538,9 +546,9 @@ impl Serialize for HIDIOPacketBuffer {
         // We can't just serialize directly (extra info is included), serialize each element of vector separately
         let slice = match cont {
             // Full payload length
-            true =>  &self.data[0 .. payload_len as usize],
+            true => &self.data[0..payload_len as usize],
             // Payload that's available
-            false => &self.data[0 .. data_len as usize],
+            false => &self.data[0..data_len as usize],
         };
         for elem in slice {
             state.serialize_element(elem)?;
@@ -568,7 +576,7 @@ impl Serialize for HIDIOPacketBuffer {
             // Determine packet len
             let packet_len: u16 = match cont {
                 // Full payload length
-                true  => payload_len as u16 + id_width_len as u16,
+                true => payload_len as u16 + id_width_len as u16,
                 // Calculate payload length with what's left
                 false => payload_left as u16 + id_width_len as u16,
             };
@@ -605,15 +613,15 @@ impl Serialize for HIDIOPacketBuffer {
             // We can't just serialize directly (extra info is included), serialize each element of vector separately
             let slice_end = match cont {
                 // Full payload length
-                true =>  (last_slice_index + payload_len as usize),
+                true => (last_slice_index + payload_len as usize),
                 // Payload that's available
                 false => data_len as usize,
             };
             let slice = match cont {
                 // Full payload length
-                true =>  &self.data[last_slice_index .. slice_end],
+                true => &self.data[last_slice_index..slice_end],
                 // Payload that's available
-                false => &self.data[last_slice_index .. slice_end],
+                false => &self.data[last_slice_index..slice_end],
             };
             for elem in slice {
                 state.serialize_element(elem)?;
@@ -634,10 +642,10 @@ impl fmt::Display for HIDIOPacketType {
     /// Display formatter for HIDIOPacketType
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let ptype_name = match *self {
-            HIDIOPacketType::Data      => "HIDIOPacketBuffer::Data",
-            HIDIOPacketType::ACK       => "HIDIOPacketBuffer::ACK",
-            HIDIOPacketType::NAK       => "HIDIOPacketBuffer::NAK",
-            HIDIOPacketType::Sync      => "HIDIOPacketBuffer::Sync",
+            HIDIOPacketType::Data => "HIDIOPacketBuffer::Data",
+            HIDIOPacketType::ACK => "HIDIOPacketBuffer::ACK",
+            HIDIOPacketType::NAK => "HIDIOPacketBuffer::NAK",
+            HIDIOPacketType::Sync => "HIDIOPacketBuffer::Sync",
             HIDIOPacketType::Continued => "HIDIOPacketBuffer::Continued",
         };
         write!(f, "{}", ptype_name)
@@ -647,12 +655,10 @@ impl fmt::Display for HIDIOPacketType {
 impl fmt::Display for HIDIOPacketBuffer {
     /// Display formatter for HIDIOPacketBuffer
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "\n{{\n    ptype: {}\n    id: {}\n    max_len: {}\n    done: {}\n    data: {:#?}\n}}",
-            self.ptype,
-            self.id,
-            self.max_len,
-            self.done,
-            self.data,
+        write!(
+            f,
+            "\n{{\n    ptype: {}\n    id: {}\n    max_len: {}\n    done: {}\n    data: {:#?}\n}}",
+            self.ptype, self.id, self.max_len, self.done, self.data,
         )
     }
 }
@@ -671,18 +677,22 @@ mod test {
         // Serialize
         let serialized = match buffer.serialize_buffer() {
             Ok(result) => result,
-            _ =>          Vec::new(),
+            _ => Vec::new(),
         };
 
         // Validate serialization worked
-        assert!(serialized.len() > 0, "Serialization bytes:{}", serialized.len());
+        assert!(
+            serialized.len() > 0,
+            "Serialization bytes:{}",
+            serialized.len()
+        );
 
         // Deserialize while there are bytes left
         let mut deserialized = HIDIOPacketBuffer::new();
         let mut bytes_used = 0;
         while bytes_used != serialized.len() {
             // Remove already processed bytes
-            let slice = &serialized[bytes_used ..];
+            let slice = &serialized[bytes_used..];
             match deserialized.decode_packet(&mut slice.to_vec()) {
                 Ok(result) => {
                     bytes_used += result as usize;
@@ -697,10 +707,21 @@ mod test {
         deserialized.max_len = buffer.max_len;
 
         // Validate buffers are the same
-        assert!(buffer == deserialized, "\nInput:{}\nSerialized:{:#?}\nOutput:{}", buffer, serialized, deserialized);
+        assert!(
+            buffer == deserialized,
+            "\nInput:{}\nSerialized:{:#?}\nOutput:{}",
+            buffer,
+            serialized,
+            deserialized
+        );
 
         // Validate all bytes used
-        assert!(serialized.len() == bytes_used, "Serialized:{}, Deserialized Used:{}", serialized.len(), bytes_used);
+        assert!(
+            serialized.len() == bytes_used,
+            "Serialized:{}, Deserialized Used:{}",
+            serialized.len(),
+            bytes_used
+        );
     }
 
 
@@ -711,15 +732,15 @@ mod test {
         // Create single byte payload buffer
         let buffer = HIDIOPacketBuffer {
             // Data packet
-            ptype:   HIDIOPacketType::Data,
+            ptype: HIDIOPacketType::Data,
             // Test packet id
-            id:      2,
+            id: 2,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // Single byte, 0xAC
-            data:    vec![0xAC],
+            data: vec![0xAC],
             // Ready to go
-            done:    true,
+            done: true,
         };
 
         // Run loopback serializer, handles all test validation
@@ -733,15 +754,15 @@ mod test {
         // Create single byte payload buffer
         let buffer = HIDIOPacketBuffer {
             // Data packet
-            ptype:   HIDIOPacketType::Data,
+            ptype: HIDIOPacketType::Data,
             // Test packet id
-            id:      2,
+            id: 2,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // 60 bytes, 0xAC; requires 2 byte header, and 2 bytes for id, which is 64 bytes
-            data:    vec![0xAC; 60],
+            data: vec![0xAC; 60],
             // Ready to go
-            done:    true,
+            done: true,
         };
 
         // Run loopback serializer, handles all test validation
@@ -755,15 +776,15 @@ mod test {
         // Create single byte payload buffer
         let buffer = HIDIOPacketBuffer {
             // Data packet
-            ptype:   HIDIOPacketType::Data,
+            ptype: HIDIOPacketType::Data,
             // Test packet id
-            id:      2,
+            id: 2,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // 110 bytes, 0xAC: 60 then 50 (62 then 52)
-            data:    vec![0xAC; 110],
+            data: vec![0xAC; 110],
             // Ready to go
-            done:    true,
+            done: true,
         };
 
         // Run loopback serializer, handles all test validation
@@ -777,19 +798,18 @@ mod test {
         // Create single byte payload buffer
         let buffer = HIDIOPacketBuffer {
             // Data packet
-            ptype:   HIDIOPacketType::Data,
+            ptype: HIDIOPacketType::Data,
             // Test packet id
-            id:      2,
+            id: 2,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // 170 bytes, 0xAC: 60, 60 then 50 (62, 62 then 52)
-            data:    vec![0xAC; 170],
+            data: vec![0xAC; 170],
             // Ready to go
-            done:    true,
+            done: true,
         };
 
         // Run loopback serializer, handles all test validation
         loopback_serializer(buffer);
     }
 }
-

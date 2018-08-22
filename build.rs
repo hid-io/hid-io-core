@@ -49,4 +49,3 @@ fn main() {
         .run()
         .expect("schema compiler command");
 }
-

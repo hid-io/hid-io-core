@@ -41,9 +41,8 @@ struct HIDUSBDevice {
 }
 */
 
-
 /// hidusb device processing
-fn process_device(device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
+fn process_device(_device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
     // Send dummy command (REMOVEME)
     /*
     let res = device.write(&(super::packet_gen()));
@@ -82,7 +81,7 @@ fn processing() {
     // Initialize HID interface
     let mut api = hidapi::HidApi::new().expect("HID API object creation failed");
 
-    /// Loop infinitely, the watcher only exits if the daemon is quit
+    // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
         //let mut remove_list: Vec<usize> = Vec::new();
 
@@ -95,7 +94,10 @@ fn processing() {
             // 1) bInterfaceClass 0x03 (HID) + bInterfaceSubClass 0x00 (None) + bInterfaceProtocol 0x00 (None)
             // 2) 2 endpoints, EP IN + EP OUT (both Interrupt)
             // 3) iInterface, RawIO API Interface
-            if !( device_info.vendor_id == DEV_VID && device_info.product_id == DEV_PID && device_info.interface_number == INTERFACE_NUMBER ) {
+            if !(device_info.vendor_id == DEV_VID
+                && device_info.product_id == DEV_PID
+                && device_info.interface_number == INTERFACE_NUMBER)
+            {
                 continue;
             }
 
@@ -110,7 +112,7 @@ fn processing() {
                 Ok(device) => {
                     // Process device
                     match process_device(device) {
-                        Ok(result) => {},
+                        Ok(_result) => {},
                         Err(e) => {
                             // Remove problematic devices, will be re-added on the next loop if available
                             warn!("{} {:#?}", e, device_info);
@@ -122,13 +124,12 @@ fn processing() {
                     // Could not open device (likely removed)
                     warn!("{} {:#?}", e, device_info);
                     break;
-                }
+                },
             };
-
         }
 
         // Refresh devices list
-        api.refresh_devices();
+        api.refresh_devices().unwrap();
 
 
         // Sleep so we don't starve the CPU
@@ -148,4 +149,3 @@ pub fn initialize() {
     // Spawn watcher thread
     thread::spawn(processing);
 }
-

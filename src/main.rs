@@ -45,31 +45,29 @@ pub mod built_info {
 /// Main entry point
 fn main() {
     // Setup logging mechanism
-    env_logger::init().unwrap();
+    env_logger::init();
 
     // Process command-line arguments
     // Most of the information is generated from Cargo.toml using built crate (build.rs)
     App::new(format!("{}", built_info::PKG_NAME))
         .version(
-            format!("{}{} - {}",
+            format!(
+                "{}{} - {}",
                 built_info::PKG_VERSION,
-                built_info::GIT_VERSION.map_or_else(
-                    || "".to_owned(), |v| format!(" (git {})", v)
-                ),
+                built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
                 built_info::PROFILE,
-            ).as_str()
+            ).as_str(),
         )
         .author(built_info::PKG_AUTHORS)
-        .about(format!("\n{}",
-                built_info::PKG_DESCRIPTION,
-            ).as_str()
-        )
-        .after_help(format!("{} ({}) -> {} ({})",
+        .about(format!("\n{}", built_info::PKG_DESCRIPTION,).as_str())
+        .after_help(
+            format!(
+                "{} ({}) -> {} ({})",
                 built_info::RUSTC_VERSION,
                 built_info::HOST,
                 built_info::TARGET,
                 built_info::BUILT_TIME_UTC,
-            ).as_str()
+            ).as_str(),
         )
         .get_matches();
 
@@ -97,4 +95,3 @@ fn main() {
     trace!("Trace message");
     */
 }
-

@@ -26,7 +26,6 @@ pub struct DeviceInfo {
 }
 */
 
-
 /// Device initialization
 /// Sets up a scanning thread per Device type.
 /// Each scanning thread will create a new thread per device found.
@@ -35,4 +34,3 @@ pub struct DeviceInfo {
 pub fn initialize() {
     info!("Initializing modules...");
 }
-
