@@ -1,0 +1,10 @@
+# allow some alignment
+blank_lines_upper_bound = 3
+struct_field_align_threshold = 8
+
+# a few less things to worry about
+merge_imports = true
+reorder_impl_items = true
+use_field_init_shorthand = true
+use_try_shorthand = true
+wrap_comments = true
