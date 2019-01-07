@@ -5,7 +5,8 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 
 ### Modifications
 * 2016-02-14 - Initial Draft (HaaTa)
-* 2017-07-XX - Initial Implementation - v0.1.0 (HaaTa)
+* 2017-07-15 - Proposed Implementation - v0.1.0 (HaaTa)
+* 2019-01-07 - Updated Proposed Implementation - v0.1.1 (HaaTa)
 
 ## Glossary
 
@@ -30,9 +31,9 @@ This is not an ultra-low latency interface, it's meant to complement the USB HID
 
 ## Scope
 
-When USB was developed in the mid-90s, one of the goals was to expand the possibilities of external devices and still use a signal interface. And to this end, they succeeded. We no longer have PS/2 ports for keyboards, game ports, parallel ports and serial ports (still around, but not nearly as pervasive) because USB can take care of all these different interfaces even all of them over the same cable. Without going into too much detail, USB defines descriptors programmed into the devices that specifies what sort of data will be transmitted/received and what it will look like. The various USB specs go into great detail about all the variations possible and which ones require drivers and which ones should have host side drivers built-in (e.g. USB HID).
+When USB was developed in the mid-90s, one of the goals was to expand the possibilities of external devices and still use a signal interface. And to this end, they succeeded. We no longer have PS/2 ports (for keyboards and mice), game ports, parallel ports and serial ports (still around, but not nearly as pervasive) because USB can take care of all these different interfaces even all of them over the same cable. Without going into too much detail, USB defines descriptors programmed into the devices that specifies what sort of data will be transmitted/received and what it will look like. The various USB specs go into great detail about all the variations possible and which ones require drivers and which ones should have host side drivers built-in (e.g. USB HID).
 
-However, the problem comes when you want to add something that is not supported within the USB HID spec. In order to propose an addition you need to be a member of USB-IF ($$$$) and get your changes approved by the committee. Then on top of that you need to either implement the driver or wait until the relevant OSs and devices support the USB HID additions. And to top it all off, still won't work on older computers. Needless to say, the effort/time:reward is pretty low when you're looking to extend the capabilities of a keyboard beyond what the USB HID spec defines them to be.
+However, the problem comes when you want to add something that is not supported within the USB HID spec. In order to propose an addition you need to be a member of USB-IF ($$$$) and get your changes approved by the committee. Then on top of that you need to either implement the driver or wait until the relevant OSs and devices support the USB HID additions. And to top it all off, the new USB HID spec still won't work on older computers and devices. Needless to say, the effort/time:reward is pretty low when you're looking to extend the capabilities of a keyboard beyond what the USB HID spec defines them to be.
 
 Instead, the spec proposes a very simple sideband protocol that input devices can use **and** extend with a relatively quick approval process without requiring any sort of financial remuneration (i.e. it's free).
 
@@ -41,11 +42,11 @@ Instead, the spec proposes a very simple sideband protocol that input devices ca
 
 **Note**: Bluetooth and other interfaces are TBD until a full OS compatibility evaluation is done.
 
+**Note2**: USB Raw HID is currently being evaluated to determine if it will suit hid-io better going into the future. Raw HID is supported on Bluetooth which is partially the reason to move away from a USB Vendor Specific Interface.
+
 In order to communicate between the host and the device an interface is needed.
 
-On USB this means some sort of descriptor is required to open up a communication pipe. Ideally, we would be able to use a special provision in HID called Raw HID. Raw HID is just a couple USB interrupt endpoints (Tx and Rx) that supports sending fixed sized data packets. In terms of data rate, minimal descriptor and code size, this would be an ideal interface to use. On Windows Raw HID is even driver-less. Unfortunately, this is not the case for Linux and Mac, which (uncharacteristically for HID) require drivers or releasing the HID devices from other HID drivers. In some cases there is not a way to selectively release single endpoints from the driver which may render your keyboard useless. For the most part, this means, that Raw HID is not really a good fit for HID-IO.
-
-A good (and similar) alternative is called a Vendor Specific interface which I'll refer from now on as Raw IO. Raw IO defines two interrupt transfer endpoints, Rx and Tx, and a given max packet size. This is very similar to Raw HID, but has the added bonus of not requiring a driver on Mac or Linux. Windows requires a WinUSB/libusb shim driver (what the zadig (http://zadig.akeo.ie/) loader is for) unfortunately, but no reboot is required and this part can be automated due to the client side software also needing to be installed. Utilizing libusb (or similar) generic drivers the client side code base can be dramatically simplified. The max packet size may be set to whatever is ideal for the input device and still adheres to the USB spec. For Full-speed USB 2.0 this is a maximum of 64 bytes.
+On USB this means some sort of descriptor is required to open up a communication pipe. Ideally, we would be able to use a special provision in HID called Raw HID. Raw HID is just a couple USB interrupt endpoints (Tx and Rx) that supports sending fixed sized data packets. In terms of data rate, minimal descriptor and code size, this would be an ideal interface to use. On Windows Raw HID is even driver-less. For Linux hidapi (https://github.com/signal11/hidapi) exists, and while it's not well maintained anymore it should provide a good interface to hidraw. On macOS hidapi uses IOHidManager which may work well, but since macOS changes the driver stack often it may be necessary to maintain a macOS driver.
 
 ```
 |Interrupt Max Packet Sizes|
@@ -53,6 +54,29 @@ Low Speed - 8 byte
 Full Speed - 64 bytes or less
 Hi-Speed - 1024 bytes or less (this also applies to 3.1 Gen 1 and 2)
 ```
+
+
+### Raw HID
+
+Since Full Speed USB 2.0 is the most common usage on keyboards, we shall start with 64 byte packets.
+Going to larger packet sizes is rather easy, but going too large would slow down the bus and would really only be necessary if lots of data were being transmitted.
+If it's found that a lot of data needs to be transmitted (and USB 2.0 high-speed is available), then the packet size can be re-visited or a 2nd interface can be created for large transmission sizes.
+
+In order to identify that a specific device interface is available to client side software. We'll be using three interface descriptor fields.
+
+* Usage Page (0xFF1C) - Read as FFK
+* Usage (0x1100) - Read as II 0
+
+PJRC recommends that the Usage Page be between 0xFF00 and 0xFFFF and the Usage be between 0x0100 and 0xFFFF (https://github.com/PaulStoffregen/cores/blob/master/teensy3/usb_desc.h#L531).
+The Usage Pages (https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf Section 3) 0xFF00 to 0xFFFF are deemed as Vendor-defined and are safe to use.
+It is still not apparent why the Usage should be greater than 0x0100, but it is likely for OS compatibility reasons.
+
+
+### Vendor Specific (deprecated)
+
+**Note:** The reason for not using a Vendor Specific interface is to simplify Windows driver integration (which is painful). And make sure that there is a minimum permissions level such that random applications cannot attach to the HID-IO interface and build keyloggers directly.
+
+A good (and similar) alternative is called a Vendor Specific interface which I'll refer from now on as Raw IO. Raw IO defines two interrupt transfer endpoints, Rx and Tx, and a given max packet size. This is very similar to Raw HID, but has the added bonus of not requiring a driver on Mac or Linux. Windows requires a WinUSB/libusb shim driver (what the zadig (http://zadig.akeo.ie/) loader is for) unfortunately, but no reboot is required and this part can be automated due to the client side software also needing to be installed. Utilizing libusb (or similar) generic drivers the client side code base can be dramatically simplified. The max packet size may be set to whatever is ideal for the input device and still adheres to the USB spec. For Full-speed USB 2.0 this is a maximum of 64 bytes.
 
 In order to identify that a specific device interface is available to client side software. We'll be using three interface descriptor fields.
 
@@ -118,7 +142,7 @@ Except for the Sync packet, which only requires a single byte transmission, the 
 
 The length field is the a value between 1 and <max packet size> - 2. In addition to the dedicated byte, this field has 3 additional bits from the Header byte which are the MSBs. This 10 bit number (max 1023) is sufficiently large to handle any interrupt max packet length as defined by the USB spec (as of writing). It is the responsibility of the sender to make sure the length value does not exceed the max packet size as USB does not have automatic chunking available for this type of interface.
 
-All payloads are Id specific and may include any sort of day without restriction as long as it fits within the max payload size. If the payload is larger, the payload may be chunked into Continued packets. The receiving side will need to keep track of the previous packet type to process the continued packet.
+All payloads are Id specific and may include any sort of data without restriction as long as it fits within the max payload size. If the payload is larger, the payload may be chunked into Continued packets. The receiving side will need to keep track of the previous packet type to process the continued packet.
 
 The Id Width field indicates whether the Id is 16 bits or 32 bits wide. As long as the Id is lower than 2^16, a 16 bit field is always supported. Only use 32 bit Ids when required, not all firmwares will support 32 bit Ids.
 
@@ -202,8 +226,13 @@ Requests a property from the device.
 
 0x00 - HID-IO Major Version (16 bit)
 0x01 - HID-IO Minor Version (16 bit)
-0x02 - HID-IO Minor Version (16 bit)
+0x02 - HID-IO Patch Version (16 bit)
 0x03 - Device Name (ascii)
+0x04 - Device Serial Number (ascii)
+0x05 - Device Version (ascii)
+0x06 - Device MCU (ascii) (e.g. mk20dx256vlh7, atsam4s8b, atmega32u4)
+0x07 - Firmware Name (ascii) (e.g. kiibohd, QMK, etc.)
+0x08 - Firmware Version (ascii)
 
 +> <property>
 -> <invalid property value>
@@ -230,15 +259,16 @@ Requests a property from the host.
 
 0x00 - HID-IO Major Version (16 bit)
 0x01 - HID-IO Minor Version (16 bit)
-0x02 - HID-IO Minor Version (16 bit)
+0x02 - HID-IO Patch Version (16 bit)
 0x03 - OS Type (8 bit)
  * 0x00 - Unknown
  * 0x01 - Windows
  * 0x02 - Linux
  * 0x03 - Android
- * 0x04 - Mac
+ * 0x04 - macOS
  * 0x05 - iOS
-0x04 - OS Verson (ascii)
+ * 0x06 - ChromeOS
+0x04 - OS Version (ascii)
 0x05 - Host software name
 
 +> <property>
@@ -248,9 +278,9 @@ Requests a property from the host.
 
 **Device Optional Commands**
 
-Send UTF-8 character stream
+UTF-8 character stream
 ```
-0x10 <utf-8 characters>
+0x17 <utf-8 characters>
 
 Sends the given list of UTF-8 characters, these will be printed out to the current keyboard focus in order on the host OS.
 
@@ -258,22 +288,36 @@ Sends the given list of UTF-8 characters, these will be printed out to the curre
 -> (No payload)
 ```
 
-Trigger Host Side Macro
+UTF-8 state
 ```
-0x11 <macro id number> <macro id number 2>...
+0x18 <utf-8 characters>
 
-Triggers a given host side macro using id numbers.
+Sends a utf-8 state list.
+All of the characters sent will be held.
+To release a character send this packet again without that particular symbol.
+
++> (No payload)
+-> (No payload)
+```
+
+Trigger Host Macro
+```
+0x19 <macro id number> <macro id number 2>...
+
+Triggers a given host side macro using id numbers (16-bit).
 
 +> (No payload)
 -> (macro ids that were not successful/do not exist)
 ```
 
-Keyboard Scan Code Id State
+KLL Trigger State
 ```
-0x12 <Scan Codes currently pressed>
+0x20 <trigger type1:8 bit> <trigger id1:8 bit> <trigger state1:8 bit> <trigger type2:8 bit> <trigger id2:8 bit> <trigger state2:8 bit>...
 
-List of scan codes currently pressed. Should be updated whenever the USB buffer would be updated. This command is used along with the host side Keyboard Layout command to translate Scan Codes to USB codes.
-WARNING: Should be limited to function keys to protect from keyloggers. But it would be possible to use this as host side macro processing if the user gives consent.
+List of trigger ids activated at the start of a macro processing cycle.
+Each trigger is represented by a 3-tuple of 8-bit values.
+Using triggers alone you cannot deduce which key was pressed.
+However using the scancode to USB mapping it is possible to determine which keys were pressed.
 
 +> (No payload)
 -> (No payload)
@@ -282,7 +326,7 @@ WARNING: Should be limited to function keys to protect from keyloggers. But it w
 
 **Host Optional Commands**
 
-Get Device Properties
+Get Properties
 ```
 0x10 <command> [<field id>]
 
@@ -326,9 +370,7 @@ Button Layout
 
 Returns the physical properties of how the buttons are laid out and what type of keycap is on each.
 
-TODO, finalize how the data will be sent and what units. Requires: x,y,z, rx,ry,rz per scan code.
-
-+> <width of scan code> TODO
++>  <id:16 bit> <x:float> <y:float> <z:float> <rx:float> <ry:float> <rz:float> <id2:16 bit>...
 -> (No payload on error)
 ```
 
@@ -349,13 +391,23 @@ TODO - Need a good way of physically representing all types of keycaps, includin
 
 LED Layout
 ```
-0x15
+0x15 <type>
 
-Returns the physical properties of how the LEDs are laid out on the device. Each LED is given a unique id number defined by the device.
+Type:
+* 0x00 - Position - <id:16 bit> <x:float> <y:float> <z:float> <rx:float> <ry:float> <rz:float> <id2:16 bit>...
+  Returns the physical properties of how the LEDs are laid out on the device.
+  Each LED is given a unique id number defined by the device.
+* 0x01 - Grid - <height:16 bit> <width:16 bit> <id:16 bit> <id2:16 bit>...
+  Returns a list of unique ids such that they are organized in a grid.
+  Any ids set to 0 are empty spaces within the grid and can safely be ignored.
+* 0x02 - List - <id:16 bit> <id2:16 bit>...
+  Returns a list of unique LED ids.
+* 0x03 - Scan Code Mapping - <scan code:16 bit> <id:16 bit> <scan code2:16 bit> <id2:16 bit>...
+  Returns a list of scancode to LED id mappings.
 
-TODO, finalize how the data will be sent and what units. Requires: x,y,z, rx,ry,rz per scan code.
+If a type is not supported an error is returned (no payload).
 
-+> <width of led id> TODO
++> See payloads per type.
 -> (No payload on error)
 ```
 
@@ -363,10 +415,13 @@ Flash Mode
 ```
 0x16
 
-Puts the keyboard into flash mode if remote re-flashing is enabled on the keyboard.
-WARNING: Do not allow the keyboard to enter flash mode remotely by default. This is a serious security hazard.
+Returns the scancode that must be pressed on the physical keyboard before flash mode will activate.
+Once the scancode is pressed the device will enter flash mode and the interface will disappear.
+If any other scancode is pressed the action will be cancelled.
 
-+> No response, the HID-IO interface will disappear
+WARNING: Do not allow flash mode without some sort of physical interaction as this is a serious security hazard.
+
++> <scancode:16 bit>
 -> Error code
  * 0x00 - Not supported
  * 0x01 - Disabled
@@ -376,20 +431,22 @@ WARNING: Do not allow the keyboard to enter flash mode remotely by default. This
 
 ## ID List
 
-* 0x00 - Supported Ids
-* 0x01 - Get Info
-* 0x02 - Test Packet
-* 0x03 - Reset HID-IO
+* 0x00 - Supported Ids          (Host/Device)
+* 0x01 - Get Info               (Host/Device)
+* 0x02 - Test Packet            (Host/Device)
+* 0x03 - Reset HID-IO           (Host/Device)
 * 0x04..0x0F - **Reserved**
-* 0x10 - Get Device Properties
-* 0x11 - USB Key State
-* 0x12 - Unicode Key State
-* 0x13 - Keyboard Layout
-* 0x14 - Key Layout
-* 0x15 - Key Shapes
-* 0x16 - LED Layout
-* 0x17 - Flash Mode
-
+* 0x10 - Get Properties         (Host)
+* 0x11 - USB Key State          (Host)
+* 0x12 - Keyboard Layout        (Host)
+* 0x13 - Key Layout             (Host)
+* 0x14 - Key Shapes             (Host)
+* 0x15 - LED Layout             (Host)
+* 0x16 - Flash Mode             (Host)
+* 0x17 - UTF-8 Character Stream (Device)
+* 0x18 - UTF-8 State            (Device)
+* 0x19 - Trigger Host Macro     (Device)
+* 0x20 - KLL Trigger State      (Device)
 
 
 
