@@ -12,7 +12,7 @@ repository    = "https://github.com/hid-io/hid-io"
 documentation = "https://hid-io.github.io/hid_io/"
 
 build         = "build.rs"
-links = "X11"
+links         = "X11"
 
 
 [build-dependencies]
