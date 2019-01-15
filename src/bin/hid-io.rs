@@ -1,7 +1,7 @@
-extern crate clap;
+
 #[macro_use]
 extern crate log;
-extern crate hid_io;
+
 
 use clap::App;
 use hid_io::{api, built_info, device, module};

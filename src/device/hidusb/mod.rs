@@ -14,7 +14,7 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-extern crate hidapi;
+use hidapi;
 
 //use std::string;
 use std::thread;
@@ -40,7 +40,7 @@ struct HIDUSBDevice {
 */
 
 /// hidusb device processing
-fn process_device(_device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
+fn process_device(_device: &hidapi::HidDevice) -> hidapi::HidResult<usize> {
     // Send dummy command (REMOVEME)
     /*
     let res = device.write(&(super::packet_gen()));
@@ -57,7 +57,7 @@ fn process_device(_device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
     //println!("{}", self.device.check_error().unwrap());
     return res;
     */
-    return Ok(1);
+    Ok(1)
 
     /*
     let res = device_list[index].0.get_indexed_string(1).unwrap();
@@ -108,7 +108,7 @@ fn processing() {
             match api.open_path(&path) {
                 Ok(device) => {
                     // Process device
-                    match process_device(device) {
+                    match process_device(&device) {
                         Ok(_result) => {}
                         Err(e) => {
                             // Remove problematic devices, will be re-added on the next loop if available

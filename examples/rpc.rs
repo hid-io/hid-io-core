@@ -1,7 +1,7 @@
-extern crate capnp;
-extern crate capnp_rpc;
-extern crate hid_io;
-extern crate tokio;
+use capnp;
+
+
+
 
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
@@ -43,7 +43,7 @@ fn try_main() -> Result<(), ::capnp::Error> {
 
     {
         let hidio = {
-            let mut request = hidio_server.basic_request();
+            let request = hidio_server.basic_request();
             request.send().pipeline.get_port()
         };
 

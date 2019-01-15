@@ -16,16 +16,8 @@
 
 // ----- Crates -----
 
-extern crate clap;
-extern crate env_logger;
 #[macro_use]
 extern crate log;
-
-extern crate capnp;
-extern crate capnp_rpc;
-extern crate tokio;
-
-extern crate x11;
 
 // ----- Modules -----
 

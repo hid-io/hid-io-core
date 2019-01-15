@@ -65,7 +65,8 @@ impl XConnection {
         let s = format!("U{:x}", hex);
 
         unsafe {
-            let mut sym = XStringToKeysym(CString::new(s).unwrap().as_ptr());
+            let xs = CString::new(s);
+            let mut sym = XStringToKeysym(xs.unwrap().as_ptr());
             XChangeKeyboardMapping(self.display, keycode as i32, 1, &mut sym, 1);
             XSync(self.display, false as i32);
         }

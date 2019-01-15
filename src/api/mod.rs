@@ -48,7 +48,7 @@ impl HIDIOServerImpl {
 impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, _params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
         results.get().set_port(
-            h_i_d_i_o::ToClient::new(HIDIOImpl::new()).from_server::<::capnp_rpc::Server>(),
+            h_i_d_i_o::ToClient::new(HIDIOImpl::new()).into_client::<::capnp_rpc::Server>(),
         );
         Promise::ok(())
     }
@@ -63,7 +63,7 @@ impl HIDIOImpl {
         HIDIOImpl {}
     }
 
-    fn init_signal(mut signal: h_i_d_i_o::signal::Builder) {
+    fn init_signal(mut signal: h_i_d_i_o::signal::Builder<'_>) {
         signal.set_time(15);
 
         {
@@ -92,7 +92,7 @@ impl HIDIOImpl {
             usbkbd.set_id(78500);
             usbkbd.set_node(
                 h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::USBKeyboard(false))
-                    .from_server::<::capnp_rpc::Server>(),
+                    .into_client::<::capnp_rpc::Server>(),
             );
         }
         {
@@ -103,7 +103,7 @@ impl HIDIOImpl {
             hostmacro.set_id(99382569);
             hostmacro.set_node(
                 h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::HostIO(false))
-                    .from_server::<::capnp_rpc::Server>(),
+                    .into_client::<::capnp_rpc::Server>(),
             );
         }
     }
@@ -179,7 +179,7 @@ pub fn initialize() {
     println!("API: Listening on {}", addr);
 
     let hidio_server = h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new())
-        .from_server::<::capnp_rpc::Server>();
+        .into_client::<::capnp_rpc::Server>();
     let done = socket.incoming().for_each(move |socket| {
         socket.set_nodelay(true)?;
         let (reader, writer) = socket.split();

@@ -16,9 +16,9 @@
 
 // ----- Crates -----
 
-extern crate built;
-extern crate capnpc;
-extern crate rustc_version;
+use built;
+use capnpc;
+
 
 // ----- Modules -----
 
@@ -35,6 +35,7 @@ fn main() {
 
     // Generate Cap'n Proto rust files
     capnpc::CompilerCommand::new()
+        .edition(capnpc::RustEdition::Rust2018)
         .src_prefix("schema")
         .file("schema/common.capnp")
         .file("schema/devicefunction.capnp")

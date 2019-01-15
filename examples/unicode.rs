@@ -1,5 +1,5 @@
-extern crate hid_io;
-extern crate x11;
+
+
 
 use hid_io::module::unicode::x11::*;
 use hid_io::module::unicode::UnicodeOutput;

@@ -16,8 +16,8 @@
 
 // ----- Crates -----
 
-extern crate bincode;
-extern crate serde;
+use bincode;
+use serde;
 
 // ----- Modules -----
 
@@ -136,8 +136,8 @@ pub fn payload_len(packet_data: &mut Vec<u8>) -> Result<u32, HIDIOParseError> {
     }
 
     // Extract upper_len and len
-    let upper_len = (packet_data[0] & 0x3) as u32;
-    let len = packet_data[1] as u32;
+    let upper_len = u32::from(packet_data[0] & 0x3);
+    let len = u32::from(packet_data[1]);
 
     // Merge
     let payload_len: u32 = upper_len << 8 | len;
@@ -211,7 +211,7 @@ pub fn packet_id(packet_data: &mut Vec<u8>) -> Result<u32, HIDIOParseError> {
     let mut id: u32 = 0;
     let offset = 2;
     for idx in 0..id_width as usize {
-        id |= (packet_data[offset + idx] as u32) << (idx * 8);
+        id |= u32::from(packet_data[offset + idx]) << (idx * 8);
     }
 
     Ok(id)
@@ -345,7 +345,7 @@ impl HIDIOPacketBuffer {
 
         // Is this a new packet?
         // More information to set, if initializing buffer
-        if self.data.len() == 0 && ptype != HIDIOPacketType::Continued {
+        if self.data.is_empty() && ptype != HIDIOPacketType::Continued {
             // Set packet type
             self.ptype = ptype;
 
@@ -355,13 +355,13 @@ impl HIDIOPacketBuffer {
         // Make sure the current buffer matches what we're expecting
         } else {
             // Check for invalid packet type
-            if self.data.len() == 0 && ptype == HIDIOPacketType::Continued {
+            if self.data.is_empty() && ptype == HIDIOPacketType::Continued {
                 warn!("Dropping. Invalid packet type when initializing buffer, HIDIOPacketType::Continued");
                 return Ok(packet_len);
             }
 
             // Check if not a continued packet, and we have a payload
-            if self.data.len() > 0 && ptype != HIDIOPacketType::Continued {
+            if !self.data.is_empty() && ptype != HIDIOPacketType::Continued {
                 warn!("Dropping. Invalid packet type (non-HIDIOPacketType::Continued) on a already initialized buffer");
                 return Ok(packet_len);
             }
@@ -443,9 +443,9 @@ impl Serialize for HIDIOPacketBuffer {
         // --- First Packet ---
 
         // Determine id_width
-        let id_width: u8 = match (&self).id {
-            0x00...0xFFFF => 0,         // 16 bit Id
-            0x010000...0xFFFFFFFF => 1, // 32 bit Id
+        let id_width: u8 = match self.id {
+            0x00..=0xFFFF => 0,         // 16 bit Id
+            0x010000..=0xFFFFFFFF => 1, // 32 bit Id
             _ => 0,
         };
 
@@ -460,7 +460,7 @@ impl Serialize for HIDIOPacketBuffer {
         let hdr_len = 2 + id_width_len; // 1 byte for header, 1 byte for len, id_width_len for Id
 
         // Determine payload max length, initial and continued packets
-        let payload_len = &self.max_len - hdr_len as u32;
+        let payload_len = self.max_len - u32::from(hdr_len);
 
         // Data length
         let data_len = (&self.data).len() as u32;
@@ -471,9 +471,9 @@ impl Serialize for HIDIOPacketBuffer {
         // Determine packet len
         let packet_len: u16 = match cont {
             // Full payload length
-            true => payload_len as u16 + id_width_len as u16,
+            true => payload_len as u16 + u16::from(id_width_len),
             // Calculate payload length with what's left
-            false => data_len as u16 + id_width_len as u16,
+            false => data_len as u16 + u16::from(id_width_len),
         };
 
         // Determine upper_len and len fields
@@ -481,7 +481,7 @@ impl Serialize for HIDIOPacketBuffer {
         let len: u8 = packet_len as u8;
 
         // Determine ptype
-        let ptype: u8 = match (&self).ptype {
+        let ptype: u8 = match self.ptype {
             HIDIOPacketType::Data => 0,
             HIDIOPacketType::ACK => 1,
             HIDIOPacketType::NAK => 2,
@@ -492,7 +492,7 @@ impl Serialize for HIDIOPacketBuffer {
         // Convert Id into bytes
         let mut id_vec: Vec<u8> = Vec::new();
         for idx in 0..id_width_len {
-            let id = ((&self).id >> idx * 8) as u8;
+            let id = (self.id >> (idx * 8)) as u8;
             id_vec.push(id);
         }
 
@@ -511,7 +511,7 @@ impl Serialize for HIDIOPacketBuffer {
 
         // Calculate total length of serialized output
         let serialized_len =
-            (data_len / payload_len) * payload_len + data_len % payload_len + hdr_len as u32;
+            (data_len / payload_len) * payload_len + data_len % payload_len + u32::from(hdr_len);
 
         // Serialize as a sequence
         let mut state = serializer.serialize_seq(Some(serialized_len as usize))?;
@@ -565,9 +565,9 @@ impl Serialize for HIDIOPacketBuffer {
             // Determine packet len
             let packet_len: u16 = match cont {
                 // Full payload length
-                true => payload_len as u16 + id_width_len as u16,
+                true => payload_len as u16 + u16::from(id_width_len),
                 // Calculate payload length with what's left
-                false => payload_left as u16 + id_width_len as u16,
+                false => payload_left as u16 + u16::from(id_width_len),
             };
 
             // Determine upper_len and len fields
@@ -628,7 +628,7 @@ impl Serialize for HIDIOPacketBuffer {
 
 impl fmt::Display for HIDIOPacketType {
     /// Display formatter for HIDIOPacketType
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptype_name = match *self {
             HIDIOPacketType::Data => "HIDIOPacketBuffer::Data",
             HIDIOPacketType::ACK => "HIDIOPacketBuffer::ACK",
@@ -642,7 +642,7 @@ impl fmt::Display for HIDIOPacketType {
 
 impl fmt::Display for HIDIOPacketBuffer {
     /// Display formatter for HIDIOPacketBuffer
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "\n{{\n    ptype: {}\n    id: {}\n    max_len: {}\n    done: {}\n    data: {:#?}\n}}",
