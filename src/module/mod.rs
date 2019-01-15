@@ -16,6 +16,7 @@
 
 //use std::thread;
 
+pub mod unicode;
 
 /// DeviceInfo struct
 /*

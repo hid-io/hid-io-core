@@ -12,6 +12,7 @@ repository    = "https://github.com/hid-io/hid-io"
 documentation = "https://hid-io.github.io/hid_io/"
 
 build         = "build.rs"
+links = "X11"
 
 
 [build-dependencies]
@@ -34,6 +35,7 @@ tokio        = "0.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 xkbcommon = { version = "0.3.0", features = ["x11"] }
+x11 = "2.18.1"
 
 
 #[target.'cfg(windows)'.dependencies]

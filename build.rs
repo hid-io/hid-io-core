@@ -44,4 +44,7 @@ fn main() {
         .file("schema/usbkeyboard.capnp")
         .run()
         .expect("schema compiler command");
+
+    println!("cargo:rustc-link-lib=X11");
+    println!("cargo:rustc-link-lib=Xtst");
 }
