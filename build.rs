@@ -20,13 +20,9 @@ extern crate built;
 extern crate capnpc;
 extern crate rustc_version;
 
-
-
 // ----- Modules -----
 
 use rustc_version::{version, Version};
-
-
 
 // ----- Functions -----
 

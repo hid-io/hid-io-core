@@ -19,16 +19,12 @@
 extern crate bincode;
 extern crate serde;
 
-
-
 // ----- Modules -----
 
 use std::fmt;
 
 use self::bincode::serialize;
 use self::serde::ser::{self, Serialize, SerializeSeq, Serializer};
-
-
 
 // ----- Enumerations -----
 
@@ -49,8 +45,6 @@ pub enum HIDIOPacketType {
     /// Continued packet
     Continued = 4,
 }
-
-
 
 // ----- Structs -----
 
@@ -76,8 +70,6 @@ pub struct HIDIOPacketBuffer {
 ///
 /// # Remarks thrown when there's an issue processing byte stream.
 pub struct HIDIOParseError {}
-
-
 
 // ----- Utility Functions -----
 
@@ -278,8 +270,6 @@ pub fn payload_start(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseError
     Ok(2 + id_width as usize)
 }
 
-
-
 // ----- Implementations -----
 
 impl HIDIOPacketBuffer {
@@ -289,11 +279,11 @@ impl HIDIOPacketBuffer {
     /// Initialize as blank
     pub fn new() -> HIDIOPacketBuffer {
         HIDIOPacketBuffer {
-            ptype:   HIDIOPacketType::Data,
-            id:      0,
+            ptype: HIDIOPacketType::Data,
+            id: 0,
             max_len: 0,
-            data:    vec![],
-            done:    false,
+            data: vec![],
+            done: false,
         }
     }
 
@@ -563,7 +553,6 @@ impl Serialize for HIDIOPacketBuffer {
         let mut payload_left = (&self.data).len() as u32 - payload_len;
         let mut last_slice_index = payload_len as usize;
 
-
         // --- Additional Packets ---
 
         while cont {
@@ -632,7 +621,6 @@ impl Serialize for HIDIOPacketBuffer {
             last_slice_index += payload_len as usize;
         }
 
-
         // --- Finish serialization ---
         state.end()
     }
@@ -662,8 +650,6 @@ impl fmt::Display for HIDIOPacketBuffer {
         )
     }
 }
-
-
 
 // ----- Tests -----
 
@@ -696,10 +682,10 @@ mod test {
             match deserialized.decode_packet(&mut slice.to_vec()) {
                 Ok(result) => {
                     bytes_used += result as usize;
-                },
+                }
                 _ => {
                     assert!(false, "Failured decoding packet");
-                },
+                }
             };
         }
 
@@ -723,7 +709,6 @@ mod test {
             bytes_used
         );
     }
-
 
     /// Generates a single byte payload buffer
     /// Serializes, deserializes, then checks if same as original

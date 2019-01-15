@@ -19,9 +19,7 @@ use std::thread;
 //use std::thread::sleep;
 use std::time::Duration;
 
-
 const SLEEP_DURATION: u64 = 1000;
-
 
 /// debug processing
 fn processing() {
@@ -33,7 +31,6 @@ fn processing() {
         thread::sleep(Duration::from_millis(SLEEP_DURATION));
     }
 }
-
 
 /// device debug module initialization
 ///

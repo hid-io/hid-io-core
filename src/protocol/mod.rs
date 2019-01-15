@@ -14,5 +14,4 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 pub mod hidio;

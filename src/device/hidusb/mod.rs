@@ -21,7 +21,6 @@ use std::thread;
 //use std::thread::sleep;
 use std::time::Duration;
 
-
 // TODO (HaaTa) remove this constants when hidapi supports better matching
 const DEV_VID: u16 = 0x1c11;
 const DEV_PID: u16 = 0xb04d;
@@ -29,7 +28,6 @@ const INTERFACE_NUMBER: i32 = 5;
 
 //const PACKET_SIZE: usize = 64; // TODO Autodetect
 const SLEEP_DURATION: u64 = 5;
-
 
 /// HIDUSBDevice Struct
 ///
@@ -67,7 +65,6 @@ fn process_device(_device: hidapi::HidDevice) -> hidapi::HidResult<usize> {
     println!("Retval: {}", res);
     */
 }
-
 
 /// hidusb processing
 ///
@@ -112,25 +109,24 @@ fn processing() {
                 Ok(device) => {
                     // Process device
                     match process_device(device) {
-                        Ok(_result) => {},
+                        Ok(_result) => {}
                         Err(e) => {
                             // Remove problematic devices, will be re-added on the next loop if available
                             warn!("{} {:#?}", e, device_info);
                             break;
-                        },
+                        }
                     };
-                },
+                }
                 Err(e) => {
                     // Could not open device (likely removed)
                     warn!("{} {:#?}", e, device_info);
                     break;
-                },
+                }
             };
         }
 
         // Refresh devices list
         api.refresh_devices().unwrap();
-
 
         // Sleep so we don't starve the CPU
         // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
@@ -138,7 +134,6 @@ fn processing() {
         thread::sleep(Duration::from_millis(SLEEP_DURATION));
     }
 }
-
 
 /// hidusb initialization
 ///

@@ -56,7 +56,8 @@ fn main() {
                 built_info::PKG_VERSION,
                 built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
                 built_info::PROFILE,
-            ).as_str(),
+            )
+            .as_str(),
         )
         .author(built_info::PKG_AUTHORS)
         .about(format!("\n{}", built_info::PKG_DESCRIPTION,).as_str())
@@ -67,7 +68,8 @@ fn main() {
                 built_info::HOST,
                 built_info::TARGET,
                 built_info::BUILT_TIME_UTC,
-            ).as_str(),
+            )
+            .as_str(),
         )
         .get_matches();
 
