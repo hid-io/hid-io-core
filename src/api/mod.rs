@@ -14,11 +14,11 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-/// TODO
-/// capnproto server
 // ----- Crates -----
 
 // ----- Modules -----
+mod auth;
+
 pub use crate::common_capnp::*;
 pub use crate::devicefunction_capnp::*;
 pub use crate::hidio_capnp::*;
@@ -46,6 +46,12 @@ const USE_SSL: bool = false;
 
 // ----- Functions -----
 
+enum AuthLevel {
+    Basic,
+    Secure,
+    Debug,
+}
+
 use crate::hidio_capnp::h_i_d_i_o_server::*;
 
 struct HIDIOServerImpl;
@@ -59,19 +65,42 @@ impl HIDIOServerImpl {
 impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, _params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
         results.get().set_port(
-            h_i_d_i_o::ToClient::new(HIDIOImpl::new()).into_client::<::capnp_rpc::Server>(),
+            h_i_d_i_o::ToClient::new(HIDIOImpl::new(AuthLevel::Basic))
+                .into_client::<::capnp_rpc::Server>(),
         );
         Promise::ok(())
+    }
+
+    fn auth(&mut self, _params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
+        use crate::api::auth::UAC;
+
+        // TODO: Auth implementation selection
+        let authenticator = auth::DummyAuth {};
+
+        if authenticator.auth() {
+            results.get().set_port(
+                h_i_d_i_o::ToClient::new(HIDIOImpl::new(AuthLevel::Secure))
+                    .into_client::<::capnp_rpc::Server>(),
+            );
+            Promise::ok(())
+        } else {
+            Promise::err(Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Authentication denied".to_string(),
+            })
+        }
     }
 }
 
 use crate::hidio_capnp::h_i_d_i_o::*;
 
-struct HIDIOImpl;
+struct HIDIOImpl {
+    auth: AuthLevel,
+}
 
 impl HIDIOImpl {
-    fn new() -> HIDIOImpl {
-        HIDIOImpl {}
+    fn new(auth: AuthLevel) -> HIDIOImpl {
+        HIDIOImpl { auth }
     }
 
     fn init_signal(mut signal: h_i_d_i_o::signal::Builder<'_>) {

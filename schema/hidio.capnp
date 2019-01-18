@@ -34,6 +34,7 @@ interface HIDIOServer {
     # Allocates a basic interface, with no special priviledges
 
     # TODO Add authentication schemes
+    auth @1 () -> (port :HIDIO);
 }
 
 interface HIDIO {
