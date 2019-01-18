@@ -35,6 +35,7 @@ use tokio::runtime::current_thread;
 
 use std::fs;
 use std::io::BufReader;
+use std::rc::Rc;
 use std::sync::Arc;
 use tokio::prelude::future::ok;
 use tokio_rustls::{
@@ -52,20 +53,51 @@ enum AuthLevel {
     Debug,
 }
 
+struct Endpoint {
+    type_: NodeType,
+    name: String,
+    serial: String,
+    id: u64,
+}
+
+struct NodeManager {
+    pub nodes: Vec<Endpoint>,
+}
+
 use crate::hidio_capnp::h_i_d_i_o_server::*;
 
-struct HIDIOServerImpl;
+struct HIDIOServerImpl {
+    nodes: Rc<NodeManager>,
+}
 
 impl HIDIOServerImpl {
     fn new() -> HIDIOServerImpl {
-        HIDIOServerImpl {}
+        // TODO: This will be generated from connected devices
+        let nodes = vec![
+            Endpoint {
+                type_: NodeType::UsbKeyboard,
+                name: "Test Keyboard".to_string(),
+                serial: "1467".to_string(),
+                id: 78500,
+            },
+            Endpoint {
+                type_: NodeType::HidioScript,
+                name: "Test Script".to_string(),
+                serial: "A&d342".to_string(),
+                id: 99382569,
+            },
+        ];
+
+        HIDIOServerImpl {
+            nodes: Rc::new(NodeManager { nodes }),
+        }
     }
 }
 
 impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, _params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
         results.get().set_port(
-            h_i_d_i_o::ToClient::new(HIDIOImpl::new(AuthLevel::Basic))
+            h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.nodes), AuthLevel::Basic))
                 .into_client::<::capnp_rpc::Server>(),
         );
         Promise::ok(())
@@ -79,7 +111,7 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 
         if authenticator.auth() {
             results.get().set_port(
-                h_i_d_i_o::ToClient::new(HIDIOImpl::new(AuthLevel::Secure))
+                h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.nodes), AuthLevel::Secure))
                     .into_client::<::capnp_rpc::Server>(),
             );
             Promise::ok(())
@@ -95,12 +127,13 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 use crate::hidio_capnp::h_i_d_i_o::*;
 
 struct HIDIOImpl {
+    server: Rc<NodeManager>,
     auth: AuthLevel,
 }
 
 impl HIDIOImpl {
-    fn new(auth: AuthLevel) -> HIDIOImpl {
-        HIDIOImpl { auth }
+    fn new(server: Rc<NodeManager>, auth: AuthLevel) -> HIDIOImpl {
+        HIDIOImpl { server, auth }
     }
 
     fn init_signal(mut signal: h_i_d_i_o::signal::Builder<'_>) {

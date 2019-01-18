@@ -91,6 +91,15 @@ fn try_main() -> Result<(), ::capnp::Error> {
             println!("RESP {}", pry!(response.get()).get_time());
             Promise::ok(())
         }))?;
+
+        let mut req = hidio.nodes_request();
+        runtime.block_on(req.send().promise.and_then(|response| {
+            let nodes = pry!(pry!(response.get()).get_nodes());
+            for n in nodes.iter() {
+                println!("Node {}", n.get_name().unwrap_or(""));
+            }
+            Promise::ok(())
+        }))?;
     }
 
     Ok(())
