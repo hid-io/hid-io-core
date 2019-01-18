@@ -33,6 +33,17 @@ use tokio::io::AsyncRead;
 use tokio::prelude::{Future, Stream};
 use tokio::runtime::current_thread;
 
+use std::fs;
+use std::io::BufReader;
+use std::sync::Arc;
+use tokio::prelude::future::ok;
+use tokio_rustls::{
+    rustls::{AllowAnyAuthenticatedClient, RootCertStore, ServerConfig},
+    TlsAcceptor,
+};
+
+const USE_SSL: bool = false;
+
 // ----- Functions -----
 
 use crate::hidio_capnp::h_i_d_i_o_server::*;
@@ -162,6 +173,35 @@ impl h_i_d_i_o_node::Server for HIDIONodeImpl {
     }
 }
 
+pub fn load_certs(filename: &str) -> Vec<rustls::Certificate> {
+    let certfile = fs::File::open(filename).expect("cannot open certificate file");
+    let mut reader = BufReader::new(certfile);
+    rustls::internal::pemfile::certs(&mut reader).unwrap()
+}
+
+pub fn load_private_key(filename: &str) -> rustls::PrivateKey {
+    let rsa_keys = {
+        let keyfile = fs::File::open(filename).expect("cannot open private key file");
+        let mut reader = BufReader::new(keyfile);
+        rustls::internal::pemfile::rsa_private_keys(&mut reader)
+            .expect("file contains invalid rsa private key")
+    };
+
+    let pkcs8_keys = {
+        let keyfile = fs::File::open(filename).expect("cannot open private key file");
+        let mut reader = BufReader::new(keyfile);
+        rustls::internal::pemfile::pkcs8_private_keys(&mut reader)
+            .expect("file contains invalid pkcs8 private key (encrypted keys not supported)")
+    };
+
+    if !pkcs8_keys.is_empty() {
+        pkcs8_keys[0].clone()
+    } else {
+        assert!(!rsa_keys.is_empty());
+        rsa_keys[0].clone()
+    }
+}
+
 /// Cap'n'Proto API Initialization
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Requires TLS TODO
@@ -170,29 +210,67 @@ pub fn initialize() {
     info!("Initializing api...");
 
     use std::net::ToSocketAddrs;
-    let addr = "127.0.0.1:7185"
+    let addr = "localhost:7185"
         .to_socket_addrs()
         .unwrap()
         .next()
         .expect("could not parse address");
-    let socket = ::tokio::net::TcpListener::bind(&addr).unwrap();
+    let socket = ::tokio::net::TcpListener::bind(&addr).expect("Failed to open socket");
     println!("API: Listening on {}", addr);
+
+    let ssl_config = if USE_SSL {
+        let mut client_auth_roots = RootCertStore::empty();
+        let roots = load_certs("./test-ca/rsa/end.fullchain");
+        for root in &roots {
+            client_auth_roots.add(&root).unwrap();
+        }
+        let client_auth = AllowAnyAuthenticatedClient::new(client_auth_roots);
+
+        let mut config = ServerConfig::new(client_auth);
+        config
+            .set_single_cert(roots, load_private_key("./test-ca/rsa/end.key"))
+            .unwrap();
+        let config = TlsAcceptor::from(Arc::new(config));
+        Some(config)
+    } else {
+        None
+    };
+
+    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
+    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
+
+    let connections = socket.incoming().map(|socket| {
+        socket.set_nodelay(true).unwrap();
+        let c: Box<Future<Item = Box<_>, Error = std::io::Error>> =
+            if let Some(config) = &ssl_config {
+                Box::new(config.accept(socket).and_then(|a| {
+                    let accept: Box<Duplex> = Box::new(a);
+                    ok(accept)
+                }))
+            } else {
+                let accept: Box<Duplex> = Box::new(socket);
+                Box::new(ok(accept))
+            };
+
+        c
+    });
 
     let hidio_server = h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new())
         .into_client::<::capnp_rpc::Server>();
-    let done = socket.incoming().for_each(move |socket| {
-        socket.set_nodelay(true)?;
-        let (reader, writer) = socket.split();
+    let done = connections.for_each(|connect_promise| {
+        connect_promise.and_then(|socket| {
+            let (reader, writer) = socket.split();
 
-        let network = twoparty::VatNetwork::new(
-            reader,
-            writer,
-            rpc_twoparty_capnp::Side::Server,
-            Default::default(),
-        );
-        let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.clone().client));
-        current_thread::spawn(rpc_system.map_err(|e| println!("error: {:?}", e)));
-        Ok(())
+            let network = twoparty::VatNetwork::new(
+                reader,
+                writer,
+                rpc_twoparty_capnp::Side::Server,
+                Default::default(),
+            );
+            let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.clone().client));
+            current_thread::spawn(rpc_system.map_err(|e| println!("error: {:?}", e)));
+            Ok(())
+        })
     });
 
     current_thread::block_on_all(done).unwrap();

@@ -2,8 +2,11 @@
 
 import capnp
 import sys
+import socket
+import ssl
 
 sys.path.append("../schema")
+ENABLE_SSL = False
 
 import hidio_capnp
 import common_capnp
@@ -115,7 +118,22 @@ class HIDIOWatcherImpl( hidiowatcher_capnp.HIDIOWatcher.Server ):
     def __init__( self ):
         print("HIDIOWatcher Init")
 
-server = capnp.TwoPartyServer( '127.0.0.1:7185', bootstrap=HIDIOServerImpl() ) # 0x1c11
+sock = socket.socket()
+sock.bind(('localhost', 7185))
+sock.listen(1)
 
-server.run_forever()
-
+while True:
+    conn = None
+    client, addr = sock.accept()
+    try:
+      if ENABLE_SSL:
+        conn = ssl.wrap_socket(client, cert_reqs=ssl.CERT_NONE, server_side=True, keyfile='../test-ca/rsa/end.key', certfile='../test-ca/rsa/end.fullchain')
+      else:
+        conn = client
+      server = capnp.TwoPartyServer( conn, bootstrap=HIDIOServerImpl() ) # 0x1c11
+      server.on_disconnect().wait()
+    except ssl.SSLError as e:
+      print(e)
+    finally:
+      if conn:
+        conn.close()

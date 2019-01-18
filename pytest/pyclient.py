@@ -3,15 +3,25 @@
 
 import capnp
 import sys
+import socket
+import ssl
 
 sys.path.append("../schema")
+ENABLE_SSL = False
 
 import hidio_capnp
 
 print("Client!")
 
+sock = socket.socket()
+sock.connect(('localhost', 7185))
+if ENABLE_SSL:
+  ssock = ssl.wrap_socket(sock, certfile="../test-ca/rsa/client.cert", keyfile="../test-ca/rsa/client.key")
+else:
+  ssock = sock
+
 # Get hidio capability after bootstrapping
-client = capnp.TwoPartyClient('127.0.0.1:7185') # 0x1c11
+client = capnp.TwoPartyClient(ssock) # 0x1c11
 cap_bootstrap = client.bootstrap()
 cap = cap_bootstrap.cast_as(hidio_capnp.HIDIOServer)
 

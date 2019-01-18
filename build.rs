@@ -19,7 +19,6 @@
 use built;
 use capnpc;
 
-
 // ----- Modules -----
 
 use rustc_version::{version, Version};

@@ -1,33 +1,71 @@
 use capnp;
 
-
-
-
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use tokio::io::AsyncRead;
 use tokio::prelude::Future;
 
+use hid_io::api::{load_certs, load_private_key};
 use hid_io::hidio_capnp::h_i_d_i_o_server;
+
+use std::fs;
+use std::io::BufReader;
+use std::net::ToSocketAddrs;
+use std::sync::Arc;
+use tokio::prelude::future::ok;
+use tokio_rustls::{rustls::ClientConfig, TlsConnector};
+
+const USE_SSL: bool = false;
 
 pub fn main() {
     try_main().unwrap();
 }
 
 fn try_main() -> Result<(), ::capnp::Error> {
-    use std::net::ToSocketAddrs;
-    let addr = "127.0.0.1:7185"
+    let host = "localhost";
+    let addr = format!("{}:7185", host)
         .to_socket_addrs()
         .unwrap()
         .next()
         .expect("could not parse address");
     println!("Connecting to {}", addr);
 
+    let ssl_config = if USE_SSL {
+        let mut pem = BufReader::new(fs::File::open("test-ca/rsa/ca.cert").unwrap());
+        let mut config = ClientConfig::new();
+        config.root_store.add_pem_file(&mut pem).unwrap();
+        config.set_single_client_cert(
+            load_certs("test-ca/rsa/client.cert"),
+            load_private_key("test-ca/rsa/client.key"),
+        );
+        let config = TlsConnector::from(Arc::new(config));
+        Some(config)
+    } else {
+        None
+    };
+
+    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
+    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
+
+    let socket = ::tokio::net::TcpStream::connect(&addr).and_then(|socket| {
+        socket.set_nodelay(true).unwrap();
+        let c: Box<Future<Item = Box<_>, Error = std::io::Error>> =
+            if let Some(config) = &ssl_config {
+                let domain = webpki::DNSNameRef::try_from_ascii_str(host).unwrap();
+                Box::new(config.connect(domain, socket).and_then(|a| {
+                    let accept: Box<Duplex> = Box::new(a);
+                    ok(accept)
+                }))
+            } else {
+                let accept: Box<Duplex> = Box::new(socket);
+                Box::new(ok(accept))
+            };
+
+        c
+    });
+
     let mut runtime = ::tokio::runtime::current_thread::Runtime::new().unwrap();
-    let stream = runtime
-        .block_on(::tokio::net::TcpStream::connect(&addr))
-        .unwrap();
-    stream.set_nodelay(true)?;
+    let stream = runtime.block_on(socket).unwrap();
     let (reader, writer) = stream.split();
 
     let network = Box::new(twoparty::VatNetwork::new(

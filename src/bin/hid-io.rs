@@ -1,7 +1,5 @@
-
 #[macro_use]
 extern crate log;
-
 
 use clap::App;
 use hid_io::{api, built_info, device, module};
@@ -61,4 +59,3 @@ fn main() {
     trace!("Trace message");
     */
 }
-
