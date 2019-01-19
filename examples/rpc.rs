@@ -92,14 +92,25 @@ fn try_main() -> Result<(), ::capnp::Error> {
             Promise::ok(())
         }))?;
 
-        let mut req = hidio.nodes_request();
-        runtime.block_on(req.send().promise.and_then(|response| {
-            let nodes = pry!(pry!(response.get()).get_nodes());
-            for n in nodes.iter() {
-                println!("Node {}", n.get_name().unwrap_or(""));
-            }
-            Promise::ok(())
-        }))?;
+        loop {
+            let req = hidio.nodes_request();
+            runtime.block_on(req.send().promise.and_then(|response| {
+                let nodes = pry!(pry!(response.get()).get_nodes());
+                for n in nodes.iter() {
+                    println!("Node {} - {}", n.get_id(), n.get_name().unwrap_or(""));
+                }
+                Promise::ok(())
+            }))?;
+
+            // Block for user input
+            use std::io::{self, BufRead};
+            let mut line = String::new();
+            io::stdin().lock().read_line(&mut line).unwrap();
+        }
+    }
+
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
     Ok(())

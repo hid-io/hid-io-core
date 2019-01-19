@@ -33,11 +33,13 @@ use tokio::io::AsyncRead;
 use tokio::prelude::{Future, Stream};
 use tokio::runtime::current_thread;
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs;
 use std::io::BufReader;
 use std::rc::Rc;
 use std::sync::Arc;
-use tokio::prelude::future::ok;
+use tokio::prelude::future::{lazy, ok};
 use tokio_rustls::{
     rustls::{AllowAnyAuthenticatedClient, RootCertStore, ServerConfig},
     TlsAcceptor,
@@ -60,44 +62,56 @@ struct Endpoint {
     id: u64,
 }
 
-struct NodeManager {
-    pub nodes: Vec<Endpoint>,
+struct HIDIOMaster {
+    nodes: Vec<Endpoint>,
+    connections: HashMap<u64, Vec<u64>>,
+    last_uid: u64,
+}
+
+impl HIDIOMaster {
+    fn new() -> HIDIOMaster {
+        HIDIOMaster {
+            nodes: Vec::new(),
+            connections: HashMap::new(),
+            last_uid: 0,
+        }
+    }
 }
 
 use crate::hidio_capnp::h_i_d_i_o_server::*;
 
 struct HIDIOServerImpl {
-    nodes: Rc<NodeManager>,
+    master: Rc<RefCell<HIDIOMaster>>,
+    uid: u64,
 }
 
 impl HIDIOServerImpl {
-    fn new() -> HIDIOServerImpl {
-        // TODO: This will be generated from connected devices
-        let nodes = vec![
-            Endpoint {
-                type_: NodeType::UsbKeyboard,
-                name: "Test Keyboard".to_string(),
-                serial: "1467".to_string(),
-                id: 78500,
-            },
-            Endpoint {
-                type_: NodeType::HidioScript,
-                name: "Test Script".to_string(),
-                serial: "A&d342".to_string(),
-                id: 99382569,
-            },
-        ];
-
-        HIDIOServerImpl {
-            nodes: Rc::new(NodeManager { nodes }),
-        }
+    fn new(master: Rc<RefCell<HIDIOMaster>>, uid: u64) -> HIDIOServerImpl {
+        HIDIOServerImpl { master, uid }
     }
 }
 
 impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, _params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
+        {
+            let mut m = self.master.borrow_mut();
+            let id = m.last_uid + 1;
+            m.last_uid = id;
+
+            // TODO: This should be supplied from the script
+            let node = Endpoint {
+                type_: NodeType::HidioScript,
+                name: "Test Script".to_string(),
+                serial: "A&d342".to_string(),
+                id: id,
+            };
+
+            m.connections.get_mut(&self.uid).unwrap().push(node.id);
+            m.nodes.push(node);
+        }
+
         results.get().set_port(
-            h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.nodes), AuthLevel::Basic))
+            h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.master), AuthLevel::Basic))
                 .into_client::<::capnp_rpc::Server>(),
         );
         Promise::ok(())
@@ -111,8 +125,11 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 
         if authenticator.auth() {
             results.get().set_port(
-                h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.nodes), AuthLevel::Secure))
-                    .into_client::<::capnp_rpc::Server>(),
+                h_i_d_i_o::ToClient::new(HIDIOImpl::new(
+                    Rc::clone(&self.master),
+                    AuthLevel::Secure,
+                ))
+                .into_client::<::capnp_rpc::Server>(),
             );
             Promise::ok(())
         } else {
@@ -127,13 +144,13 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 use crate::hidio_capnp::h_i_d_i_o::*;
 
 struct HIDIOImpl {
-    server: Rc<NodeManager>,
+    master: Rc<RefCell<HIDIOMaster>>,
     auth: AuthLevel,
 }
 
 impl HIDIOImpl {
-    fn new(server: Rc<NodeManager>, auth: AuthLevel) -> HIDIOImpl {
-        HIDIOImpl { server, auth }
+    fn new(master: Rc<RefCell<HIDIOMaster>>, auth: AuthLevel) -> HIDIOImpl {
+        HIDIOImpl { master, auth }
     }
 
     fn init_signal(mut signal: h_i_d_i_o::signal::Builder<'_>) {
@@ -155,31 +172,6 @@ impl HIDIOImpl {
             event.set_id(32);
         }
     }
-
-    fn init_nodes(mut nodes: capnp::struct_list::Builder<'_, destination::Owned>) {
-        {
-            let mut usbkbd = nodes.reborrow().get(0);
-            usbkbd.set_type(NodeType::UsbKeyboard);
-            usbkbd.set_name("Test Keyboard");
-            usbkbd.set_serial("1467");
-            usbkbd.set_id(78500);
-            usbkbd.set_node(
-                h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::USBKeyboard(false))
-                    .into_client::<::capnp_rpc::Server>(),
-            );
-        }
-        {
-            let mut hostmacro = nodes.get(1);
-            hostmacro.set_type(NodeType::HidioScript);
-            hostmacro.set_name("Test Script");
-            hostmacro.set_serial("A&d342");
-            hostmacro.set_id(99382569);
-            hostmacro.set_node(
-                h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::HostIO(false))
-                    .into_client::<::capnp_rpc::Server>(),
-            );
-        }
-    }
 }
 
 impl h_i_d_i_o::Server for HIDIOImpl {
@@ -193,8 +185,19 @@ impl h_i_d_i_o::Server for HIDIOImpl {
     }
 
     fn nodes(&mut self, _params: NodesParams, mut results: NodesResults) -> Promise<(), Error> {
-        let nodes = results.get().init_nodes(2);
-        HIDIOImpl::init_nodes(nodes);
+        let nodes = &self.master.borrow().nodes;
+        let mut result = results.get().init_nodes(nodes.len() as u32);
+        for (i, n) in nodes.iter().enumerate() {
+            let mut node = result.reborrow().get(i as u32);
+            node.set_type(n.type_);
+            node.set_name(&n.name);
+            node.set_serial(&n.serial);
+            node.set_id(n.id);
+            node.set_node(
+                h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::HostIO(false))
+                    .into_client::<::capnp_rpc::Server>(),
+            );
+        }
         Promise::ok(())
     }
 }
@@ -317,20 +320,58 @@ pub fn initialize() {
         c
     });
 
-    let hidio_server = h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new())
-        .into_client::<::capnp_rpc::Server>();
+    // TODO: This will be generated from connected devices
+    let mut nodes = vec![Endpoint {
+        type_: NodeType::UsbKeyboard,
+        name: "Test Keyboard".to_string(),
+        serial: "1467".to_string(),
+        id: 78500,
+    }];
+
+    let mut m = HIDIOMaster::new();
+    m.nodes.append(&mut nodes);
+
+    let master = Rc::new(RefCell::new(m));
+
     let done = connections.for_each(|connect_promise| {
         connect_promise.and_then(|socket| {
             let (reader, writer) = socket.split();
 
+            // Client connected, create node
             let network = twoparty::VatNetwork::new(
                 reader,
                 writer,
                 rpc_twoparty_capnp::Side::Server,
                 Default::default(),
             );
-            let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.clone().client));
-            current_thread::spawn(rpc_system.map_err(|e| println!("error: {:?}", e)));
+            current_thread::spawn(lazy(|| {
+                let rc = Rc::clone(&master);
+                let uid = {
+                    let mut m = rc.borrow_mut();
+                    m.last_uid += 1;
+                    let uid = m.last_uid;
+                    m.connections.insert(uid, vec![]);
+                    uid
+                };
+
+                let hidio_server =
+                    h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new(Rc::clone(&rc), uid))
+                        .into_client::<::capnp_rpc::Server>();
+                let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
+
+                rpc_system
+                    .map_err(|e| println!("error: {:?}", e))
+                    .and_then(move |_| {
+                        println!("DONE: {}", uid);
+
+                        // Client disconnected, delete node
+                        let connected_nodes = rc.borrow().connections.get(&uid).unwrap().clone();
+                        rc.borrow_mut()
+                            .nodes
+                            .retain(|x| !connected_nodes.contains(&x.id));
+                        Ok(())
+                    })
+            }));
             Ok(())
         })
     });
