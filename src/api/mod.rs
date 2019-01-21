@@ -28,7 +28,7 @@ pub use crate::usbkeyboard_capnp::*;
 
 use capnp::capability::Promise;
 use capnp::Error;
-use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
+use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use tokio::io::AsyncRead;
 use tokio::prelude::{Future, Stream};
 use tokio::runtime::current_thread;
@@ -48,6 +48,16 @@ use tokio_rustls::{
 const USE_SSL: bool = false;
 
 // ----- Functions -----
+
+impl std::fmt::Display for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            NodeType::HidioDaemon => write!(f, "HidioDaemon"),
+            NodeType::HidioScript => write!(f, "HidioScript"),
+            NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
+        }
+    }
+}
 
 enum AuthLevel {
     Basic,
@@ -89,48 +99,54 @@ impl HIDIOServerImpl {
     fn new(master: Rc<RefCell<HIDIOMaster>>, uid: u64) -> HIDIOServerImpl {
         HIDIOServerImpl { master, uid }
     }
-}
 
-impl h_i_d_i_o_server::Server for HIDIOServerImpl {
-    fn basic(&mut self, _params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
+    fn create_connection(&mut self, mut node: Endpoint, auth: AuthLevel) -> h_i_d_i_o::Client {
         {
             let mut m = self.master.borrow_mut();
             let id = m.last_uid + 1;
             m.last_uid = id;
-
-            // TODO: This should be supplied from the script
-            let node = Endpoint {
-                type_: NodeType::HidioScript,
-                name: "Test Script".to_string(),
-                serial: "A&d342".to_string(),
-                id: id,
-            };
-
+            node.id = id;
             m.connections.get_mut(&self.uid).unwrap().push(node.id);
             m.nodes.push(node);
         }
 
-        results.get().set_port(
-            h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.master), AuthLevel::Basic))
-                .into_client::<::capnp_rpc::Server>(),
-        );
+        h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.master), auth))
+            .into_client::<::capnp_rpc::Server>()
+    }
+}
+
+impl h_i_d_i_o_server::Server for HIDIOServerImpl {
+    fn basic(&mut self, params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
+        let info = pry!(pry!(params.get()).get_info());
+        let node = Endpoint {
+            type_: info.get_type().unwrap(),
+            name: info.get_name().unwrap().to_string(),
+            serial: info.get_serial().unwrap().to_string(),
+            id: 0,
+        };
+        results
+            .get()
+            .set_port(self.create_connection(node, AuthLevel::Secure));
         Promise::ok(())
     }
 
-    fn auth(&mut self, _params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
+    fn auth(&mut self, params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
         use crate::api::auth::UAC;
 
         // TODO: Auth implementation selection
         let authenticator = auth::DummyAuth {};
 
         if authenticator.auth() {
-            results.get().set_port(
-                h_i_d_i_o::ToClient::new(HIDIOImpl::new(
-                    Rc::clone(&self.master),
-                    AuthLevel::Secure,
-                ))
-                .into_client::<::capnp_rpc::Server>(),
-            );
+            let info = pry!(pry!(params.get()).get_info());
+            let node = Endpoint {
+                type_: info.get_type().unwrap(),
+                name: info.get_name().unwrap().to_string(),
+                serial: info.get_serial().unwrap().to_string(),
+                id: 0,
+            };
+            results
+                .get()
+                .set_port(self.create_connection(node, AuthLevel::Secure));
             Promise::ok(())
         } else {
             Promise::err(Error {

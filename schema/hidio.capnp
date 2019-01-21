@@ -30,11 +30,11 @@ using import "usbkeyboard.capnp".USBKeyboard;
 interface HIDIOServer {
     # Authentication interface for HIDIO
 
-    basic @0 () -> (port :HIDIO);
+    basic @0 (info :Common.Source) -> (port :HIDIO);
     # Allocates a basic interface, with no special priviledges
 
     # TODO Add authentication schemes
-    auth @1 () -> (port :HIDIO);
+    auth @1 (info :Common.Source) -> (port :HIDIO);
 }
 
 interface HIDIO {

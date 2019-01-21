@@ -6,6 +6,7 @@ use tokio::io::AsyncRead;
 use tokio::prelude::Future;
 
 use hid_io::api::{load_certs, load_private_key};
+use hid_io::common_capnp::NodeType;
 use hid_io::hidio_capnp::h_i_d_i_o_server;
 
 use std::fs;
@@ -80,8 +81,14 @@ fn try_main() -> Result<(), ::capnp::Error> {
     runtime.spawn(rpc_system.map_err(|_e| ()));
 
     {
+        use rand::Rng;
         let hidio = {
-            let request = hidio_server.basic_request();
+            let mut request = hidio_server.basic_request();
+            let mut info = request.get().get_info().unwrap();
+            let mut rng = rand::thread_rng();
+            info.set_type(NodeType::HidioScript);
+            info.set_name("RPC Test");
+            info.set_serial(&format!("{:x}", rng.gen::<u64>()));
             request.send().pipeline.get_port()
         };
 
@@ -97,7 +104,13 @@ fn try_main() -> Result<(), ::capnp::Error> {
             runtime.block_on(req.send().promise.and_then(|response| {
                 let nodes = pry!(pry!(response.get()).get_nodes());
                 for n in nodes.iter() {
-                    println!("Node {} - {}", n.get_id(), n.get_name().unwrap_or(""));
+                    println!(
+                        "Node {} - {}: {} ({})",
+                        n.get_id(),
+                        n.get_type().unwrap(),
+                        n.get_name().unwrap_or(""),
+                        n.get_serial().unwrap_or(""),
+                    );
                 }
                 Promise::ok(())
             }))?;
