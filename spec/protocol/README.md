@@ -7,6 +7,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 * 2016-02-14 - Initial Draft (HaaTa)
 * 2017-07-15 - Proposed Implementation - v0.1.0 (HaaTa)
 * 2019-01-07 - Updated Proposed Implementation - v0.1.1 (HaaTa)
+* 2019-02-09 - Clarification of continued packet format = v0.1.2 (HaaTa)
 
 ## Glossary
 
@@ -140,7 +141,7 @@ b00 0000 0001 - 1
 
 Except for the Sync packet, which only requires a single byte transmission, the rest of the packets require at least two more pieces of information: Length and Id. Length is the number of payload bytes left in the packet while Id is the unique identifier to specify each command/response. The length byte is always after the header byte.
 
-The length field is the a value between 1 and <max packet size> - 2. In addition to the dedicated byte, this field has 3 additional bits from the Header byte which are the MSBs. This 10 bit number (max 1023) is sufficiently large to handle any interrupt max packet length as defined by the USB spec (as of writing). It is the responsibility of the sender to make sure the length value does not exceed the max packet size as USB does not have automatic chunking available for this type of interface.
+The length field is the a value between 1 and <max packet size> - 2. In addition to the dedicated byte, this field has 3 additional bits from the Header byte which are the MSBs. This 10 bit number (max 1023) is sufficiently large to handle any interrupt max packet length as defined by the USB spec (as of writing). It is the responsibility of the sender to make sure the length value does not exceed the max packet size as USB does not have automatic chunking available for this type of interface. When the continued bit is set (W=1), then the length field represents the number of packets that are pending for the continued packet. A packet with W=1 always contains a maximum payload.
 
 All payloads are Id specific and may include any sort of data without restriction as long as it fits within the max payload size. If the payload is larger, the payload may be chunked into Continued packets. The receiving side will need to keep track of the previous packet type to process the continued packet.
 
