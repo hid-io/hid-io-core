@@ -7,7 +7,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 * 2016-02-14 - Initial Draft (HaaTa)
 * 2017-07-15 - Proposed Implementation - v0.1.0 (HaaTa)
 * 2019-01-07 - Updated Proposed Implementation - v0.1.1 (HaaTa)
-* 2019-02-09 - Clarification of continued packet format = v0.1.2 (HaaTa)
+* 2019-02-09 - Clarification of continued packet format - v0.1.2 (HaaTa)
 
 ## Glossary
 
