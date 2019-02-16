@@ -325,106 +325,6 @@ However using the scancode to USB mapping it is possible to determine which keys
 -> (No payload)
 ```
 
-Pixel Setting
-```
-0x21 <command:16 bits> <argument:16 bits>
-
-Controls various LED modes on the device.
-Mainly used to put the LED controller(s) into the correct state
- * 0x0001 - HID-IO LED control
-            Enable/Disable LED control from HID-IO
-            The device should not update any LEDs when enabled
-            Args:
-            * 0x0000 - Disable
-            * 0x0001 - Enable, full speed
-            * 0x0002 - Enable, frame wait (waits for Next frame 0x0004 before the device updates the LEDs)
- * 0x0002 - Reset LED controller
-            This should re-initialize the LED controller.
-            Often useful when I2C devices get into a bad state.
-            * 0x0000 - Soft reset - clear buffers
-            * 0x0001 - Hard reset - reset hardware bus (if exists)
- * 0x0003 - Clear LEDs
-            Sets device side pixel states to off (all LEDs should be off).
-            If HID-IO LED control is on, LEDs will stay off.
-            If HID-IO LED control is off, LEDs may turn back on.
-            Args:
-            * 0x0000 - Clear
- * 0x0004 - Next frame
-            If frame wait control mode is enable, tell the device to update the LEDs and allow writing to the next buffer.
-            If the device hasn't finished writing to the LEDs will NAK and must be resent.
-            Args:
-            * 0x0000 - 1 frame
-
-+> (No payload)
--> (No payload)
-```
-
-Pixel Set (1 ch, 8 bit)
-```
-0x22 <starting pixel address:16 bits> <pixel1 ch1:8 bits> <pixel2 ch1:8 bits>...
-
-Starting from the given pixel address, set the first channel using an 8 bit value.
-If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
-For example:
- 47  on a 1 bit display should be ignored
- 200 on a 7 bit display should be ignored
-
-If there is no channel for a given pixel (pixel address is unassigned), ignore (do not send a NAK).
-
-+> (No payload)
--> (No payload)
-```
-
-Pixel Set (3 ch, 8 bit)
-```
-0x23 <starting pixel address:16 bits> <pixel1 ch1:8 bits> <pixel1 ch2:8 bits> <pixel1 ch3:8 bits> <pixel2 ch1:8 bits>...
-
-Starting from the given pixel address, set the first channel using an 8 bit value.
-If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
-For example:
- 47  on a 1 bit display should be ignored
- 200 on a 7 bit display should be ignored
-
-If there is no channel for a given pixel (pixel address is unassigned or using on a 1 channel pixel), ignore (do not send a NAK).
-
-+> (No payload)
--> (No payload)
-```
-
-Pixel Set (1 ch, 16 bit)
-```
-0x24 <starting pixel address:16 bits> <pixel1 ch1:16 bits> <pixel2 ch1:16 bits>...
-
-Starting from the given pixel address, set the first channel using a 16 bit value.
-If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
-For example:
- 47   on a  1 bit display should be ignored
- 200  on a  7 bit display should be ignored
- 2000 on an 8 bit display should be ignored
-
-If there is no channel for a given pixel (pixel address is unassigned), ignore (do not send a NAK).
-
-+> (No payload)
--> (No payload)
-```
-
-Pixel Set (3 ch, 16 bit)
-```
-0x25 <starting pixel address:16 bits> <pixel1 ch1:16 bits> <pixel1 ch2:16 bits> <pixel1 ch3:16 bits> <pixel2 ch1:16 bits>...
-
-Starting from the given pixel address, set the first channel using a 16 bit value.
-If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
-For example:
- 47   on a  1 bit display should be ignored
- 200  on a  7 bit display should be ignored
- 2000 on an 8 bit display should be ignored
-
-If there is no channel for a given pixel (pixel address is unassigned or using on a 1 channel pixel), ignore (do not send a NAK).
-
-+> (No payload)
--> (No payload)
-```
-
 
 **Host Optional Commands**
 
@@ -529,6 +429,106 @@ WARNING: Do not allow flash mode without some sort of physical interaction as th
  * 0x01 - Disabled
 ```
 
+Pixel Setting
+```
+0x21 <command:16 bits> <argument:16 bits>
+
+Controls various LED modes on the device.
+Mainly used to put the LED controller(s) into the correct state
+ * 0x0001 - HID-IO LED control
+            Enable/Disable LED control from HID-IO
+            The device should not update any LEDs when enabled
+            Args:
+            * 0x0000 - Disable
+            * 0x0001 - Enable, full speed
+            * 0x0002 - Enable, frame wait (waits for Next frame 0x0004 before the device updates the LEDs)
+ * 0x0002 - Reset LED controller
+            This should re-initialize the LED controller.
+            Often useful when I2C devices get into a bad state.
+            * 0x0000 - Soft reset - clear buffers
+            * 0x0001 - Hard reset - reset hardware bus (if exists)
+ * 0x0003 - Clear LEDs
+            Sets device side pixel states to off (all LEDs should be off).
+            If HID-IO LED control is on, LEDs will stay off.
+            If HID-IO LED control is off, LEDs may turn back on.
+            Args:
+            * 0x0000 - Clear
+ * 0x0004 - Next frame
+            If frame wait control mode is enable, tell the device to update the LEDs and allow writing to the next buffer.
+            If the device hasn't finished writing to the LEDs will NAK and must be resent.
+            Args:
+            * 0x0000 - 1 frame
+
++> (No payload)
+-> (No payload)
+```
+
+Pixel Set (1 ch, 8 bit)
+```
+0x22 <starting pixel address:16 bits> <pixel1 ch1:8 bits> <pixel2 ch1:8 bits>...
+
+Starting from the given pixel address, set the first channel using an 8 bit value.
+If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
+For example:
+ 47  on a 1 bit display should be ignored
+ 200 on a 7 bit display should be ignored
+
+If there is no channel for a given pixel (pixel address is unassigned), ignore (do not send a NAK).
+
++> (No payload)
+-> (No payload)
+```
+
+Pixel Set (3 ch, 8 bit)
+```
+0x23 <starting pixel address:16 bits> <pixel1 ch1:8 bits> <pixel1 ch2:8 bits> <pixel1 ch3:8 bits> <pixel2 ch1:8 bits>...
+
+Starting from the given pixel address, set the first channel using an 8 bit value.
+If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
+For example:
+ 47  on a 1 bit display should be ignored
+ 200 on a 7 bit display should be ignored
+
+If there is no channel for a given pixel (pixel address is unassigned or using on a 1 channel pixel), ignore (do not send a NAK).
+
++> (No payload)
+-> (No payload)
+```
+
+Pixel Set (1 ch, 16 bit)
+```
+0x24 <starting pixel address:16 bits> <pixel1 ch1:16 bits> <pixel2 ch1:16 bits>...
+
+Starting from the given pixel address, set the first channel using a 16 bit value.
+If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
+For example:
+ 47   on a  1 bit display should be ignored
+ 200  on a  7 bit display should be ignored
+ 2000 on an 8 bit display should be ignored
+
+If there is no channel for a given pixel (pixel address is unassigned), ignore (do not send a NAK).
+
++> (No payload)
+-> (No payload)
+```
+
+Pixel Set (3 ch, 16 bit)
+```
+0x25 <starting pixel address:16 bits> <pixel1 ch1:16 bits> <pixel1 ch2:16 bits> <pixel1 ch3:16 bits> <pixel2 ch1:16 bits>...
+
+Starting from the given pixel address, set the first channel using a 16 bit value.
+If the pixel is is a smaller size internally ignore any value greater than the internal size (do not send a NAK).
+For example:
+ 47   on a  1 bit display should be ignored
+ 200  on a  7 bit display should be ignored
+ 2000 on an 8 bit display should be ignored
+
+If there is no channel for a given pixel (pixel address is unassigned or using on a 1 channel pixel), ignore (do not send a NAK).
+
++> (No payload)
+-> (No payload)
+```
+
 
 
 ## ID List
@@ -549,9 +549,9 @@ WARNING: Do not allow flash mode without some sort of physical interaction as th
 * 0x18 - UTF-8 State              (Device)
 * 0x19 - Trigger Host Macro       (Device)
 * 0x20 - KLL Trigger State        (Device)
-* 0x21 - Pixel Setting            (Device)
-* 0x22 - Pixel Set (1 ch, 8 bit)  (Device)
-* 0x23 - Pixel Set (3 ch, 8 bit)  (Device)
-* 0x24 - Pixel Set (1 ch, 16 bit) (Device)
-* 0x25 - Pixel Set (3 ch, 16 bit) (Device)
+* 0x21 - Pixel Setting            (Host)
+* 0x22 - Pixel Set (1 ch, 8 bit)  (Host)
+* 0x23 - Pixel Set (3 ch, 8 bit)  (Host)
+* 0x24 - Pixel Set (1 ch, 16 bit) (Host)
+* 0x25 - Pixel Set (3 ch, 16 bit) (Host)
 
