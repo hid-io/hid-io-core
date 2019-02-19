@@ -210,7 +210,7 @@ The next sections will use the following format.
 
 **Device Required Commands**
 
-Supported Ids
+#### Supported Ids
 ```
 0x00
 
@@ -220,7 +220,7 @@ Requests a list of supported Ids on the device. This includes required Ids. Use 
 -> (No payload on error)
 ```
 
-Get Info
+#### Get Info
 ```
 0x01 <property>
 
@@ -243,7 +243,7 @@ Requests a property from the device.
 
 **Host Required Commands**
 
-Supported Ids
+#### Supported Ids
 ```
 0x00
 
@@ -253,7 +253,7 @@ Requests a list of supported Ids on the host. This includes required Ids. Use th
 -> (No payload on error)
 ```
 
-Get Info
+#### Get Info
 ```
 0x01 <property>
 
@@ -280,7 +280,7 @@ Requests a property from the host.
 
 **Device Optional Commands**
 
-UTF-8 character stream
+#### UTF-8 character stream
 ```
 0x17 <utf-8 characters>
 
@@ -290,7 +290,7 @@ Sends the given list of UTF-8 characters, these will be printed out to the curre
 -> (No payload)
 ```
 
-UTF-8 state
+#### UTF-8 state
 ```
 0x18 <utf-8 characters>
 
@@ -302,7 +302,7 @@ To release a character send this packet again without that particular symbol.
 -> (No payload)
 ```
 
-Trigger Host Macro
+#### Trigger Host Macro
 ```
 0x19 <macro id number> <macro id number 2>...
 
@@ -312,7 +312,7 @@ Triggers a given host side macro using id numbers (16-bit).
 -> (macro ids that were not successful/do not exist)
 ```
 
-KLL Trigger State
+#### KLL Trigger State
 ```
 0x20 <trigger type1:8 bit> <trigger id1:8 bit> <trigger state1:8 bit> <trigger type2:8 bit> <trigger id2:8 bit> <trigger state2:8 bit>...
 
@@ -328,7 +328,7 @@ However using the scancode to USB mapping it is possible to determine which keys
 
 **Host Optional Commands**
 
-Get Properties
+#### Get Properties
 ```
 0x10 <command> [<field id>]
 
@@ -342,7 +342,7 @@ Commands:
 -> (Command and possible filed id of the failed command)
 ```
 
-USB Key State
+#### USB Key State
 ```
 0x11 <mode> <usb code> [<usb code>...]
 
@@ -355,7 +355,7 @@ Modes:
 -> (Mode and keys which the state could not be changed).
 ```
 
-Keyboard Layout
+#### Keyboard Layout
 ```
 0x12 <layer>
 
@@ -366,7 +366,7 @@ Width of scan code is the number of bytes. In general this will be 0x01, and in 
 -> No payload, layer doesn't exist
 ```
 
-Button Layout
+#### Button Layout
 ```
 0x13
 
@@ -376,7 +376,7 @@ Returns the physical properties of how the buttons are laid out and what type of
 -> (No payload on error)
 ```
 
-Keycap Types
+#### Keycap Types
 ```
 0x14 <command> [option]
 
@@ -391,7 +391,7 @@ TODO - Need a good way of physically representing all types of keycaps, includin
 -> TODO
 ```
 
-LED Layout
+#### LED Layout
 ```
 0x15 <type>
 
@@ -413,7 +413,7 @@ If a type is not supported an error is returned (no payload).
 -> (No payload on error)
 ```
 
-Flash Mode
+#### Flash Mode
 ```
 0x16
 
@@ -429,7 +429,7 @@ WARNING: Do not allow flash mode without some sort of physical interaction as th
  * 0x01 - Disabled
 ```
 
-Pixel Setting
+#### Pixel Setting
 ```
 0x21 <command:16 bits> <argument:16 bits>
 
@@ -463,7 +463,7 @@ Mainly used to put the LED controller(s) into the correct state
 -> (No payload)
 ```
 
-Pixel Set (1 ch, 8 bit)
+#### Pixel Set (1 ch, 8 bit)
 ```
 0x22 <starting pixel address:16 bits> <pixel1 ch1:8 bits> <pixel2 ch1:8 bits>...
 
@@ -479,7 +479,7 @@ If there is no channel for a given pixel (pixel address is unassigned), ignore (
 -> (No payload)
 ```
 
-Pixel Set (3 ch, 8 bit)
+#### Pixel Set (3 ch, 8 bit)
 ```
 0x23 <starting pixel address:16 bits> <pixel1 ch1:8 bits> <pixel1 ch2:8 bits> <pixel1 ch3:8 bits> <pixel2 ch1:8 bits>...
 
@@ -495,7 +495,7 @@ If there is no channel for a given pixel (pixel address is unassigned or using o
 -> (No payload)
 ```
 
-Pixel Set (1 ch, 16 bit)
+#### Pixel Set (1 ch, 16 bit)
 ```
 0x24 <starting pixel address:16 bits> <pixel1 ch1:16 bits> <pixel2 ch1:16 bits>...
 
@@ -512,7 +512,7 @@ If there is no channel for a given pixel (pixel address is unassigned), ignore (
 -> (No payload)
 ```
 
-Pixel Set (3 ch, 16 bit)
+#### Pixel Set (3 ch, 16 bit)
 ```
 0x25 <starting pixel address:16 bits> <pixel1 ch1:16 bits> <pixel1 ch2:16 bits> <pixel1 ch3:16 bits> <pixel2 ch1:16 bits>...
 
@@ -530,28 +530,28 @@ If there is no channel for a given pixel (pixel address is unassigned or using o
 ```
 
 
-
+### Test, with
 ## ID List
 
-* 0x00 - Supported Ids            (Host/Device)
-* 0x01 - Get Info                 (Host/Device)
-* 0x02 - Test Packet              (Host/Device)
-* 0x03 - Reset HID-IO             (Host/Device)
+* 0x00 - (Host/Device) [Supported Ids](#supported-ids)
+* 0x01 - (Host/Device) [Get Info](#get-info)
+* 0x02 - (Host/Device) [Test Packet](#test-packet)
+* 0x03 - (Host/Device) [Reset HID-IO](#reset-hid-io)
 * 0x04..0x0F - **Reserved**
-* 0x10 - Get Properties           (Host)
-* 0x11 - USB Key State            (Host)
-* 0x12 - Keyboard Layout          (Host)
-* 0x13 - Key Layout               (Host)
-* 0x14 - Key Shapes               (Host)
-* 0x15 - LED Layout               (Host)
-* 0x16 - Flash Mode               (Host)
-* 0x17 - UTF-8 Character Stream   (Device)
-* 0x18 - UTF-8 State              (Device)
-* 0x19 - Trigger Host Macro       (Device)
-* 0x20 - KLL Trigger State        (Device)
-* 0x21 - Pixel Setting            (Host)
-* 0x22 - Pixel Set (1 ch, 8 bit)  (Host)
-* 0x23 - Pixel Set (3 ch, 8 bit)  (Host)
-* 0x24 - Pixel Set (1 ch, 16 bit) (Host)
-* 0x25 - Pixel Set (3 ch, 16 bit) (Host)
+* 0x10 - (Host)        [Get Properties](#get-properties)
+* 0x11 - (Host)        [USB Key State](#usb-key-state)
+* 0x12 - (Host)        [Keyboard Layout](#keyboard-layout)
+* 0x13 - (Host)        [Button Layout](#button-layout)
+* 0x14 - (Host)        [Keycap Types](#keycap-types)
+* 0x15 - (Host)        [LED Layout](#led-layout)
+* 0x16 - (Host)        [Flash Mode](#flash-mode)
+* 0x17 - (Device)      [UTF-8 Character Stream](#utf-8-character-stream)
+* 0x18 - (Device)      [UTF-8 State](#utf-8-state)
+* 0x19 - (Device)      [Trigger Host Macro](trigger-host-macro)
+* 0x20 - (Device)      [KLL Trigger State](#kll-trigger-state)
+* 0x21 - (Host)        [Pixel Setting](#pixel-setting)
+* 0x22 - (Host)        [Pixel Set (1 ch, 8 bit)](#pixel-set-1-ch-8-bit)
+* 0x23 - (Host)        [Pixel Set (3 ch, 8 bit)](#pixel-set-3-ch-8-bit)
+* 0x24 - (Host)        [Pixel Set (1 ch, 16 bit)](#pixel-set-1-ch-16-bit)
+* 0x25 - (Host)        [Pixel Set (3 ch, 16 bit)](#pixel-set-3-ch-16-bit)
 
