@@ -1,7 +1,8 @@
 pub mod x11;
 
 pub trait UnicodeOutput {
-    fn press_symbol(&self, c: char, state: bool);
-    fn type_string(&self, string: &str);
+    fn type_string(&mut self, string: &str);
+    fn press_symbol(&mut self, c: char, state: bool);
+    fn get_held(&mut self) -> Vec<char>;
+    fn set_held(&mut self, string: &str);
 }
-

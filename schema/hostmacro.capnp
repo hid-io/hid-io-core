@@ -35,5 +35,8 @@ interface HostMacro extends(Common.HIDIONode) {
             }
         }
     }
+
+    interface Commands {
+    }
 }
 

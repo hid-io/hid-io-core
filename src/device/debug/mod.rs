@@ -44,5 +44,5 @@ pub fn initialize() {
     info!("Initializing device/debug...");
 
     // Spawn watcher thread
-    thread::spawn(processing);
+    thread::Builder::new().name("Debug module".to_string()).spawn(processing).unwrap();
 }

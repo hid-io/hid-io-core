@@ -4,6 +4,8 @@ use std::ptr::null;
 use std::{thread, time};
 use x11::xlib::*;
 use x11::xtest::*;
+use std::collections::HashMap;
+use std::process::Command;
 
 use crate::module::unicode::UnicodeOutput;
 
@@ -11,20 +13,46 @@ const KEY_DELAY_US: u64 = 60000;
 
 pub struct XConnection {
     display: *mut x11::xlib::_XDisplay,
+    charmap: HashMap<char, u32>,
+    held: Vec<char>,
+}
+
+impl Default for XConnection {
+	fn default() -> Self {
+		Self::new()
+	}
 }
 
 impl XConnection {
     pub fn new() -> XConnection {
         unsafe {
             let display = XOpenDisplay(null());
-            XConnection { display }
+            let charmap = HashMap::new();
+            let held = Vec::new();
+            XConnection { display, charmap, held }
         }
     }
 
+    pub fn get_layout() -> String {
+	// TODO: Better solution. https://unix.stackexchange.com/a/422493
+
+	let result = Command::new("setxkbmap").args(&["-query"]).output().expect("Failed to exec setxkbmap");	
+	let output = String::from_utf8_lossy(&result.stdout);
+	let mut map = output.lines().map(|l| l.split(':')).map(|mut kv| (kv.next().unwrap(), kv.next().unwrap()));
+	let layout = map.find(|(k,_): &(&str, &str)| { *k=="layout" }).map(|(_,v)| v.trim()).unwrap();
+	layout.to_string()
+    }
+
+    pub fn set_layout(layout: &str) -> Result<(), std::io::Error> {
+	Command::new("setxkbmap").args(&[layout]).output()?;
+	Ok(())
+    }
+
     #[link(name = "X11")]
-    pub fn find_unused_keycode(&self) -> u32 {
+    pub fn find_keycode(&self, keysym: u64) -> (bool, Option<u32>) {
         let display = self.display;
-        let mut keycode = 0;
+        let mut keycode = None;
+	let mut empty = false;
 
         unsafe {
             let mut keycode_low: c_int = 0;
@@ -40,34 +68,40 @@ impl XConnection {
             );
 
             for i in keycode_low..keycode_high {
-                let mut empty = true;
                 for j in 0..keysyms_per_keycode {
                     let symindex = (i - keycode_low) * keysyms_per_keycode + j;
-                    if *keysyms.offset(symindex as isize) != 0 {
-                        empty = false;
+                    let s = *keysyms.offset(symindex as isize);
+                    trace!("sym[{},{}] = '{}'", i, j, s);
+                    if s == 0 {
+			empty = true;
+			keycode = Some(i as u32);
+		    }
+		    if s == keysym {
+			empty = false;
+			keycode = Some(i as u32);
                         break;
                     }
-                }
-                if empty {
-                    keycode = i as u32;
-                    break;
                 }
             }
 
             XFree(keysyms as *mut c_void);
         }
 
-        keycode
+	(empty, keycode)
     }
 
-    pub fn bind_key(&self, keycode: u32, symbol: char) {
+    pub fn lookup_sym(symbol: char) -> u64 {
         let hex: u32 = symbol.into();
         let s = format!("U{:x}", hex);
+	unsafe {
+	    let xs = CString::new(s);
+	    XStringToKeysym(xs.unwrap().as_ptr())
+	}
+    }
 
+    pub fn bind_key(&self, keycode: u32, mut keysym: u64) {
         unsafe {
-            let xs = CString::new(s);
-            let mut sym = XStringToKeysym(xs.unwrap().as_ptr());
-            XChangeKeyboardMapping(self.display, keycode as i32, 1, &mut sym, 1);
+            XChangeKeyboardMapping(self.display, keycode as i32, 1, &mut keysym, 1);
             XSync(self.display, false as i32);
         }
     }
@@ -84,10 +118,47 @@ impl XConnection {
             XTestFakeKeyEvent(self.display, keycode, state as i32, time);
         }
     }
+
+    pub fn map_sym(&mut self, c: char) -> Option<u32> {
+	let keysym = XConnection::lookup_sym(c);
+	let (unmapped, keycode) = self.find_keycode(keysym);
+        if let Some(keycode) = keycode {
+	    if unmapped {
+		self.bind_key(keycode, keysym);
+		self.charmap.insert(c, keycode);
+	    }
+            Some(keycode)
+        } else {
+            warn!("Could not find available keycode");
+            None
+        }
+    }
+
+    pub fn unmap_sym(&mut self, c: char) {
+        if let Some(keycode) = self.charmap.get(&c) {
+            self.unbind_key(*keycode);
+            self.charmap.remove(&c);
+        }
+    }
+
+    pub fn get_sym(&mut self, c: char) -> Option<u32> {
+        if let Some(keycode) = self.charmap.get(&c) {
+            return Some(*keycode);
+        } else {
+            return self.map_sym(c);
+        }
+    }
 }
 
 impl Drop for XConnection {
     fn drop(&mut self) {
+	info!("Unbinding all keys");
+        for keycode in self.charmap.values() {
+            self.unbind_key(*keycode);
+        }
+        /*for (c, _) in &self.charmap {
+            self.unmap_sym(*c);
+        }*/
         unsafe {
             XCloseDisplay(self.display);
         }
@@ -95,13 +166,21 @@ impl Drop for XConnection {
 }
 
 impl UnicodeOutput for XConnection {
-    fn type_string(&self, string: &str) {
+    fn type_string(&mut self, string: &str) {
         let mut keycodes = Vec::with_capacity(string.len());
 
         for c in string.chars() {
-            let keycode = self.find_unused_keycode();
-            self.bind_key(keycode, c);
-            keycodes.push(keycode);
+            if c == '\0' {
+                continue;
+            }
+            if let Some(keycode) = self.get_sym(c) {
+            //if let Some(keycode) = self.find_unused_keycode() {
+                //self.bind_key(keycode, c);
+                info!("Type {} => {:x?}", keycode, c);
+                keycodes.push(keycode);
+            } /*else {
+                warn!("Could not find unused key to bind to unicode symbol");
+            }*/
         }
 
         let time = x11::xlib::CurrentTime;
@@ -109,21 +188,49 @@ impl UnicodeOutput for XConnection {
             self.press_key(*k, true, time);
             thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
             self.press_key(*k, false, time);
-            thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
-            unsafe {
-                XFlush(self.display);
-            }
+            //thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
+        }
+        /*unsafe {
+            XFlush(self.display);
+        }*/
+
+        for c in string.chars() {
+            self.unmap_sym(c);
+        }
+        /*for k in keycodes.iter() {
+            self.unbind_key(*k);
+        }*/
+    }
+
+    fn press_symbol(&mut self, c: char, press: bool) {
+        if c == '\0' {
+            return;
+        }
+        if let Some(keycode) = self.get_sym(c) {
+            println!("Set {:?} ({}) = {}", c, keycode, press);
+            self.press_key(keycode, press, x11::xlib::CurrentTime);
+            self.held.push(c);
         }
 
-        for k in keycodes.iter() {
-            self.unbind_key(*k);
+        if !press {
+            self.unmap_sym(c);
+            self.held.iter().position(|&x| x == c).map(|e| self.held.remove(e));
         }
     }
 
-    fn press_symbol(&self, c: char, state: bool) {
-        let keycode = self.find_unused_keycode();
-        self.bind_key(keycode, c);
-        self.press_key(keycode, state, 0);
-        self.unbind_key(keycode);
+    fn get_held(&mut self) -> Vec<char> {
+        self.held.clone()
+    }
+
+    fn set_held(&mut self, string: &str) {
+        let s: Vec<char> = string.chars().collect();
+        for c in &self.held.clone() {
+            if !s.contains(c) {
+                self.press_symbol(*c, false);
+            }
+        }
+        for c in &s {
+            self.press_symbol(*c, true);
+        }
     }
 }

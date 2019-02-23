@@ -17,6 +17,10 @@
 
 ## Imports ##
 
+using import "hidiowatcher.capnp".HIDIOWatcher;
+using import "hostmacro.capnp".HostMacro;
+using import "usbkeyboard.capnp".USBKeyboard;
+
 ## Enumerations ##
 
 enum KeyEventState {
@@ -82,6 +86,12 @@ struct Destination {
     # Interface node of destination
     # A separate node is generated for each interface node
     # (i.e. there may be multiple nodes per physical/virtual device)
+    
+    commands :union {
+        usbKeyboard @5 :USBKeyboard.Commands;
+	hostMacro @6 :HostMacro.Commands;
+	hidioPacket @7 :HIDIOWatcher.Commands;
+    }
 }
 
 
@@ -96,5 +106,6 @@ interface HIDIONode {
 
     isRegistered @1 () -> (ok :Bool);
     # Returns on whether the node is registered with your client for signalling
+    #
 }
 

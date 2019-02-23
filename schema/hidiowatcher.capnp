@@ -23,13 +23,21 @@ using Common = import "common.capnp";
 
 ## Interfaces ##
 
+struct HIDIOPacket {
+	id @0 :UInt16;
+	data @1: List(UInt8);
+}
+
 interface HIDIOWatcher extends(Common.HIDIONode) {
     struct Signal {
         union {
-            devicePacket @0 :Text;
-            hostPacket @1 :Text;
+            devicePacket @0 :HIDIOPacket;
+            hostPacket @1 :HIDIOPacket;
         }
         # TODO
+    }
+
+    interface Commands {
     }
 }
 

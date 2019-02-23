@@ -44,9 +44,13 @@ interface USBKeyboard extends(Common.HIDIONode) {
         # XXX (HaaTa) This can be used to build a keylogger, should only be allowed for priviledged interfaces
     }
 
-    keyEvent @0 (events :List(KeyEvent)) -> (status :List(KeyEventStatus));
-    # Send USB Key Event to keyboard to process
-    # NOTE (HaaTa) Not available for Scan Codes, as they should reflect the actual hardware state
-    #              Whereas USB Codes may be the result of macros and/or layers.
+    interface Commands {
+	    keyEvent @0 (events :List(KeyEvent)) -> (status :List(KeyEventStatus));
+	    # Send USB Key Event to keyboard to process
+	    # NOTE (HaaTa) Not available for Scan Codes, as they should reflect the actual hardware state
+	    #              Whereas USB Codes may be the result of macros and/or layers.
+
+	    cliCommand @1 (foobar :Text) -> ();
+    }
 }
 

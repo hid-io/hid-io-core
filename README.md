@@ -58,3 +58,8 @@ cargo test
 
 * [kiibohd](https://github.com/kiibohd/controller) (KLL) - **In Progress**
 
+
+
+
+`sudo usbhid-dump -m 308f:0013 -es`
+`sudo usbhid-dump -m 1c11:b04d -es -t 0 -i 5`

@@ -26,5 +26,8 @@ using Common = import "common.capnp";
 interface DeviceFunction extends(Common.HIDIONode) {
     struct Signal {
     }
+
+    interface Commands {
+    }
 }
 

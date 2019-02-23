@@ -32,7 +32,7 @@ use self::serde::ser::{self, Serialize, SerializeSeq, Serializer};
 ///
 /// # Remarks
 /// Must not be larger than 0x7, 5-7 are reserved.
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub enum HIDIOPacketType {
     /// Data packet
     Data = 0,
@@ -46,13 +46,61 @@ pub enum HIDIOPacketType {
     Continued = 4,
 }
 
+#[repr(u16)]
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum HIDIOCommandID {
+    SupportedIDs = 0x00,
+    GetInfo = 0x01,
+    TestPacket = 0x02,
+    ResetHIDIO = 0x03,
+    Reserved = 0x04,
+    GetProperties = 0x10,
+    KeyState = 0x11,
+    KeyboardLayout = 0x12,
+    KeyLayout = 0x13,
+    KeyShapes = 0x14,
+    LEDLayout = 0x15,
+    FlashMode = 0x16,
+    UnicodeText = 0x17,
+    UnicodeKey = 0x18,
+    HostMacro = 0x19,
+    KLLState = 0x20,
+    OpenURL = 0x21,
+    Terminal = 0x22,
+    InputLayout = 0x23,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum HIDIOPropertyID {
+    HIDIOMajor = 0x00,
+    HIDIOMinor = 0x01,
+    HIDIOPatch = 0x02,
+    HostOS = 0x03,
+    OSVersion = 0x04,
+    HostName = 0x05,
+    InputLayout = 0x06,
+}
+
+#[repr(u8)]
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum HostOSID {
+    Unknown = 0x00,
+    Windows = 0x01,
+    Linux = 0x02,
+    Android = 0x03,
+    Mac = 0x04,
+    IOS = 0x05,
+    ChromeOS = 0x06,
+}
+
 // ----- Structs -----
 
 /// HID-IO Packet Buffer Struct
 ///
 /// # Remarks
 /// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct HIDIOPacketBuffer {
     /// Type of packet (Continued is automatically set if needed)
     pub ptype: HIDIOPacketType,
@@ -69,6 +117,7 @@ pub struct HIDIOPacketBuffer {
 /// HID-IO Parse Error
 ///
 /// # Remarks thrown when there's an issue processing byte stream.
+#[derive(Debug)]
 pub struct HIDIOParseError {}
 
 // ----- Utility Functions -----
@@ -272,19 +321,25 @@ pub fn payload_start(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseError
 
 // ----- Implementations -----
 
+impl Default for HIDIOPacketBuffer {
+	fn default() -> Self {
+	    HIDIOPacketBuffer {
+		ptype: HIDIOPacketType::Data,
+		id: 0,
+		max_len: 0,
+		data: vec![],
+		done: false,
+	    }
+	}
+}
+
 impl HIDIOPacketBuffer {
     /// Constructor for HIDIOPacketBuffer
     ///
     /// # Remarks
     /// Initialize as blank
     pub fn new() -> HIDIOPacketBuffer {
-        HIDIOPacketBuffer {
-            ptype: HIDIOPacketType::Data,
-            id: 0,
-            max_len: 0,
-            data: vec![],
-            done: false,
-        }
+	HIDIOPacketBuffer { ..Default::default() }
     }
 
     /// Append payload data
@@ -445,7 +500,7 @@ impl Serialize for HIDIOPacketBuffer {
         // Determine id_width
         let id_width: u8 = match self.id {
             0x00..=0xFFFF => 0,         // 16 bit Id
-            0x010000..=0xFFFFFFFF => 1, // 32 bit Id
+            0x01_0000..=0xFFFF_FFFF => 1, // 32 bit Id
             _ => 0,
         };
 
@@ -469,11 +524,12 @@ impl Serialize for HIDIOPacketBuffer {
         let mut cont: bool = data_len > payload_len;
 
         // Determine packet len
-        let packet_len: u16 = match cont {
+        let packet_len: u16 = if cont {
             // Full payload length
-            true => payload_len as u16 + u16::from(id_width_len),
+            payload_len as u16 + u16::from(id_width_len)
+        } else {
             // Calculate payload length with what's left
-            false => data_len as u16 + u16::from(id_width_len),
+            data_len as u16 + u16::from(id_width_len)
         };
 
         // Determine upper_len and len fields
@@ -505,7 +561,7 @@ impl Serialize for HIDIOPacketBuffer {
             // id_width - 1 bit
             (id_width << 3) |
             // reserved - 1 bit
-            (0 << 2) |
+            // (0 << 2) |
             // upper_len - 2 bits
             (upper_len & 0x3);
 
@@ -534,11 +590,12 @@ impl Serialize for HIDIOPacketBuffer {
 
         // Serialize payload data
         // We can't just serialize directly (extra info is included), serialize each element of vector separately
-        let slice = match cont {
+        let slice = if cont {
             // Full payload length
-            true => &self.data[0..payload_len as usize],
+            &self.data[0..payload_len as usize]
+        } else {
             // Payload that's available
-            false => &self.data[0..data_len as usize],
+            &self.data[0..data_len as usize]
         };
         for elem in slice {
             state.serialize_element(elem)?;
@@ -563,11 +620,12 @@ impl Serialize for HIDIOPacketBuffer {
             let ptype = 4; // HIDIOPacketType::Continued
 
             // Determine packet len
-            let packet_len: u16 = match cont {
+            let packet_len: u16 = if cont {
                 // Full payload length
-                true => payload_len as u16 + u16::from(id_width_len),
+                payload_len as u16 + u16::from(id_width_len)
+            } else {
                 // Calculate payload length with what's left
-                false => payload_left as u16 + u16::from(id_width_len),
+                payload_left as u16 + u16::from(id_width_len)
             };
 
             // Determine upper_len and len fields
@@ -583,7 +641,7 @@ impl Serialize for HIDIOPacketBuffer {
                 // id_width - 1 bit
                 (id_width << 3) |
                 // reserved - 1 bit
-                (0 << 2) |
+                // (0 << 2) |
                 // upper_len - 2 bits
                 (upper_len & 0x3);
 
@@ -600,18 +658,20 @@ impl Serialize for HIDIOPacketBuffer {
 
             // Serialize payload data
             // We can't just serialize directly (extra info is included), serialize each element of vector separately
-            let slice_end = match cont {
+            let slice_end = if cont {
                 // Full payload length
-                true => (last_slice_index + payload_len as usize),
+                last_slice_index + payload_len as usize
+            } else {
                 // Payload that's available
-                false => data_len as usize,
+                data_len as usize
             };
-            let slice = match cont {
+            let slice = &self.data[last_slice_index..slice_end];
+            /*let slice = match cont {
                 // Full payload length
                 true => &self.data[last_slice_index..slice_end],
                 // Payload that's available
                 false => &self.data[last_slice_index..slice_end],
-            };
+            };*/
             for elem in slice {
                 state.serialize_element(elem)?;
             }
