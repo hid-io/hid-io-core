@@ -63,3 +63,19 @@ cargo test
 
 `sudo usbhid-dump -m 308f:0013 -es`
 `sudo usbhid-dump -m 1c11:b04d -es -t 0 -i 5`
+
+
+# Debugging
+
+`echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope`
+`rust-gdb target/debug/hid-io -p $(pidof hid-io)`
+
+# Packaging
+`cargo build --release --target "x86_64-pc-windows-gnu"`
+
+#
+
+`install_service.exe`
+`sc start hid-io`
+`sc stop hid-io`
+`sc query hid-io`

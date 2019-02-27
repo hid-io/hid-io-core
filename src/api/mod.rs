@@ -54,6 +54,12 @@ use tokio_rustls::{
 const LISTEN_ADDR: &str = "localhost:7185";
 const USE_SSL: bool = false;
 
+use lazy_static::lazy_static;
+lazy_static! {
+    pub static ref writers_rc: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> = Arc::new(Mutex::new(vec![]));
+    pub static ref readers_rc: Arc<Mutex<Vec<std::sync::mpsc::Receiver<HIDIOMessage>>>> = Arc::new(Mutex::new(vec![]));
+}
+
 // ----- Functions -----
 
 impl std::fmt::Display for NodeType {
@@ -390,7 +396,7 @@ pub fn initialize(mailbox: HIDIOMailbox) {
     trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
     impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
 
-    let connections = socket.incoming().map(|socket| {
+    let connections = socket.incoming().map(move |socket| {
         socket.set_nodelay(true).unwrap();
         let c: Box<Future<Item = Box<_>, Error = std::io::Error>> =
             if let Some(config) = &ssl_config {
@@ -419,73 +425,74 @@ pub fn initialize(mailbox: HIDIOMailbox) {
 
     let master = Rc::new(RefCell::new(m));
 
-    let mut writers: Vec<std::sync::mpsc::Sender<HIDIOMessage>> = vec![];
-    let writers_rc = Arc::new(Mutex::new(writers));
-    let writers_rc2 = Arc::clone(&writers_rc);
-
-    let mut readers: Vec<std::sync::mpsc::Receiver<HIDIOMessage>> = vec![];
-    let readers_rc = Arc::new(Mutex::new(readers));
-    let readers_rc2 = Arc::clone(&readers_rc);
-
     //std::thread::Builder::new().name("echo".to_string()).spawn(move|| {
     /*current_thread::run(lazy(move || {
         Ok(())
     }));*/
     //}).unwrap();
-    
+
+    use stream_cancel::{StreamExt, Tripwire};
+
     let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+    let (trigger, tripwire) = Tripwire::new();
+    let done = connections
+        //.take_while(|_| ok(RUNNING.load(Ordering::SeqCst)) )
+        .take_until(tripwire)
+        .for_each(move |connect_promise| {
+            let writers_rc2 = Arc::clone(&writers_rc);
+            let readers_rc2 = Arc::clone(&readers_rc);
+            let rc = Rc::clone(&master);
 
-    let done = connections.for_each(|connect_promise| {
-	let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
-        // TODO: poll reader too?
-        let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone());
-        {
-            let mut writers = writers_rc2.lock().unwrap();
-            (*writers).push(sink);
-            let mut readers = readers_rc2.lock().unwrap();
-            (*readers).push(hidapi_reader);
-        }
-        connect_promise.and_then(|socket| {
-            let (reader, writer) = socket.split();
+            let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
+            // TODO: poll reader too?
+            let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone());
+            {
+                let mut writers = writers_rc2.lock().unwrap();
+                (*writers).push(sink);
+                let mut readers = readers_rc2.lock().unwrap();
+                (*readers).push(hidapi_reader);
+            }
 
-            // Client connected, create node
-            let network = twoparty::VatNetwork::new(
-                reader,
-                writer,
-                rpc_twoparty_capnp::Side::Server,
-                Default::default(),
-            );
-	    let rc = Rc::clone(&master);
-            current_thread::spawn(lazy(|| {
-                let uid = {
-                    let mut m = rc.borrow_mut();
-                    m.last_uid += 1;
-                    let uid = m.last_uid;
-                    m.connections.insert(uid, vec![]);
-                    uid
-                };
+            connect_promise.and_then(|socket| {
+                let (reader, writer) = socket.split();
 
-                let hidio_server =
-                    h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox))
-                        .into_client::<::capnp_rpc::Server>();
-                let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
+                // Client connected, create node
+                let network = twoparty::VatNetwork::new(
+                    reader,
+                    writer,
+                    rpc_twoparty_capnp::Side::Server,
+                    Default::default(),
+                );
+                current_thread::spawn(lazy(|| {
+                    let uid = {
+                        let mut m = rc.borrow_mut();
+                        m.last_uid += 1;
+                        let uid = m.last_uid;
+                        m.connections.insert(uid, vec![]);
+                        uid
+                    };
 
-                rpc_system
-                    .map_err(|e| println!("error: {:?}", e))
-                    .and_then(move |_| {
-                        println!("DONE: {}", uid);
+                    let hidio_server =
+                        h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox))
+                            .into_client::<::capnp_rpc::Server>();
+                    let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
 
-                        // Client disconnected, delete node
-                        let connected_nodes = &rc.borrow().connections[&uid].clone();
-                        rc.borrow_mut()
-                            .nodes
-                            .retain(|x| !connected_nodes.contains(&x.id));
-                        Ok(())
-                    })
-            }));
-            Ok(())
-        })
-    });
+                    rpc_system
+                        .map_err(|e| println!("error: {:?}", e))
+                        .and_then(move |_| {
+                            println!("DONE: {}", uid);
+
+                            // Client disconnected, delete node
+                            let connected_nodes = &rc.borrow().connections[&uid].clone();
+                            rc.borrow_mut()
+                                .nodes
+                                .retain(|x| !connected_nodes.contains(&x.id));
+                            Ok(())
+                        })
+                }));
+                Ok(())
+            })
+        }).map_err(|_| ());
     
     //let h = rt.handle();
     std::thread::spawn(move || {
@@ -510,11 +517,30 @@ pub fn initialize(mailbox: HIDIOMailbox) {
                     }
                 }
             }
+        drop(trigger);
     });
 
     println!("EXECUTING");
     //current_thread::block_on_all(done).unwrap(); // must be called for rpc processing
-    rt.block_on(done).unwrap();
+    
     //rt.spawn(lazy(|| { done })); 
+    //rt.spawn(done);
+
+    //rt.spawn(run());
+
+    rt.block_on(done).unwrap();
+    //rt.block_on(run()).unwrap();
     //rt.run();
+}
+
+/*fn run2() -> impl Future<Item = (), Error = ()> {
+}*/
+
+fn run() -> impl Future<Item = (), Error = ()> {
+//lazy(|| {
+        loop {
+            if !RUNNING.load(Ordering::SeqCst) { break; }
+        }
+        ok(())
+//})
 }

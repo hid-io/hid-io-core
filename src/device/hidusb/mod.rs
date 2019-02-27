@@ -21,6 +21,8 @@
 
 use hidapi;
 use crate::protocol::hidio::*;
+use crate::RUNNING;
+use std::sync::atomic::Ordering;
 
 //use std::string;
 use std::thread;
@@ -82,8 +84,23 @@ impl std::io::Read for HIDUSBDevice {
 impl std::io::Write for HIDUSBDevice {
 	fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
             let buf = {
-		if _buf[0] == 0x00 {
-		    let mut new_buf = vec![0];
+                let prepend = if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
+                    // If the first byte is a 0 its not tranmitted
+                    // https://github.com/node-hid/node-hid/issues/187#issuecomment-282863702
+                    _buf[0] == 0x00
+                } else if cfg!(target_os = "windows") {
+                    // The first byte always seems to be stripped and not tranmitted
+                    // https://github.com/node-hid/node-hid/issues/187#issuecomment-285688178
+                    true
+                } else {
+                    // TODO: Test other platforms
+                    false
+                };
+
+                // Add a report id (unused) if needed so our actual first byte
+                // of the packet is sent correctly
+		if prepend {
+		    let mut new_buf = vec![0x00];
 		    new_buf.extend(_buf);
 		    new_buf
 		} else {
@@ -577,6 +594,7 @@ fn processing(mut mailer: HIDIOMailer) {
     // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
     while enumerate {
+        if !RUNNING.load(Ordering::SeqCst) { break; }
 	last_scan = Instant::now();
 
         // Refresh devices list
@@ -652,6 +670,7 @@ fn processing(mut mailer: HIDIOMailer) {
     }
 
     loop {
+        if !RUNNING.load(Ordering::SeqCst) { break; }
         // TODO: Handle device disconnect
 	if devices.is_empty() {
 		info!("No connected devices. Forcing scan");

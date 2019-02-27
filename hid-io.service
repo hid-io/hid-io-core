@@ -1,0 +1,4 @@
+[Service]
+ExecStart=/usr/bin/hid-io
+DynamicUser=yes
+

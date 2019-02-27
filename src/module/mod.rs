@@ -30,8 +30,10 @@ pub struct DeviceInfo {
 use crate::RUNNING;
 use crate::protocol::hidio::*;
 use crate::device::hidusb::*;
+use crate::module::unicode::*;
+
+#[cfg(target_os = "linux")]
 use crate::module::unicode::x11::*;
-use crate::module::unicode::UnicodeOutput;
 
 use std::thread;
 use std::io::Write;
@@ -62,15 +64,25 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
 
 struct HIDIOHandler {
     mailbox: HIDIOMailbox,
-    xorg: XConnection, 
+    display: Box<UnicodeOutput>,
     //xorg_tx: std::sync::mpsc::Sender<(usize, String)>,
     //vt_rx: std::sync::mpsc::Receiver<u8>,
+}
+
+#[cfg(target_os = "linux")]
+fn get_display() -> Box<UnicodeOutput> {
+    Box::new(XConnection::new())
+}
+
+#[cfg(target_os = "windows")]
+fn get_display() -> Box<UnicodeOutput> {
+    Box::new(StubOutput::new())
 }
 
 impl HIDIOHandler {
     fn new(mailbox: HIDIOMailbox) -> HIDIOHandler {
         use std::thread;
-	let connection = XConnection::new();
+	let connection = get_display();
         /*let (xorg_tx, xorg_rx) = channel::<(usize, String)>();
 	thread::Builder::new().name("Xorg".to_string()).spawn(move|| {
             let mut connection = XConnection::new();
@@ -111,7 +123,8 @@ impl HIDIOHandler {
         HIDIOHandler {
             mailbox,
             //xorg_tx,
-            xorg: connection,
+            display: connection,
+            //xorg: connection,
             //vt_rx,
         }
     }
@@ -227,9 +240,10 @@ impl HIDIOHandler {
 				mailbox.send_ack(device, received.id, name.as_bytes().to_vec());
 			    },
 			    HIDIOPropertyID::InputLayout => {
-				let layout = XConnection::get_layout();
-				println!("Current layout: {}", layout);
-				mailbox.send_ack(device, received.id, layout.as_bytes().to_vec());
+				//let layout = XConnection::get_layout();
+				//println!("Current layout: {}", layout);
+				//mailbox.send_ack(device, received.id, layout.as_bytes().to_vec());
+				mailbox.send_ack(device, received.id, vec![]);
 			    },
 			    _ => {
 				warn!("Unknown property: {:?}", &property);
@@ -240,13 +254,13 @@ impl HIDIOHandler {
 		    HIDIOCommandID::UnicodeText => {
 			let s = String::from_utf8(mydata).unwrap();
 			//self.xorg_tx.send((0, s)).unwrap();
-			self.xorg.type_string(&s);
+			self.display.type_string(&s);
 			mailbox.send_ack(device, received.id, vec![]);
 		    },
 		    HIDIOCommandID::UnicodeKey => {
 			let s = String::from_utf8(mydata).unwrap();
 			//self.xorg_tx.send((1, s)).unwrap();
-			self.xorg.set_held(&s);
+			self.display.set_held(&s);
 			mailbox.send_ack(device, received.id, vec![]);
 		    },
 		    HIDIOCommandID::HostMacro => {
@@ -271,10 +285,10 @@ impl HIDIOHandler {
 		    HIDIOCommandID::InputLayout => {
 			let s = String::from_utf8(mydata).unwrap();
 			info!("Setting language to {}", s);
-			match XConnection::set_layout(&s) {
+			/*match XConnection::set_layout(&s) {
 			    Ok(_) => mailbox.send_ack(device, received.id, vec![]),
 			    Err(_) => mailbox.send_nack(device, received.id, vec![]),
-			}
+			}*/
 		    },
 		    _ => {
 			warn!("Unknown command ID: {:?}", &received.id);

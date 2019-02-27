@@ -1,21 +1,87 @@
 #[macro_use]
 extern crate log;
 
+#[cfg(windows)]
+#[macro_use]
+extern crate windows_service;
+
 use clap::App;
 use hid_io::{api, built_info, device, module};
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Receiver};
 use crate::device::hidusb::HIDIOMailbox;
 use crate::device::hidusb::HIDIOMailer;
 use crate::device::hidusb::HIDIOMessage;
+//use daemon::{Daemon, DaemonRunner, State};
+
+use flexi_logger::{Logger, opt_format};
 
 use hid_io::RUNNING;
 use std::sync::atomic::Ordering;
 
-/// Main entry point
-fn main() {
+#[cfg(windows)]
+fn main() -> Result<(), std::io::Error> {
     // Setup logging mechanism
-    pretty_env_logger::init();
+    /*pretty_env_logger::init();
+
+    let daemon = Daemon {
+        name: SERVICE_NAME.to_string(),
+    };
+    daemon.run(move |rx: Receiver<State>| {
+        if !RUNNING.load(Ordering::SeqCst) { return; }
+        for signal in rx.try_iter() {
+            //println!("SIGNAL! {:?}", signal);
+            println!("SIGNAL!");
+            match signal {
+                State::Start => {
+                    start();
+                },
+                State::Reload => {
+                    stop();
+                    start();
+                },
+                State::Stop => {
+                    stop();
+                },
+            };
+        }
+    })?;*/
+
+    let args: Vec<_> = std::env::args().collect();
+    if args[1] == "-d" {
+        service::run();
+    } else {
+        /*flexi_logger::Logger::with_env()
+                .start()
+                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));*/
+        Logger::with_env()
+                .log_to_file()
+                .directory("logs")
+                .format(opt_format)
+                .start()
+                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e)); 
+
+        start();
+    }
+
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn main() -> Result<(), std::io::Error> {
+    //pretty_env_logger::init();
+    
+    flexi_logger::Logger::with_env()
+            .start()
+            .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
+
+    start();
+    Ok(())
+}
+
+/// Main entry point
+fn start() {
+    info!("Starting!");
 
     // Setup signal handler
     let r = RUNNING.clone();
@@ -26,7 +92,7 @@ fn main() {
 
     // Process command-line arguments
     // Most of the information is generated from Cargo.toml using built crate (build.rs)
-    App::new(built_info::PKG_NAME.to_string())
+    /*App::new(built_info::PKG_NAME.to_string())
         .version(
             format!(
                 "{}{} - {}",
@@ -48,7 +114,7 @@ fn main() {
             )
             .as_str(),
         )
-        .get_matches();
+        .get_matches();*/
 
     // Start initialization
     info!("Initializing HID-IO daemon...");
@@ -83,4 +149,102 @@ fn main() {
     warn!("Warn message");
     trace!("Trace message");
     */
+}
+
+fn stop() {
+    info!("Stopping!");
+    let r = RUNNING.clone();
+    r.store(false, Ordering::SeqCst);
+}
+
+#[cfg(windows)]
+mod service {
+    use windows_service::service_dispatcher;
+    use flexi_logger::{Logger, opt_format};
+    use hid_io::built_info;
+
+    const SERVICE_NAME: &str = built_info::PKG_NAME;
+
+    // Generate the windows service boilerplate.
+    // The boilerplate contains the low-level service entry function (ffi_service_main) that parses
+    // incoming service arguments into Vec<OsString> and passes them to user defined service
+    // entry (my_service_main).
+    define_windows_service!(ffi_service_main, my_service_main);
+
+    use std::ffi::OsString;
+    use std::time::Duration;
+    use windows_service::service::{
+        ServiceControl, ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus,
+        ServiceType,
+    };
+    use windows_service::service_control_handler::{self, ServiceControlHandlerResult};
+
+    pub fn run() -> windows_service::Result<()> {
+        // Register generated `ffi_service_main` with the system and start the service, blocking
+        // this thread until the service is stopped.
+        service_dispatcher::start(SERVICE_NAME, ffi_service_main)
+    }
+
+    fn my_service_main(arguments: Vec<OsString>) {
+        Logger::with_env()
+                .log_to_file()
+                .directory("log_files")
+                .format(opt_format)
+                .start()
+                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e)); 
+
+        if let Err(_e) = run_service(arguments) {
+            // Handle error in some way.
+        }
+    }
+
+    fn run_service(arguments: Vec<OsString>) -> windows_service::Result<()> {
+        let event_handler = move |control_event| -> ServiceControlHandlerResult {
+            match control_event {
+                ServiceControl::Stop => {
+                    crate::stop();
+                    ServiceControlHandlerResult::NoError
+                },
+                ServiceControl::Interrogate => {
+                    ServiceControlHandlerResult::NoError
+                },
+                _ => ServiceControlHandlerResult::NotImplemented,
+            }
+        };
+
+        // Register system service event handler
+        let status_handle = service_control_handler::register(SERVICE_NAME, event_handler)?;
+
+        let next_status = ServiceStatus {
+            // Should match the one from system service registry
+            service_type: ServiceType::OwnProcess,
+            // The new state
+            current_state: ServiceState::Running,
+            // Accept stop events when running
+            controls_accepted: ServiceControlAccept::STOP,
+            // Used to report an error when starting or stopping only, otherwise must be zero
+            exit_code: ServiceExitCode::Win32(0),
+            // Only used for pending states, otherwise must be zero
+            checkpoint: 0,
+            // Only used for pending states, otherwise must be zero
+            wait_hint: Duration::default(),
+        };
+
+        // Tell the system that the service is running now
+        status_handle.set_service_status(next_status)?;
+
+        crate::start();
+
+        // Tell the system that service has stopped.
+        status_handle.set_service_status(ServiceStatus {
+            service_type: ServiceType::OwnProcess,
+            current_state: ServiceState::Stopped,
+            controls_accepted: ServiceControlAccept::empty(),
+            exit_code: ServiceExitCode::Win32(0),
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+        })?;
+
+        Ok(())
+    }
 }

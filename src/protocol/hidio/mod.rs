@@ -100,6 +100,7 @@ pub enum HostOSID {
 ///
 /// # Remarks
 /// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
+#[repr(C)]
 #[derive(PartialEq, Clone, Debug)]
 pub struct HIDIOPacketBuffer {
     /// Type of packet (Continued is automatically set if needed)
@@ -463,6 +464,8 @@ impl HIDIOPacketBuffer {
         // Slice off the first 8 header bytes from serde
         let slice = &serialized[8..];
         let serialized = slice.to_vec();
+
+        info!("S: {:02x?}", serialized);
 
         Ok(serialized)
     }

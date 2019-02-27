@@ -23,9 +23,12 @@ use capnpc;
 
 use rustc_version::{version, Version};
 
+
 // ----- Functions -----
 
 fn main() {
+    eprintln!("Compiling for {:?}", std::env::var("CARGO_CFG_TARGET_OS"));
+
     // Assert if we don't meet the minimum version
     assert!(version().unwrap() >= Version::parse("1.17.0").unwrap());
 
@@ -45,6 +48,12 @@ fn main() {
         .run()
         .expect("schema compiler command");
 
-    println!("cargo:rustc-link-lib=X11");
-    println!("cargo:rustc-link-lib=Xtst");
+    // Link libraries
+    match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
+        "linux" => {
+            println!("cargo:rustc-link-lib=X11");
+            println!("cargo:rustc-link-lib=Xtst");
+        },
+        _ => {}
+    };
 }
