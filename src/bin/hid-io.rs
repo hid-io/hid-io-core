@@ -51,15 +51,16 @@ fn main() -> Result<(), std::io::Error> {
     if args[1] == "-d" {
         service::run();
     } else {
-        /*flexi_logger::Logger::with_env()
+        flexi_logger::Logger::with_env()
                 .start()
-                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));*/
-        Logger::with_env()
+                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
+        info!("Running in interactive mode");
+        /*Logger::with_env()
                 .log_to_file()
                 .directory("logs")
                 .format(opt_format)
                 .start()
-                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e)); 
+                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));*/
 
         start();
     }
@@ -192,6 +193,7 @@ mod service {
                 .format(opt_format)
                 .start()
                 .unwrap_or_else(|e| panic!("Logger initialization failed {}", e)); 
+        info!("Running as service!");
 
         if let Err(_e) = run_service(arguments) {
             // Handle error in some way.
@@ -200,6 +202,7 @@ mod service {
 
     fn run_service(arguments: Vec<OsString>) -> windows_service::Result<()> {
         let event_handler = move |control_event| -> ServiceControlHandlerResult {
+            info!("EVENT: {:?}", control_event);
             match control_event {
                 ServiceControl::Stop => {
                     crate::stop();

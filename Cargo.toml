@@ -1,3 +1,5 @@
+cargo-features = ["default-run"]
+
 [package]
 name          = "hid-io"
 version       = "0.1.0-alpha"
@@ -13,6 +15,7 @@ documentation = "https://hid-io.github.io/hid_io/"
 
 edition       = "2018"
 build         = "build.rs"
+default-run   = "hid-io"
 #links         = "X11"
 
 
@@ -33,7 +36,7 @@ lazy_static  = "1.2.0"
 #pretty_env_logger   = "0.3.0"
 flexi_logger = "0.10.6"
 futures      = "0.1.25"
-hidapi       = "0.5.0"
+hidapi       = "=0.5.0"
 log          = "0.4.3"
 open         = "1.2.2"
 rand         = "0.6.4"
@@ -47,19 +50,18 @@ tokio-rustls = "0.8.1"
 webpki       = "0.18.0-alpha"
 windows-service = "0.1.0"
 
-
 [target.'cfg(target_os = "linux")'.dependencies]
 xkbcommon = { version = "0.3.0", features = ["x11"] }
 x11 = "2.18.1"
 
 
-#[target.'cfg(windows)'.dependencies]
-# TODO
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.6", features = ["std", "winuser", "winnls"] }
 
 
-#[target.'cfg(target_os = "macos")'.dependencies]
-# TODO
-
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.6.3"
+core-graphics = "0.13"
 
 [package.metadata.bundle]
 identifier = "io.github.hid-io.hid-io"

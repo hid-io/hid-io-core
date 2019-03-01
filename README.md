@@ -79,3 +79,8 @@ cargo test
 `sc start hid-io`
 `sc stop hid-io`
 `sc query hid-io`
+
+#
+
+`cp hidio.plist ~/Library/LaunchAgents`
+`launchctl -w  ~/Library/LaunchAgents/hidio.plist`

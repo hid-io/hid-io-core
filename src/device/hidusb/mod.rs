@@ -32,10 +32,13 @@ use std::time::Instant;
 use std::time::Duration;
 use std::collections::HashMap;
 
-// TODO (HaaTa) remove this constants when hidapi supports better matching
+// TODO (HaaTa) remove this constants when linux supports better matching
 const DEV_VID: u16 = 0x308f;
 const DEV_PID: u16 = 0x0011;
 const INTERFACE_NUMBER: i32 = 6;
+
+const USAGE_PAGE: u16 = 0xFF1C;
+const USAGE: u16 = 0x1100;
 
 const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
@@ -574,6 +577,28 @@ fn device_name(device_info: &hidapi::HidDeviceInfo) -> String {
 	string
 }
 
+#[cfg(target_os = "linux")]
+fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
+    // usage and usage_page both appear to always be 0, so we can't use them here
+    // product_string is also the same for all interfaces so it can't be used
+    // fall back to a manual interface number match
+    device_info.vendor_id == DEV_VID
+        && device_info.vendor_id == DEV_PID
+        && device_info.interface_number == INTERFACE_NUMBER
+}
+
+#[cfg(target_os = "macos")]
+fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
+    // interface_number is always -1 but usage is fine
+    device_info.usage_page == USAGE_PAGE && device_info.usage == USAGE
+}
+
+#[cfg(target_os = "windows")]
+fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
+    // interface and usage are both queryable. Prefer usage
+    device_info.usage_page == USAGE_PAGE && device_info.usage == USAGE
+}
+
 /// hidusb processing
 ///
 /// This thread periodically refreshes the USB device list to see if a new device needs to be attached
@@ -610,13 +635,7 @@ fn processing(mut mailer: HIDIOMailer) {
             // 1) bInterfaceClass 0x03 (HID) + bInterfaceSubClass 0x00 (None) + bInterfaceProtocol 0x00 (None)
             // 2) 2 endpoints, EP IN + EP OUT (both Interrupt)
             // 3) iInterface, RawIO API Interface
-            if !(device_info.vendor_id == DEV_VID
-                && device_info.product_id == DEV_PID
-                && device_info.interface_number == INTERFACE_NUMBER)
-            {
-                continue;
-            }
-
+            if (!match_device(device_info)) { continue; }
             // Add device
             info!("Connecting to {:#?}", device_info);
 

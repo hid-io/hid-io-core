@@ -33,21 +33,6 @@ impl XConnection {
         }
     }
 
-    pub fn get_layout() -> String {
-	// TODO: Better solution. https://unix.stackexchange.com/a/422493
-
-	let result = Command::new("setxkbmap").args(&["-query"]).output().expect("Failed to exec setxkbmap");	
-	let output = String::from_utf8_lossy(&result.stdout);
-	let mut map = output.lines().map(|l| l.split(':')).map(|mut kv| (kv.next().unwrap(), kv.next().unwrap()));
-	let layout = map.find(|(k,_): &(&str, &str)| { *k=="layout" }).map(|(_,v)| v.trim()).unwrap();
-	layout.to_string()
-    }
-
-    pub fn set_layout(layout: &str) -> Result<(), std::io::Error> {
-	Command::new("setxkbmap").args(&[layout]).output()?;
-	Ok(())
-    }
-
     #[link(name = "X11")]
     pub fn find_keycode(&self, keysym: u64) -> (bool, Option<u32>) {
         let display = self.display;
@@ -152,13 +137,14 @@ impl XConnection {
 
 impl Drop for XConnection {
     fn drop(&mut self) {
+	info!("Releasing all keys");
+        for c in &self.held.clone() {
+            self.press_symbol(*c, false);
+        }
 	info!("Unbinding all keys");
         for keycode in self.charmap.values() {
             self.unbind_key(*keycode);
         }
-        /*for (c, _) in &self.charmap {
-            self.unmap_sym(*c);
-        }*/
         unsafe {
             XCloseDisplay(self.display);
         }
@@ -166,6 +152,20 @@ impl Drop for XConnection {
 }
 
 impl UnicodeOutput for XConnection {
+    fn get_layout(&self) -> String {
+	// TODO: Better solution. https://unix.stackexchange.com/a/422493
+
+	let result = Command::new("setxkbmap").args(&["-query"]).output().expect("Failed to exec setxkbmap");	
+	let output = String::from_utf8_lossy(&result.stdout);
+	let mut map = output.lines().map(|l| l.split(':')).map(|mut kv| (kv.next().unwrap(), kv.next().unwrap()));
+	let layout = map.find(|(k,_): &(&str, &str)| { *k=="layout" }).map(|(_,v)| v.trim()).unwrap();
+	layout.to_string()
+    }
+
+    fn set_layout(&self, layout: &str) {
+	Command::new("setxkbmap").args(&[layout]).output();
+    }
+
     fn type_string(&mut self, string: &str) {
         let mut keycodes = Vec::with_capacity(string.len());
 
@@ -209,12 +209,13 @@ impl UnicodeOutput for XConnection {
         if let Some(keycode) = self.get_sym(c) {
             println!("Set {:?} ({}) = {}", c, keycode, press);
             self.press_key(keycode, press, x11::xlib::CurrentTime);
-            self.held.push(c);
-        }
 
-        if !press {
-            self.unmap_sym(c);
-            self.held.iter().position(|&x| x == c).map(|e| self.held.remove(e));
+            if press {
+                self.held.push(c);
+            } else {
+                self.unmap_sym(c);
+                self.held.iter().position(|&x| x == c).map(|e| self.held.remove(e));
+            }
         }
     }
 

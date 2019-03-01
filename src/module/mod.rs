@@ -35,6 +35,12 @@ use crate::module::unicode::*;
 #[cfg(target_os = "linux")]
 use crate::module::unicode::x11::*;
 
+#[cfg(target_os = "windows")]
+use crate::module::unicode::winapi::*;
+
+#[cfg(target_os = "macos")]
+use crate::module::unicode::osx::*;
+
 use std::thread;
 use std::io::Write;
 use std::time::Duration;
@@ -76,13 +82,18 @@ fn get_display() -> Box<UnicodeOutput> {
 
 #[cfg(target_os = "windows")]
 fn get_display() -> Box<UnicodeOutput> {
-    Box::new(StubOutput::new())
+    Box::new(DisplayConnection::new())
+}
+
+#[cfg(target_os = "macos")]
+fn get_display() -> Box<UnicodeOutput> {
+    Box::new(OSXConnection::new())
 }
 
 impl HIDIOHandler {
     fn new(mailbox: HIDIOMailbox) -> HIDIOHandler {
         use std::thread;
-	let connection = get_display();
+	let mut connection = get_display();
         /*let (xorg_tx, xorg_rx) = channel::<(usize, String)>();
 	thread::Builder::new().name("Xorg".to_string()).spawn(move|| {
             let mut connection = XConnection::new();
@@ -119,6 +130,9 @@ impl HIDIOHandler {
                 }
             }
         }).unwrap();*/
+
+        let layout = connection.get_layout();
+        info!("Current layout: {}", layout);
 
         HIDIOHandler {
             mailbox,
