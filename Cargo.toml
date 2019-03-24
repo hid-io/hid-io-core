@@ -16,8 +16,10 @@ documentation = "https://hid-io.github.io/hid_io/"
 edition       = "2018"
 build         = "build.rs"
 default-run   = "hid-io"
-#links         = "X11"
 
+[features]
+default = ["unicode"]
+unicode = []
 
 [build-dependencies]
 built         = "0.3.0"

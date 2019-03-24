@@ -6,9 +6,8 @@ language:
 - rust
 
 rust:
-- 1.27.1 # Minimum version
-- stable
-- beta
+- 1.33.0 # Minimum version
+- nightly
 
 os:
 - linux
