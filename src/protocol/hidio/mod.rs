@@ -323,15 +323,15 @@ pub fn payload_start(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseError
 // ----- Implementations -----
 
 impl Default for HIDIOPacketBuffer {
-	fn default() -> Self {
-	    HIDIOPacketBuffer {
-		ptype: HIDIOPacketType::Data,
-		id: 0,
-		max_len: 0,
-		data: vec![],
-		done: false,
-	    }
-	}
+    fn default() -> Self {
+        HIDIOPacketBuffer {
+            ptype: HIDIOPacketType::Data,
+            id: 0,
+            max_len: 0,
+            data: vec![],
+            done: false,
+        }
+    }
 }
 
 impl HIDIOPacketBuffer {
@@ -340,7 +340,9 @@ impl HIDIOPacketBuffer {
     /// # Remarks
     /// Initialize as blank
     pub fn new() -> HIDIOPacketBuffer {
-	HIDIOPacketBuffer { ..Default::default() }
+        HIDIOPacketBuffer {
+            ..Default::default()
+        }
     }
 
     /// Append payload data
@@ -502,9 +504,8 @@ impl Serialize for HIDIOPacketBuffer {
 
         // Determine id_width
         let id_width: u8 = match self.id {
-            0x00..=0xFFFF => 0,         // 16 bit Id
+            0x00..=0xFFFF => 0,           // 16 bit Id
             0x01_0000..=0xFFFF_FFFF => 1, // 32 bit Id
-            _ => 0,
         };
 
         // Determine id_width_len

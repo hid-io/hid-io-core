@@ -16,12 +16,11 @@ pub trait UnicodeOutput {
     fn set_held(&mut self, string: &str);
 }
 
-pub struct StubOutput {
-}
+pub struct StubOutput {}
 
 impl StubOutput {
     pub fn new() -> StubOutput {
-        StubOutput { }
+        StubOutput {}
     }
 }
 
@@ -30,20 +29,20 @@ impl UnicodeOutput for StubOutput {
         warn!("Unimplimented");
         "".into()
     }
-    fn set_layout(&self, layout: &str) {
+    fn set_layout(&self, _layout: &str) {
         warn!("Unimplimented");
     }
-    fn type_string(&mut self, string: &str) {
+    fn type_string(&mut self, _string: &str) {
         warn!("Unimplimented");
     }
-    fn press_symbol(&mut self, c: char, state: bool) {
+    fn press_symbol(&mut self, _c: char, _state: bool) {
         warn!("Unimplimented");
     }
     fn get_held(&mut self) -> Vec<char> {
         warn!("Unimplimented");
         vec![]
     }
-    fn set_held(&mut self, string: &str) {
+    fn set_held(&mut self, _string: &str) {
         warn!("Unimplimented");
     }
 }

@@ -8,59 +8,22 @@ extern crate windows_service;
 use clap::App;
 use hid_io::{api, built_info, device, module};
 
-use std::sync::mpsc::{channel, Receiver};
-use crate::device::hidusb::HIDIOMailbox;
-use crate::device::hidusb::HIDIOMailer;
-use crate::device::hidusb::HIDIOMessage;
-//use daemon::{Daemon, DaemonRunner, State};
-
-use flexi_logger::{Logger, opt_format};
+use crate::device::{HIDIOMailbox, HIDIOMailer, HIDIOMessage};
+use std::sync::mpsc::channel;
 
 use hid_io::RUNNING;
 use std::sync::atomic::Ordering;
 
 #[cfg(windows)]
 fn main() -> Result<(), std::io::Error> {
-    // Setup logging mechanism
-    /*pretty_env_logger::init();
-
-    let daemon = Daemon {
-        name: SERVICE_NAME.to_string(),
-    };
-    daemon.run(move |rx: Receiver<State>| {
-        if !RUNNING.load(Ordering::SeqCst) { return; }
-        for signal in rx.try_iter() {
-            //println!("SIGNAL! {:?}", signal);
-            println!("SIGNAL!");
-            match signal {
-                State::Start => {
-                    start();
-                },
-                State::Reload => {
-                    stop();
-                    start();
-                },
-                State::Stop => {
-                    stop();
-                },
-            };
-        }
-    })?;*/
-
     let args: Vec<_> = std::env::args().collect();
     if args[1] == "-d" {
         service::run();
     } else {
         flexi_logger::Logger::with_env()
-                .start()
-                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
+            .start()
+            .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
         info!("Running in interactive mode");
-        /*Logger::with_env()
-                .log_to_file()
-                .directory("logs")
-                .format(opt_format)
-                .start()
-                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));*/
 
         start();
     }
@@ -70,11 +33,9 @@ fn main() -> Result<(), std::io::Error> {
 
 #[cfg(not(windows))]
 fn main() -> Result<(), std::io::Error> {
-    //pretty_env_logger::init();
-    
     flexi_logger::Logger::with_env()
-            .start()
-            .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
+        .start()
+        .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
 
     start();
     Ok(())
@@ -87,13 +48,14 @@ fn start() {
     // Setup signal handler
     let r = RUNNING.clone();
     ctrlc::set_handler(move || {
-	r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
     println!("Press Ctrl-C to exit...");
 
     // Process command-line arguments
     // Most of the information is generated from Cargo.toml using built crate (build.rs)
-    /*App::new(built_info::PKG_NAME.to_string())
+    App::new(built_info::PKG_NAME.to_string())
         .version(
             format!(
                 "{}{} - {}",
@@ -115,7 +77,7 @@ fn start() {
             )
             .as_str(),
         )
-        .get_matches();*/
+        .get_matches();
 
     // Start initialization
     info!("Initializing HID-IO daemon...");
@@ -123,14 +85,16 @@ fn start() {
     let (mailer_writer, mailer_reader) = channel::<HIDIOMessage>();
     let mut mailer = HIDIOMailer::new(mailer_reader);
 
-    let (sink1, mailbox1) = HIDIOMailbox::from_sender(mailer_writer.clone());
+    let nodes1 = mailer.devices();
+    let (sink1, mailbox1) = HIDIOMailbox::from_sender(mailer_writer.clone(), nodes1);
     mailer.register_listener(sink1);
 
-    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer.clone());
+    let nodes2 = mailer.devices();
+    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer.clone(), nodes2);
     mailer.register_listener(sink2);
 
     // Initialize Modules
-    let a = module::initialize(mailbox2);
+    let thread = module::initialize(mailbox2);
 
     // Initialize Devices
     device::initialize(mailer);
@@ -141,17 +105,11 @@ fn start() {
     // Cleanup
     while RUNNING.load(Ordering::SeqCst) {}
     println!("Waiting for threads to finish...");
-    a.join().unwrap();
+    thread.join().unwrap();
     println!("Exiting.");
-
-    /*
-    debug!("Debug message");
-    error!("Error message");
-    warn!("Warn message");
-    trace!("Trace message");
-    */
 }
 
+#[cfg(windows)]
 fn stop() {
     info!("Stopping!");
     let r = RUNNING.clone();
@@ -160,9 +118,9 @@ fn stop() {
 
 #[cfg(windows)]
 mod service {
-    use windows_service::service_dispatcher;
-    use flexi_logger::{Logger, opt_format};
+    use flexi_logger::{opt_format, Logger};
     use hid_io::built_info;
+    use windows_service::service_dispatcher;
 
     const SERVICE_NAME: &str = built_info::PKG_NAME;
 
@@ -188,11 +146,11 @@ mod service {
 
     fn my_service_main(arguments: Vec<OsString>) {
         Logger::with_env()
-                .log_to_file()
-                .directory("log_files")
-                .format(opt_format)
-                .start()
-                .unwrap_or_else(|e| panic!("Logger initialization failed {}", e)); 
+            .log_to_file()
+            .directory("log_files")
+            .format(opt_format)
+            .start()
+            .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
         info!("Running as service!");
 
         if let Err(_e) = run_service(arguments) {
@@ -207,10 +165,8 @@ mod service {
                 ServiceControl::Stop => {
                     crate::stop();
                     ServiceControlHandlerResult::NoError
-                },
-                ServiceControl::Interrogate => {
-                    ServiceControlHandlerResult::NoError
-                },
+                }
+                ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
                 _ => ServiceControlHandlerResult::NotImplemented,
             }
         };

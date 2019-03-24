@@ -23,7 +23,6 @@ use capnpc;
 
 use rustc_version::{version, Version};
 
-
 // ----- Functions -----
 
 fn main() {
@@ -53,7 +52,7 @@ fn main() {
         "linux" => {
             println!("cargo:rustc-link-lib=X11");
             println!("cargo:rustc-link-lib=Xtst");
-        },
+        }
         _ => {}
     };
 }

@@ -1,13 +1,13 @@
+use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::{c_int, c_uchar, c_void};
+use std::process::Command;
 use std::ptr::null;
 use std::{thread, time};
-use std::collections::HashMap;
-use std::process::Command;
 
-use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
-use core_graphics::event_source::CGEventSource;
 use core_graphics::event::{CGEvent, CGEventFlags, CGKeyCode};
+use core_graphics::event_source::CGEventSource;
+use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
 
 use crate::module::unicode::UnicodeOutput;
 
@@ -19,9 +19,9 @@ pub struct OSXConnection {
 }
 
 impl Default for OSXConnection {
-	fn default() -> Self {
-		Self::new()
-	}
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl OSXConnection {
@@ -33,21 +33,21 @@ impl OSXConnection {
         }
     }
 
-	pub fn press_key(&self, c: char, state: bool) {
-	    use core_graphics::event::CGEventType::*;
-	    use core_graphics::event::{CGEventTapLocation, CGEventType};
-	    let source = CGEventSource::new(HIDSystemState).unwrap();
+    pub fn press_key(&self, c: char, state: bool) {
+        use core_graphics::event::CGEventType::*;
+        use core_graphics::event::{CGEventTapLocation, CGEventType};
+        let source = CGEventSource::new(HIDSystemState).unwrap();
 
-	    let mut buf = [0; 2];
-	    let event = CGEvent::new_keyboard_event(source, 0, state).unwrap();
-	    event.set_string_from_utf16_unchecked(c.encode_utf16(&mut buf));
-	    event.post(CGEventTapLocation::HID);
-	}
+        let mut buf = [0; 2];
+        let event = CGEvent::new_keyboard_event(source, 0, state).unwrap();
+        event.set_string_from_utf16_unchecked(c.encode_utf16(&mut buf));
+        event.post(CGEventTapLocation::HID);
+    }
 }
 
 impl Drop for OSXConnection {
     fn drop(&mut self) {
-	info!("Releasing all keys");
+        info!("Releasing all keys");
         for c in &self.held.clone() {
             self.press_symbol(*c, false);
         }
@@ -56,23 +56,23 @@ impl Drop for OSXConnection {
 
 impl UnicodeOutput for OSXConnection {
     fn get_layout(&self) -> String {
-	warn!("Unimplemented");
-	"".to_string()
+        warn!("Unimplemented");
+        "".to_string()
     }
 
     fn set_layout(&self, layout: &str) {
-	warn!("Unimplemented");
+        warn!("Unimplemented");
     }
 
     fn type_string(&mut self, string: &str) {
-	for c in string.chars() {
-		self.press_key(c, true);
-		self.press_key(c, false);
-	}
+        for c in string.chars() {
+            self.press_key(c, true);
+            self.press_key(c, false);
+        }
     }
 
     fn press_symbol(&mut self, c: char, press: bool) {
-	self.press_key(c, press);
+        self.press_key(c, press);
     }
 
     fn get_held(&mut self) -> Vec<char> {

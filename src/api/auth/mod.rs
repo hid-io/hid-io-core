@@ -14,14 +14,18 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::api::{AuthLevel, Endpoint};
+
+/// A capnp connection validator
+/// Could be a popup, cli prompt, etc
 pub trait UAC {
-    fn auth(&self) -> bool;
+    fn auth(&self, node: &Endpoint, level: AuthLevel) -> bool;
 }
 
 pub struct DummyAuth;
 
 impl UAC for DummyAuth {
-    fn auth(&self) -> bool {
+    fn auth(&self, _node: &Endpoint, _level: AuthLevel) -> bool {
         true
     }
 }

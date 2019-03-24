@@ -26,13 +26,13 @@ pub use crate::hidiowatcher_capnp::*;
 pub use crate::hostmacro_capnp::*;
 pub use crate::usbkeyboard_capnp::*;
 
-use crate::RUNNING;
-use std::sync::atomic::Ordering;
-use crate::device::hidusb::HIDIOMessage;
+use crate::device::{HIDIOMailbox, HIDIOMessage};
 use crate::protocol::hidio::HIDIOCommandID;
+use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use std::sync::atomic::Ordering;
 use tokio::io::AsyncRead;
 use tokio::prelude::{Future, Stream};
 use tokio::runtime::current_thread;
@@ -42,22 +42,30 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::BufReader;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::channel;
-use std::time::Duration;
+use std::sync::{Arc, Mutex, RwLock};
 use tokio::prelude::future::{lazy, ok};
 use tokio_rustls::{
     rustls::{AllowAnyAuthenticatedClient, RootCertStore, ServerConfig},
     TlsAcceptor,
 };
 
+// TODO: Use config file or cli args
 const LISTEN_ADDR: &str = "localhost:7185";
 const USE_SSL: bool = false;
 
+#[cfg(debug_assertions)]
+const AUTH_LEVEL: AuthLevel = AuthLevel::Debug;
+
+#[cfg(not(debug_assertions))]
+const AUTH_LEVEL: AuthLevel = AuthLevel::Secure;
+
 use lazy_static::lazy_static;
 lazy_static! {
-    pub static ref writers_rc: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> = Arc::new(Mutex::new(vec![]));
-    pub static ref readers_rc: Arc<Mutex<Vec<std::sync::mpsc::Receiver<HIDIOMessage>>>> = Arc::new(Mutex::new(vec![]));
+    pub static ref WRITERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> =
+        Arc::new(Mutex::new(vec![]));
+    pub static ref READERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Receiver<HIDIOMessage>>>> =
+        Arc::new(Mutex::new(vec![]));
 }
 
 // ----- Functions -----
@@ -71,30 +79,39 @@ impl std::fmt::Display for NodeType {
         }
     }
 }
+impl std::fmt::Debug for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
-enum AuthLevel {
+#[derive(Clone, Copy)]
+pub enum AuthLevel {
     Basic,
     Secure,
     Debug,
 }
 
-struct Endpoint {
-    type_: NodeType,
-    name: String,
-    serial: String,
-    id: u64,
+#[derive(Debug, Clone)]
+pub struct Endpoint {
+    pub type_: NodeType,
+    pub name: String,
+    pub serial: String,
+    pub id: u64,
 }
 
 struct HIDIOMaster {
     nodes: Vec<Endpoint>,
+    devices: Arc<RwLock<Vec<Endpoint>>>,
     connections: HashMap<u64, Vec<u64>>,
     last_uid: u64,
 }
 
 impl HIDIOMaster {
-    fn new() -> HIDIOMaster {
+    fn new(devices: Arc<RwLock<Vec<Endpoint>>>) -> HIDIOMaster {
         HIDIOMaster {
             nodes: Vec::new(),
+            devices,
             connections: HashMap::new(),
             last_uid: 0,
         }
@@ -111,9 +128,12 @@ struct HIDIOServerImpl {
 
 impl HIDIOServerImpl {
     fn new(master: Rc<RefCell<HIDIOMaster>>, uid: u64, incoming: HIDIOMailbox) -> HIDIOServerImpl {
-	//let incoming = Rc::new(RefCell::new(&self.incoming));
-	let incoming = Rc::new(incoming);
-        HIDIOServerImpl { master, uid, incoming }
+        let incoming = Rc::new(incoming);
+        HIDIOServerImpl {
+            master,
+            uid,
+            incoming,
+        }
     }
 
     fn create_connection(&mut self, mut node: Endpoint, auth: AuthLevel) -> h_i_d_i_o::Client {
@@ -126,8 +146,13 @@ impl HIDIOServerImpl {
             m.nodes.push(node);
         }
 
-        h_i_d_i_o::ToClient::new(HIDIOImpl::new(Rc::clone(&self.master), Rc::clone(&self.incoming), auth))
-            .into_client::<::capnp_rpc::Server>()
+        println!("Connection authed!");
+        h_i_d_i_o::ToClient::new(HIDIOImpl::new(
+            Rc::clone(&self.master),
+            Rc::clone(&self.incoming),
+            auth,
+        ))
+        .into_client::<::capnp_rpc::Server>()
     }
 }
 
@@ -140,6 +165,7 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
             serial: info.get_serial().unwrap().to_string(),
             id: 0,
         };
+        info!("New capnp node: {:?}", node);
         results
             .get()
             .set_port(self.create_connection(node, AuthLevel::Basic));
@@ -150,19 +176,21 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
         use crate::api::auth::UAC;
 
         // TODO: Auth implementation selection
+        // TODO: Request desired level from node
         let authenticator = auth::DummyAuth {};
+        let auth = AUTH_LEVEL;
 
-        if authenticator.auth() {
-            let info = pry!(pry!(params.get()).get_info());
-            let node = Endpoint {
-                type_: info.get_type().unwrap(),
-                name: info.get_name().unwrap().to_string(),
-                serial: info.get_serial().unwrap().to_string(),
-                id: 0,
-            };
-            results
-                .get()
-                .set_port(self.create_connection(node, AuthLevel::Secure));
+        let info = pry!(pry!(params.get()).get_info());
+        let node = Endpoint {
+            type_: info.get_type().unwrap(),
+            name: info.get_name().unwrap().to_string(),
+            serial: info.get_serial().unwrap().to_string(),
+            id: 0,
+        };
+        info!("New capnp node: {:?}", node);
+
+        if authenticator.auth(&node, auth) {
+            results.get().set_port(self.create_connection(node, auth));
             Promise::ok(())
         } else {
             Promise::err(Error {
@@ -179,35 +207,46 @@ struct HIDIOImpl {
     master: Rc<RefCell<HIDIOMaster>>,
     auth: AuthLevel,
     registered: Rc<RefCell<HashMap<u64, bool>>>,
-    //incoming: Rc<RefCell<std::sync::mpsc::Receiver<HIDIOMessage>>>,
     incoming: Rc<HIDIOMailbox>,
 }
 
 impl HIDIOImpl {
-    //fn new(master: Rc<RefCell<HIDIOMaster>>, incoming: Rc<RefCell<std::sync::mpsc::Receiver<HIDIOMessage>>>, auth: AuthLevel) -> HIDIOImpl {
-    fn new(master: Rc<RefCell<HIDIOMaster>>, incoming: Rc<HIDIOMailbox>, auth: AuthLevel) -> HIDIOImpl {
-        HIDIOImpl { master, auth, registered: Rc::new(RefCell::new(HashMap::new())), incoming }
+    fn new(
+        master: Rc<RefCell<HIDIOMaster>>,
+        incoming: Rc<HIDIOMailbox>,
+        auth: AuthLevel,
+    ) -> HIDIOImpl {
+        HIDIOImpl {
+            master,
+            auth,
+            registered: Rc::new(RefCell::new(HashMap::new())),
+            incoming,
+        }
     }
 
-    fn init_signal(mut signal: h_i_d_i_o::signal::Builder<'_>, message: HIDIOMessage) {
+    fn init_signal(&self, mut signal: h_i_d_i_o::signal::Builder<'_>, message: HIDIOMessage) {
         signal.set_time(15);
 
         {
+            let master = self.master.borrow();
+            let devices = &master.devices.read().unwrap();
+            let device = devices
+                .iter()
+                .find(|d| d.id.to_string() == message.device)
+                .unwrap();
+
             let mut source = signal.reborrow().init_source();
-            source.set_type(NodeType::UsbKeyboard);
-            source.set_name("Test usbkeyboard signal source");
-            source.set_serial("SERIAL NUMBER!");
-            source.set_id(1234567);
+            source.set_type(device.type_);
+            source.set_name(&device.name);
+            source.set_serial(&device.serial);
+            source.set_id(device.id);
         }
 
         {
             let typ = signal.init_type();
-            /*let kbd = typ.init_usb_keyboard();
-            let mut event = kbd.init_key_event();
-            event.set_event(KeyEventState::Press);
-            event.set_id(32);*/
-            
-            let mut p = typ.init_hidio_packet();
+
+            // TODO: Multiple packet types
+            let p = typ.init_hidio_packet();
             let mut p = p.init_device_packet();
             p.set_id(message.message.id as u16);
             let mut d = p.init_data(message.message.data.len() as u32);
@@ -220,49 +259,56 @@ impl HIDIOImpl {
 
 impl h_i_d_i_o::Server for HIDIOImpl {
     fn signal(&mut self, _params: SignalParams, mut results: SignalResults) -> Promise<(), Error> {
-        results.get().set_time(10);
-
-        //info!("Polling for message");
         let incoming = &self.incoming;
-
-        /*let message = loop {
-            if let Some(message) = incoming.recv_psuedoblocking() {
-                break message;
+        match &self.auth {
+            AuthLevel::Debug => {
+                if let Some(message) = incoming.recv_psuedoblocking() {
+                    results.get().set_time(10);
+                    let signal = results.get().init_signal(1).get(0);
+                    self.init_signal(signal, message);
+                    Promise::ok(())
+                } else {
+                    Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Overloaded,
+                        description: "No data".to_string(),
+                    })
+                }
             }
-        };*/
-
-
-        if let Some(message) = incoming.recv_psuedoblocking() {
-            let signal = results.get().init_signal(1).get(0);
-            HIDIOImpl::init_signal(signal, message);
-            Promise::ok(())
-        } else {
-            Promise::err(capnp::Error { kind: capnp::ErrorKind::Overloaded, description: "No data".to_string() })
+            _ => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
         }
-
-        /*} else {
-            // TODO: Should be an error
-            Promise::ok(())
-        }*/
     }
 
     fn nodes(&mut self, _params: NodesParams, mut results: NodesResults) -> Promise<(), Error> {
-        let nodes = &self.master.borrow().nodes;
-        let mut result = results.get().init_nodes(nodes.len() as u32);
-        for (i, n) in nodes.iter().enumerate() {
+        let master = self.master.borrow();
+        let nodes = &master.nodes;
+        let devices = &master.devices.read().unwrap();
+        let mut result = results
+            .get()
+            .init_nodes((nodes.len() + devices.len()) as u32);
+        for (i, n) in nodes.iter().chain(devices.iter()).enumerate() {
             let mut node = result.reborrow().get(i as u32);
             node.set_type(n.type_);
             node.set_name(&n.name);
             node.set_serial(&n.serial);
             node.set_id(n.id);
             node.set_node(
-                h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::new(Rc::clone(&self.registered), n.id))
-                    .into_client::<::capnp_rpc::Server>(),
+                h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::new(
+                    Rc::clone(&self.registered),
+                    n.id,
+                ))
+                .into_client::<::capnp_rpc::Server>(),
             );
             let mut commands = node.reborrow().init_commands();
             commands.set_usb_keyboard(
-                u_s_b_keyboard::commands::ToClient::new(HIDIOKeyboardNodeImpl::new(Rc::clone(&self.incoming)))
-                    .into_client::<::capnp_rpc::Server>(),
+                u_s_b_keyboard::commands::ToClient::new(HIDIOKeyboardNodeImpl::new(
+                    n.id,
+                    self.auth,
+                    Rc::clone(&self.incoming),
+                ))
+                .into_client::<::capnp_rpc::Server>(),
             );
         }
         Promise::ok(())
@@ -270,24 +316,38 @@ impl h_i_d_i_o::Server for HIDIOImpl {
 }
 
 struct HIDIOKeyboardNodeImpl {
+    id: u64,
+    auth: AuthLevel,
     incoming: Rc<HIDIOMailbox>,
 }
 impl HIDIOKeyboardNodeImpl {
-    fn new(incoming: Rc<HIDIOMailbox>) -> HIDIOKeyboardNodeImpl {
-        HIDIOKeyboardNodeImpl { incoming }
+    fn new(id: u64, auth: AuthLevel, incoming: Rc<HIDIOMailbox>) -> HIDIOKeyboardNodeImpl {
+        HIDIOKeyboardNodeImpl { id, auth, incoming }
     }
 }
-use  u_s_b_keyboard::commands::*;
+use u_s_b_keyboard::commands::*;
 impl u_s_b_keyboard::commands::Server for HIDIOKeyboardNodeImpl {
     fn cli_command(
         &mut self,
         params: CliCommandParams,
-        mut results: CliCommandResults,
+        _results: CliCommandResults,
     ) -> Promise<(), Error> {
-        let params = params.get().unwrap();
-        let cmd = params.get_foobar().unwrap();
-        let message = self.incoming.send_command("device".to_string(), HIDIOCommandID::Terminal, cmd.as_bytes().to_vec());
-        Promise::ok(())
+        match self.auth {
+            AuthLevel::Secure | AuthLevel::Debug => {
+                let params = params.get().unwrap();
+                let cmd = params.get_foobar().unwrap();
+                self.incoming.send_command(
+                    self.id.to_string(),
+                    HIDIOCommandID::Terminal,
+                    cmd.as_bytes().to_vec(),
+                );
+                Promise::ok(())
+            }
+            _ => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
+        }
     }
 }
 
@@ -298,7 +358,10 @@ struct HIDIONodeImpl {
 
 impl HIDIONodeImpl {
     fn new(registered_nodes: Rc<RefCell<HashMap<u64, bool>>>, id: u64) -> HIDIONodeImpl {
-        HIDIONodeImpl { registered_nodes, id }
+        HIDIONodeImpl {
+            registered_nodes,
+            id,
+        }
     }
 }
 
@@ -310,8 +373,11 @@ impl h_i_d_i_o_node::Server for HIDIONodeImpl {
         mut results: RegisterResults,
     ) -> Promise<(), Error> {
         info!("Registering node {}", self.id);
-        self.registered_nodes.borrow_mut().entry(self.id)
-        .and_modify(|e| *e = true).or_insert(true);
+        self.registered_nodes
+            .borrow_mut()
+            .entry(self.id)
+            .and_modify(|e| *e = true)
+            .or_insert(true);
         results.get().set_ok(true);
         Promise::ok(())
     }
@@ -321,7 +387,6 @@ impl h_i_d_i_o_node::Server for HIDIONodeImpl {
         _params: IsRegisteredParams,
         mut results: IsRegisteredResults,
     ) -> Promise<(), Error> {
-        println!("Is registered?");
         let nodes = self.registered_nodes.borrow();
         let registered = nodes.get(&self.id).unwrap_or(&false);
         results.get().set_ok(*registered);
@@ -362,7 +427,6 @@ pub fn load_private_key(filename: &str) -> rustls::PrivateKey {
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Requires TLS TODO
 /// Some API usages may require external authentication to validate trustworthiness
-use crate::device::hidusb::HIDIOMailbox;
 pub fn initialize(mailbox: HIDIOMailbox) {
     info!("Initializing api...");
 
@@ -412,44 +476,28 @@ pub fn initialize(mailbox: HIDIOMailbox) {
         c
     });
 
-    // TODO: This will be generated from connected devices
-    let mut nodes = vec![Endpoint {
-        type_: NodeType::UsbKeyboard,
-        name: "Test Keyboard".to_string(),
-        serial: "1467".to_string(),
-        id: 78500,
-    }];
-
-    let mut m = HIDIOMaster::new();
-    m.nodes.append(&mut nodes);
+    let nodes = mailbox.nodes.clone();
+    let m = HIDIOMaster::new(nodes.clone());
 
     let master = Rc::new(RefCell::new(m));
-
-    //std::thread::Builder::new().name("echo".to_string()).spawn(move|| {
-    /*current_thread::run(lazy(move || {
-        Ok(())
-    }));*/
-    //}).unwrap();
 
     use stream_cancel::{StreamExt, Tripwire};
 
     let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
     let (trigger, tripwire) = Tripwire::new();
     let done = connections
-        //.take_while(|_| ok(RUNNING.load(Ordering::SeqCst)) )
         .take_until(tripwire)
         .for_each(move |connect_promise| {
-            let writers_rc2 = Arc::clone(&writers_rc);
-            let readers_rc2 = Arc::clone(&readers_rc);
+            info!("New connection");
             let rc = Rc::clone(&master);
 
             let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
             // TODO: poll reader too?
-            let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone());
+            let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone(), nodes.clone());
             {
-                let mut writers = writers_rc2.lock().unwrap();
+                let mut writers = WRITERS_RC.lock().unwrap();
                 (*writers).push(sink);
-                let mut readers = readers_rc2.lock().unwrap();
+                let mut readers = READERS_RC.lock().unwrap();
                 (*readers).push(hidapi_reader);
             }
 
@@ -472,15 +520,18 @@ pub fn initialize(mailbox: HIDIOMailbox) {
                         uid
                     };
 
-                    let hidio_server =
-                        h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox))
-                            .into_client::<::capnp_rpc::Server>();
+                    let hidio_server = h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new(
+                        Rc::clone(&rc),
+                        uid,
+                        mailbox,
+                    ))
+                    .into_client::<::capnp_rpc::Server>();
                     let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
 
                     rpc_system
-                        .map_err(|e| println!("error: {:?}", e))
+                        .map_err(|e| eprintln!("error: {:?}", e))
                         .and_then(move |_| {
-                            println!("DONE: {}", uid);
+                            info!("connection closed: {}", uid);
 
                             // Client disconnected, delete node
                             let connected_nodes = &rc.borrow().connections[&uid].clone();
@@ -492,55 +543,33 @@ pub fn initialize(mailbox: HIDIOMailbox) {
                 }));
                 Ok(())
             })
-        }).map_err(|_| ());
-    
-    //let h = rt.handle();
-    std::thread::spawn(move || {
-        //h.spawn(lazy(move || {
-            loop {
-                if !RUNNING.load(Ordering::SeqCst) { break; }
-                let message = mailbox.recv_psuedoblocking();
-                //for message in mailbox.iter() {
-                if let Some(message) = message {
-                    warn!(" <<< YOU GOT MAIL >>> {:?}", message);
-                    let writers = writers_rc.lock().unwrap();
-                    for writer in (*writers).iter() {
-                            writer.send(message.clone()).unwrap();
-                    }
-                }
+        })
+        .map_err(|_| ());
 
-                let readers = readers_rc.lock().unwrap();
-                for reader in (*readers).iter() {
-                    let message = reader.try_recv();
-                    if let Ok(message) = message {
-                        mailbox.send_packet(message.device, message.message);
-                    }
+    std::thread::spawn(move || {
+        loop {
+            if !RUNNING.load(Ordering::SeqCst) {
+                break;
+            }
+            let message = mailbox.recv_psuedoblocking();
+            if let Some(message) = message {
+                warn!(" <<< YOU GOT MAIL >>> {:?}", message);
+                let writers = WRITERS_RC.lock().unwrap();
+                for writer in (*writers).iter() {
+                    writer.send(message.clone()).unwrap();
                 }
             }
+
+            let readers = READERS_RC.lock().unwrap();
+            for reader in (*readers).iter() {
+                let message = reader.try_recv();
+                if let Ok(message) = message {
+                    mailbox.send_packet(message.device, message.message);
+                }
+            }
+        }
         drop(trigger);
     });
 
-    println!("EXECUTING");
-    //current_thread::block_on_all(done).unwrap(); // must be called for rpc processing
-    
-    //rt.spawn(lazy(|| { done })); 
-    //rt.spawn(done);
-
-    //rt.spawn(run());
-
     rt.block_on(done).unwrap();
-    //rt.block_on(run()).unwrap();
-    //rt.run();
-}
-
-/*fn run2() -> impl Future<Item = (), Error = ()> {
-}*/
-
-fn run() -> impl Future<Item = (), Error = ()> {
-//lazy(|| {
-        loop {
-            if !RUNNING.load(Ordering::SeqCst) { break; }
-        }
-        ok(())
-//})
 }
