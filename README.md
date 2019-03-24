@@ -22,10 +22,12 @@ hid-io
 hid-io --help
 ```
 
+## RPC Terminal Example
+`cargo run --example rpc`
 
 ## Dependencies
 
-* Rust >= 1.17.0 (may relax (or tighten) this over time)
+* Rust nightly (may relax over time)
 * capnproto >= 0.6.0
 
 
@@ -44,8 +46,13 @@ cargo build
 ## Testing
 
 ```bash
-RUST_LOG=info RUST_BACKTRACE=1 cargo run
+RUST_LOG=hid_io=info RUST_BACKTRACE=1 cargo run
 ```
+
+Inspecting rawhid traffic:
+
+`sudo usbhid-dump -m 308f:0013 -es`
+`sudo usbhid-dump -m 1c11:b04d -es -t 0 -i 5`
 
 
 ### Running Unit Tests
@@ -60,27 +67,27 @@ cargo test
 
 
 
-
-`sudo usbhid-dump -m 308f:0013 -es`
-`sudo usbhid-dump -m 1c11:b04d -es -t 0 -i 5`
-
-
-# Debugging
+## Debugging
 
 `echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope`
 `rust-gdb target/debug/hid-io -p $(pidof hid-io)`
 
-# Packaging
+## Packaging
 `cargo build --release --target "x86_64-pc-windows-gnu"`
 
-#
+## Linux systemd service
+`cp hid-io.service /etc/systemd/system`
+`systemctl daemon-reload`
+`systemctl enable --now hid-io`
+
+## Windows service
 
 `install_service.exe`
 `sc start hid-io`
 `sc stop hid-io`
 `sc query hid-io`
 
-#
+## OSX service
 
 `cp hidio.plist ~/Library/LaunchAgents`
 `launchctl -w  ~/Library/LaunchAgents/hidio.plist`

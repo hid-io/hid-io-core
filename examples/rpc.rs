@@ -12,6 +12,7 @@ use tokio::prelude::Future;
 use hid_io::api::{load_certs, load_private_key};
 use hid_io::common_capnp::NodeType;
 use hid_io::hidio_capnp::h_i_d_i_o_server;
+use hid_io::protocol::hidio::*;
 
 use std::fs;
 use std::io::BufReader;
@@ -224,8 +225,10 @@ pub fn main() -> Result<(), ::capnp::Error> {
                             DevicePacket(p) => {
                                 let p = pry!(p);
                                 let data = pry!(p.get_data()).iter().collect::<Vec<u8>>();
-                                match p.get_id() {
-                                    0x22 => {
+                                let id: HIDIOCommandID =
+                                    unsafe { std::mem::transmute(p.get_id() as u16) };
+                                match id {
+                                    HIDIOCommandID::Terminal => {
                                         use std::io::Write;
                                         pry!(std::io::stdout().write_all(&data));
                                         pry!(std::io::stdout().flush());
