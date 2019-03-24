@@ -53,7 +53,7 @@ pub enum HIDIOCommandID {
     GetInfo = 0x01,
     TestPacket = 0x02,
     ResetHIDIO = 0x03,
-    Reserved = 0x04,
+    Reserved = 0x04, // ... 0x0F
     GetProperties = 0x10,
     KeyState = 0x11,
     KeyboardLayout = 0x12,
@@ -65,9 +65,16 @@ pub enum HIDIOCommandID {
     UnicodeKey = 0x18,
     HostMacro = 0x19,
     KLLState = 0x20,
-    OpenURL = 0x21,
-    Terminal = 0x22,
-    InputLayout = 0x23,
+    PixelSetting = 0x21,
+    PixelSet1c8b = 0x22,
+    PixelSet3c8b = 0x23,
+    PixelSet1c16b = 0x24,
+    PixelSet3c16b = 0x25,
+
+    // Unnoficial
+    OpenURL = 0x30,
+    Terminal = 0x31,
+    InputLayout = 0x32,
 }
 
 #[repr(u8)]
