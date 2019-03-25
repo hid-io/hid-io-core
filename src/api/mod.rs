@@ -559,11 +559,10 @@ pub fn initialize(mailbox: HIDIOMailbox) {
             }
             let message = mailbox.recv_psuedoblocking();
             if let Some(message) = message {
-                warn!(" <<< YOU GOT MAIL >>> {:?}", message);
-                let writers = WRITERS_RC.lock().unwrap();
-                for writer in (*writers).iter() {
-                    writer.send(message.clone()).unwrap();
-                }
+                let mut writers = WRITERS_RC.lock().unwrap();
+                *writers = (*writers)
+                    .drain_filter(|writer| writer.send(message.clone()).is_ok())
+                    .collect::<Vec<_>>();
             }
 
             let readers = READERS_RC.lock().unwrap();

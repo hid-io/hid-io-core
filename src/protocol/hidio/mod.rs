@@ -478,8 +478,6 @@ impl HIDIOPacketBuffer {
         let slice = &serialized[8..];
         let serialized = slice.to_vec();
 
-        info!("S: {:02x?}", serialized);
-
         Ok(serialized)
     }
 }

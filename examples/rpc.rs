@@ -23,6 +23,15 @@ use tokio_rustls::{rustls::ClientConfig, TlsConnector};
 
 const USE_SSL: bool = false;
 
+fn format_node(node: hid_io::common_capnp::destination::Reader<'_>) -> String {
+    format!(
+        "{}: {} ({})",
+        node.get_type().unwrap(),
+        node.get_name().unwrap_or(""),
+        node.get_serial().unwrap_or(""),
+    )
+}
+
 pub fn main() -> Result<(), ::capnp::Error> {
     let host = "localhost";
     let addr = format!("{}:7185", host)
@@ -102,26 +111,28 @@ pub fn main() -> Result<(), ::capnp::Error> {
     let nid = match args.get(1) {
         Some(n) => n.parse().unwrap(),
         None => {
-            println!("");
-            for n in nodes {
-                let suffix = "";
-                println!(
-                    " * {} - {}: {} ({}) {}",
-                    n.get_id(),
-                    n.get_type().unwrap(),
-                    n.get_name().unwrap_or(""),
-                    n.get_serial().unwrap_or(""),
-                    suffix,
-                );
+            let keyboards: Vec<_> = nodes
+                .iter()
+                .filter(|n| n.get_type().unwrap() == NodeType::UsbKeyboard)
+                .collect();
+            if keyboards.len() == 1 {
+                let n = keyboards[0];
+                println!("Registering to {}", format_node(n));
+                n.get_id()
+            } else {
+                println!("");
+                for n in nodes {
+                    println!(" * {} - {}", n.get_id(), format_node(n));
+                }
+
+                use std::io::Write;
+                print!("Please choose a device: ");
+                std::io::stdout().flush()?;
+
+                let mut n = String::new();
+                std::io::stdin().read_line(&mut n)?;
+                n.trim().parse().unwrap()
             }
-
-            use std::io::Write;
-            print!("Please choose a device: ");
-            std::io::stdout().flush()?;
-
-            let mut n = String::new();
-            std::io::stdin().read_line(&mut n)?;
-            n.trim().parse().unwrap()
         }
     };
 
