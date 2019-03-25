@@ -48,6 +48,7 @@ pub enum HIDIOPacketType {
 
 #[repr(u16)]
 #[derive(PartialEq, Clone, Copy, Debug)]
+/// Requests for to perform a specific action
 pub enum HIDIOCommandID {
     SupportedIDs = 0x00,
     GetInfo = 0x01,
@@ -79,6 +80,7 @@ pub enum HIDIOCommandID {
 
 #[repr(u8)]
 #[derive(PartialEq, Clone, Copy, Debug)]
+/// Requests for a specific piece of info
 pub enum HIDIOPropertyID {
     HIDIOMajor = 0x00,
     HIDIOMinor = 0x01,
@@ -91,6 +93,7 @@ pub enum HIDIOPropertyID {
 
 #[repr(u8)]
 #[derive(PartialEq, Clone, Copy, Debug)]
+/// Platforms as a numeric id
 pub enum HostOSID {
     Unknown = 0x00,
     Windows = 0x01,
@@ -124,7 +127,8 @@ pub struct HIDIOPacketBuffer {
 
 /// HID-IO Parse Error
 ///
-/// # Remarks thrown when there's an issue processing byte stream.
+/// # Remarks
+/// thrown when there's an issue processing byte stream.
 #[derive(Debug)]
 pub struct HIDIOParseError {}
 
@@ -139,7 +143,7 @@ pub struct HIDIOParseError {}
 /// Uses a packet byte stream to determine the packet type.
 /// First three bits of data stream are used (from C-Struct):
 ///
-/// ```
+/// ```c
 /// struct HIDIO_Packet {
 ///    HIDIO_Packet_Type type:3;
 ///    ...
@@ -177,7 +181,7 @@ pub fn packet_type(packet_data: &mut Vec<u8>) -> Result<HIDIOPacketType, HIDIOPa
 /// This length does not include the first 2 packet bytes in the overall packet length.
 /// The length does include the bytes used for the packet Id.
 ///
-/// ```
+/// ```c
 /// struct HIDIO_Packet {
 ///    ... (6 bits)
 ///    uint8_t           upper_len:2; // Upper 2 bits of length field (generally unused)
@@ -210,7 +214,7 @@ pub fn payload_len(packet_data: &mut Vec<u8>) -> Result<u32, HIDIOParseError> {
 /// # Remarks
 /// Uses a packet byte stream to determine packet id_width.
 ///
-/// ```
+/// ```c
 /// struct HIDIO_Packet {
 ///    ... (4 bits)
 ///    uint8_t           id_width:1;  // 0 - 16bits, 1 - 32bits
@@ -240,7 +244,7 @@ pub fn packet_id_width(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseErr
 /// # Remarks
 /// Uses a packet byte stream to determine packet Id.
 ///
-/// ```
+/// ```c
 /// struct HIDIO_Packet {
 ///    ... (4 bits)
 ///    uint8_t           id_width:1;  // 0 - 16bits, 1 - 32bits
@@ -282,7 +286,7 @@ pub fn packet_id(packet_data: &mut Vec<u8>) -> Result<u32, HIDIOParseError> {
 /// # Remarks
 /// Uses a packet byte stream to determine cont field.
 ///
-/// ```
+/// ```c
 /// struct HIDIO_Packet {
 ///    ... (3 bits)
 ///    uint8_t           cont:1;      // 0 - Only packet, 1 continued packet following
@@ -487,7 +491,7 @@ impl Serialize for HIDIOPacketBuffer {
     /// Determine cont, width, upper_len and len fields
     /// According to this C-Struct:
     ///
-    /// ```
+    /// ```c
     /// struct HIDIO_Packet {
     ///    HIDIO_Packet_Type type:3;
     ///    uint8_t           cont:1;      // 0 - Only packet, 1 continued packet following

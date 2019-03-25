@@ -14,6 +14,7 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/// Platform specific character output and IME control
 pub mod unicode;
 
 use crate::device::*;
@@ -37,7 +38,9 @@ use std::time::Duration;
 const PROCESS_DELAY: u64 = 1;
 
 // TODO: Use const fn to adjust based on cago features
-const SUPPORTED_IDS: &[HIDIOCommandID] = &[
+// TODO: Let capnp nodes add to this list
+/// List of commands we advertise as supporting to devices
+pub const SUPPORTED_IDS: &[HIDIOCommandID] = &[
     HIDIOCommandID::SupportedIDs,
     HIDIOCommandID::GetProperties,
     HIDIOCommandID::UnicodeText,
@@ -55,6 +58,7 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
     }
 }
 
+/// Our "internal" node responsible for handling required commands
 struct HIDIOHandler {
     mailbox: HIDIOMailbox,
     display: Box<UnicodeOutput>,

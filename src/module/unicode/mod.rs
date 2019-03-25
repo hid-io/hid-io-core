@@ -1,12 +1,16 @@
 #[cfg(target_os = "linux")]
+/// Xorg impementation
 pub mod x11;
 
 #[cfg(target_os = "windows")]
+/// Winapi impementation
 pub mod winapi;
 
 #[cfg(target_os = "macos")]
+/// Osx quartz impementation
 pub mod osx;
 
+/// Functions that can be called in a cross platform manner
 pub trait UnicodeOutput {
     fn get_layout(&self) -> String;
     fn set_layout(&self, layout: &str);
@@ -16,6 +20,7 @@ pub trait UnicodeOutput {
     fn set_held(&mut self, string: &str);
 }
 
+/// Dummy impementation for unsupported platforms
 pub struct StubOutput {}
 
 impl StubOutput {

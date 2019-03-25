@@ -23,41 +23,55 @@ extern crate log;
 
 // ----- Modules -----
 
+/// capnp interface for other programs to hook into
 pub mod api;
+
+/// communication with hidapi compatable devices
 pub mod device;
+
+/// built-in features and command handlers
 pub mod module;
+
+/// parsing for different data types
 pub mod protocol;
 
+/// Compile time information
 pub mod built_info {
     // This file is generated at build time using build.rs
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
+/// [AUTO GENRATED]
 pub mod common_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/common_capnp.rs"));
 }
 
+/// [AUTO GENRATED]
 pub mod devicefunction_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/devicefunction_capnp.rs"));
 }
 
+/// [AUTO GENRATED]
 pub mod hidiowatcher_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hidiowatcher_capnp.rs"));
 }
 
+/// [AUTO GENRATED]
 pub mod hidio_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hidio_capnp.rs"));
 }
 
+/// [AUTO GENRATED]
 pub mod hostmacro_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hostmacro_capnp.rs"));
 }
 
+/// [AUTO GENRATED]
 pub mod usbkeyboard_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/usbkeyboard_capnp.rs"));
@@ -70,6 +84,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 lazy_static! {
-    // Any thread can set this to false to signal shutdown
+    /// Any thread can set this to false to signal shutdown
     pub static ref RUNNING: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
 }

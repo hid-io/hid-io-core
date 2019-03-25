@@ -14,4 +14,5 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/// hidio packet encoder/decoder
 pub mod hidio;

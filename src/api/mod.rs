@@ -62,9 +62,9 @@ const AUTH_LEVEL: AuthLevel = AuthLevel::Secure;
 
 use lazy_static::lazy_static;
 lazy_static! {
-    pub static ref WRITERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> =
+    static ref WRITERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> =
         Arc::new(Mutex::new(vec![]));
-    pub static ref READERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Receiver<HIDIOMessage>>>> =
+    static ref READERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Receiver<HIDIOMessage>>>> =
         Arc::new(Mutex::new(vec![]));
 }
 
@@ -85,18 +85,24 @@ impl std::fmt::Debug for NodeType {
     }
 }
 
+/// Authorization level for a remote node
 #[derive(Clone, Copy)]
 pub enum AuthLevel {
+    /// Allows connecting and listing devices
     Basic,
+    /// Allows sending commands to a device
     Secure,
+    /// Allows inspecting all incoming packets
     Debug,
 }
 
+/// Information about a connected node
 #[derive(Debug, Clone)]
 pub struct Endpoint {
     pub type_: NodeType,
     pub name: String,
     pub serial: String,
+    /// Automatically generated
     pub id: u64,
 }
 

@@ -40,12 +40,12 @@ const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
 const POLL_DELAY: u64 = 1;
 
-struct HIDUSBDevice {
+pub struct HIDUSBDevice {
     device: hidapi::HidDevice,
 }
 
 impl HIDUSBDevice {
-    fn new(device: hidapi::HidDevice) -> HIDUSBDevice {
+    pub fn new(device: hidapi::HidDevice) -> HIDUSBDevice {
         device.set_blocking_mode(false).unwrap();
         HIDUSBDevice { device }
     }

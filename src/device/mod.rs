@@ -15,6 +15,10 @@
  */
 
 pub mod debug;
+
+/// Handles hidapi devices (libusb/rawhid)
+///
+/// May also work with bluetooth low energy in the future.
 pub mod hidusb;
 
 use crate::api::Endpoint;
@@ -27,12 +31,13 @@ use std::time::{Duration, Instant};
 
 use std::io::{Read, Write};
 
-/// A Duplex stream that HIDIO communicate over
-trait HIDIOTransport: Read + Write {}
+/// A duplex stream for HIDIO to communicate over
+pub trait HIDIOTransport: Read + Write {}
 
 const MAX_RECV_SIZE: usize = 1024;
 
-/// A raw transport plus any associated data
+/// A raw transport plus any associated metadata
+///
 /// Contains helpers to encode/decode HIDIO packets
 pub struct HIDIOEndpoint {
     socket: Box<HIDIOTransport>,
@@ -40,14 +45,14 @@ pub struct HIDIOEndpoint {
 }
 
 impl HIDIOEndpoint {
-    fn new(socket: Box<HIDIOTransport>, max_packet_len: u32) -> HIDIOEndpoint {
+    pub fn new(socket: Box<HIDIOTransport>, max_packet_len: u32) -> HIDIOEndpoint {
         HIDIOEndpoint {
             socket,
             max_packet_len,
         }
     }
 
-    fn recv_chunk(&mut self, buffer: &mut HIDIOPacketBuffer) -> Result<usize, std::io::Error> {
+    pub fn recv_chunk(&mut self, buffer: &mut HIDIOPacketBuffer) -> Result<usize, std::io::Error> {
         use std::io::Read;
         let mut rbuf = [0; MAX_RECV_SIZE];
         match self.socket.read(&mut rbuf) {
@@ -71,7 +76,7 @@ impl HIDIOEndpoint {
         }
     }
 
-    fn create_buffer(&self) -> HIDIOPacketBuffer {
+    pub fn create_buffer(&self) -> HIDIOPacketBuffer {
         let mut buffer = HIDIOPacketBuffer::new();
         buffer.max_len = self.max_packet_len;
         buffer
@@ -106,7 +111,7 @@ impl HIDIOEndpoint {
         deserialized
     }
 
-    fn send_packet(&mut self, mut packet: HIDIOPacketBuffer) -> Result<(), std::io::Error> {
+    pub fn send_packet(&mut self, mut packet: HIDIOPacketBuffer) -> Result<(), std::io::Error> {
         use std::io::Write;
         info!("Sending {:x?}", packet);
         let buf: Vec<u8> = packet.serialize_buffer().unwrap();
@@ -120,7 +125,7 @@ impl HIDIOEndpoint {
         Ok(())
     }
 
-    fn send_sync(&mut self) {
+    pub fn send_sync(&mut self) {
         self.send_packet(HIDIOPacketBuffer {
             ptype: HIDIOPacketType::Sync,
             id: 0,
@@ -131,7 +136,7 @@ impl HIDIOEndpoint {
         .unwrap();
     }
 
-    fn send_ack(&mut self, _id: u32, data: Vec<u8>) {
+    pub fn send_ack(&mut self, _id: u32, data: Vec<u8>) {
         self.send_packet(HIDIOPacketBuffer {
             ptype: HIDIOPacketType::ACK,
             id: 0,       // id,
@@ -144,11 +149,12 @@ impl HIDIOEndpoint {
 }
 
 /// A R/W channel for a single endpoint
-/// This provides an easy interface for other parts of the program to send/recv
+///
+/// This provides an easy interface for other parts of the program to send/recv.
 /// messages from without having to worry about the underlying device type.
-/// It is responsible for managing the underlying acks/nacks, etc
+/// It is responsible for managing the underlying acks/nacks, etc.
 /// Process must be continually called.
-struct HIDIOController {
+pub struct HIDIOController {
     id: String,
     device: HIDIOEndpoint,
     received: HIDIOPacketBuffer,
@@ -158,7 +164,7 @@ struct HIDIOController {
 }
 
 impl HIDIOController {
-    fn new(
+    pub fn new(
         id: String,
         device: HIDIOEndpoint,
         message_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
@@ -177,7 +183,7 @@ impl HIDIOController {
         }
     }
 
-    fn process(&mut self) -> Result<(), std::io::Error> {
+    pub fn process(&mut self) -> Result<(), std::io::Error> {
         match self.device.recv_chunk(&mut self.received) {
             Ok(recv) => {
                 if recv > 0 {
@@ -246,7 +252,9 @@ impl HIDIOController {
     }
 }
 
-/// The userspace end of a HIDIOController. Can be cloned and passed around freely
+/// The userspace end of a HIDIOController
+///
+/// Can be cloned and passed around freely, even between threads
 pub struct HIDIOQueue {
     pub info: Endpoint,
     message_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
@@ -254,7 +262,7 @@ pub struct HIDIOQueue {
 }
 
 impl HIDIOQueue {
-    fn new(
+    pub fn new(
         info: Endpoint,
         message_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
         response_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
@@ -266,7 +274,7 @@ impl HIDIOQueue {
         }
     }
 
-    fn send_packet(
+    pub fn send_packet(
         &self,
         packet: HIDIOPacketBuffer,
     ) -> Result<(), mpsc::SendError<HIDIOPacketBuffer>> {
@@ -277,7 +285,7 @@ impl HIDIOQueue {
         self.message_queue.recv().unwrap()
     }
 
-    fn messages(&mut self) -> mpsc::TryIter<HIDIOPacketBuffer> {
+    pub fn messages(&mut self) -> mpsc::TryIter<HIDIOPacketBuffer> {
         // TODO: Detect error (other side disconnected)
         self.message_queue.try_iter()
     }
@@ -290,9 +298,10 @@ pub struct HIDIOMessage {
     pub message: HIDIOPacketBuffer,
 }
 
-/// The center of the HIDIO message center
-/// Will grab messages from every "mailbox" and pass the message to the correct device queue.
-/// Will monitor each device queue and leave a copy of the reply in every mailbox.
+/// The main HIDIOMessage passer
+///
+/// Will grab messages from every "mailbox" and pass the message to the correct outgoing queue.
+/// Will monitor each incoming queue and leave a copy of the message in every mailbox.
 /// Process must be continually called.
 pub struct HIDIOMailer {
     devices: HashMap<String, HIDIOQueue>,
@@ -364,8 +373,9 @@ impl HIDIOMailer {
 }
 
 /// The userspace end of the HIDIO message system
-/// Can receive all incoming messages, or send a new message to a device by id
-/// Provides utility functions to construct common messages
+///
+/// Can receive all incoming messages, or send a new message to a device by id.
+/// Provides utility functions to construct common messages.
 pub struct HIDIOMailbox {
     pub nodes: Arc<RwLock<Vec<Endpoint>>>,
     incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
