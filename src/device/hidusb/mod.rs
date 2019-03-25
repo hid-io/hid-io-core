@@ -74,6 +74,7 @@ impl std::io::Read for HIDUSBDevice {
 impl std::io::Write for HIDUSBDevice {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
         let buf = {
+            #[allow(clippy::needless_bool)]
             let prepend = if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
                 // If the first byte is a 0 its not tranmitted
                 // https://github.com/node-hid/node-hid/issues/187#issuecomment-282863702
@@ -234,9 +235,12 @@ fn processing(mut mailer: HIDIOMailer) {
                             name: device_info
                                 .product_string
                                 .clone()
-                                .unwrap_or("[NONE]".to_string()),
-                            serial: device_info.serial_number.clone().unwrap_or("".to_string()),
-                            id: id,
+                                .unwrap_or_else(|| "[NONE]".to_string()),
+                            serial: device_info
+                                .serial_number
+                                .clone()
+                                .unwrap_or_else(|| "".to_string()),
+                            id,
                         };
                         let device = HIDIOQueue::new(info, message_rx, response_tx);
                         mailer.register_device(id.to_string(), device);
@@ -285,7 +289,7 @@ fn processing(mut mailer: HIDIOMailer) {
                         info!("{} disconnected. No loneger polling it", dev.id);
                         mailer.unregister_device(&dev.id);
                     }
-                    !ret.is_err()
+                    ret.is_ok()
                 })
                 .collect::<Vec<_>>();
 

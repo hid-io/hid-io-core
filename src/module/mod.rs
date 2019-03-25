@@ -108,7 +108,7 @@ impl HIDIOHandler {
                 break;
             }
             let message = mailbox.recv_psuedoblocking();
-            if !message.is_some() {
+            if message.is_none() {
                 continue;
             }
             let message = message.unwrap();

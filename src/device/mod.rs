@@ -120,7 +120,7 @@ impl HIDIOEndpoint {
             .collect::<Vec<&[u8]>>()
             .iter()
         {
-            self.socket.write(chunk)?;
+            let _i = self.socket.write(chunk)?;
         }
         Ok(())
     }
@@ -248,7 +248,7 @@ impl HIDIOController {
             }
         }
 
-        return Ok(());
+        Ok(())
     }
 }
 

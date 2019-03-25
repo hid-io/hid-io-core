@@ -20,6 +20,7 @@ pub trait UnicodeOutput {
     fn set_held(&mut self, string: &str);
 }
 
+#[derive(Default)]
 /// Dummy impementation for unsupported platforms
 pub struct StubOutput {}
 
