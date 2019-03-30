@@ -17,6 +17,9 @@ edition       = "2018"
 build         = "build.rs"
 default-run   = "hid-io"
 
+[lib]
+crate-type = ["rlib", "cdylib"]
+
 [features]
 default = ["unicode"]
 unicode = []
@@ -38,6 +41,7 @@ lazy_static  = "1.2.0"
 flexi_logger = "0.10.6"
 futures      = "0.1.25"
 hidapi       = "=0.5.0"
+libc         = "0.2.0"
 log          = "0.4.3"
 open         = "1.2.2"
 rand         = "0.6.4"

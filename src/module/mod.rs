@@ -17,6 +17,9 @@
 /// Platform specific character output and IME control
 pub mod unicode;
 
+/// Host-Side KLL
+pub mod kll;
+
 use crate::device::*;
 use crate::module::unicode::*;
 use crate::protocol::hidio::*;

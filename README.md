@@ -29,6 +29,7 @@ hid-io --help
 
 * Rust nightly (may relax over time)
 * capnproto >= 0.6.0
+* `libkiibohd.so` (in libs/ directory)
 
 
 ### i686-pc-windows-gnu Dependencies
@@ -59,6 +60,11 @@ Inspecting rawhid traffic:
 
 ```bash
 cargo test
+```
+
+#### Host-Side KLL
+```bash
+./test.sh
 ```
 
 ## Supported Keyboard Firmware
