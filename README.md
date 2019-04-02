@@ -66,6 +66,12 @@ cargo test
 * [kiibohd](https://github.com/kiibohd/controller) (KLL) - **In Progress**
 
 
+## Contributing
+
+* Please run `cargo test` before submitting a pull-request
+
+* Travis will fail any commits that do not pass all tests
+
 
 ## Debugging
 

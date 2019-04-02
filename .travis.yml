@@ -4,17 +4,29 @@ sudo: required
 dist: xenial
 language:
 - rust
+cache:
+- apt
+- cargo
 
 rust:
 - nightly
 
-os:
-- linux
-- osx
-
 matrix:
+  include:
+    # https://travis-ci.community/t/current-known-issues-please-read-this-before-posting-a-new-topic/264/10
+    - os: windows
+      filter_secrets: false
+      env: GH_TOKEN=
+    - os: linux
+      env:
+        - secure: cRHAmBHjT3SIegILl5B++chRe7jHzTl08Qn5Jpq8IOURhzvF1asSeDnAPeAQWkbY3li/9OCi4Ik+A+VFJ/q0IAHJoV7E4vCnutqDmBPJN3REA5E9Gh5WsKTLrF0X3ffv/OK5XbB18qgqUbthy+9HV/17ispe0DVgnOlWFhT6SmSyafe5AsdBkSVwVRvsdltdmNU96fgr2fw/q1tuCRM51xzDNuAm5SFhE3YB2OQJjPe62Gn6HqvXHU8Un1nfap7DYw79GtXODuFteb4W7+/wTkzrYarqYh3CnGWNNr4d0Q9Z55gLBOq61DmxtdBKHlEVE7hDvnHdvS6pxYPYoqSD8a2RV3sW6qMB1xrrHwToGI0oIjyHkf/vId0xYUtmJ5xaG+Nn4NSmYQNXGYIzxoVUHfobTjfOpVuqjtlr8eYcbPLksfDC+uTZCQxcYOH9jBXUxBmfZYSarDzmbKgHnPEnVrfWJuiIUzmLwfI2eJ0VwUGTBkmebaamckzKA6B3kTeMoeAeEJ/S6Qo5dkT0MObf/xIOkgIzGpNjZTFTYaPsj2XXMTjRseykbD44DAE1C1sfKYw0Nnkqi4mqmFaSaTj+GM9W61vHMlzR4vcf2N/PZL/ZpTcHpn2A5zMvZKZkGpBfw9vrpbMsed+tJTwh4RfnIFXb8YODdMHJ33M5tslvAos=
+    - os: osx
+      env:
+        - secure: cRHAmBHjT3SIegILl5B++chRe7jHzTl08Qn5Jpq8IOURhzvF1asSeDnAPeAQWkbY3li/9OCi4Ik+A+VFJ/q0IAHJoV7E4vCnutqDmBPJN3REA5E9Gh5WsKTLrF0X3ffv/OK5XbB18qgqUbthy+9HV/17ispe0DVgnOlWFhT6SmSyafe5AsdBkSVwVRvsdltdmNU96fgr2fw/q1tuCRM51xzDNuAm5SFhE3YB2OQJjPe62Gn6HqvXHU8Un1nfap7DYw79GtXODuFteb4W7+/wTkzrYarqYh3CnGWNNr4d0Q9Z55gLBOq61DmxtdBKHlEVE7hDvnHdvS6pxYPYoqSD8a2RV3sW6qMB1xrrHwToGI0oIjyHkf/vId0xYUtmJ5xaG+Nn4NSmYQNXGYIzxoVUHfobTjfOpVuqjtlr8eYcbPLksfDC+uTZCQxcYOH9jBXUxBmfZYSarDzmbKgHnPEnVrfWJuiIUzmLwfI2eJ0VwUGTBkmebaamckzKA6B3kTeMoeAeEJ/S6Qo5dkT0MObf/xIOkgIzGpNjZTFTYaPsj2XXMTjRseykbD44DAE1C1sfKYw0Nnkqi4mqmFaSaTj+GM9W61vHMlzR4vcf2N/PZL/ZpTcHpn2A5zMvZKZkGpBfw9vrpbMsed+tJTwh4RfnIFXb8YODdMHJ33M5tslvAos=
+
   allow_failures:
   - rust: beta
+  fast_finish: true
 
 # Environment variables
 env:
@@ -30,25 +42,49 @@ before_install:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install libxtst-dev libxtst6 x11-xkb-utils -y; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then cd "$(brew --repo)" && git fetch && git reset --hard origin/master && brew update && cd -; fi
 - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libusb capnp hidapi; fi
+- if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then unset GH_TOKEN && choco install -y capnproto 7zip; fi
 
 install:
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then curl -O "https://capnproto.org/capnproto-c++-0.7.0.tar.gz"; tar xf "capnproto-c++-0.7.0.tar.gz"; fi
 - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then cd "capnproto-c++-0.7.0" && ./configure --prefix=$HOME && make -j3 && make install && cd ..; fi
 
 before_script:
-- rustup component add rustfmt-preview
+- rustup component add rustfmt
+- rustup component add clippy || cargo install --git https://github.com/rust-lang/rust-clippy --force clippy
 
 # Overrides default rust build commands
 script:
-  - cargo fmt --all -- --check
-  - cargo build --verbose --color=always
-  - cargo test --verbose --color=always
+- cargo fmt --all -- --check --color=always
+- cargo clippy --all --all-targets --all-features --color=always
+- cargo build --verbose --release -Z unstable-options --out-dir out --color=always
+- cargo test --all --verbose --all-targets --all-features --color=always
+
+before_deploy:
+- mkdir -p deploy
+- mv out hidio-${TRAVIS_TAG}
+- if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then
+    7z a hidio-${TRAVIS_TAG}-${TRAVIS_OS_NAME}.zip hidio-${TRAVIS_TAG};
+  else
+    zip -vr hidio-${TRAVIS_TAG}-${TRAVIS_OS_NAME}.zip hidio-${TRAVIS_TAG};
+  fi
+- mv hidio-${TRAVIS_TAG}-${TRAVIS_OS_NAME}.zip deploy
 
 # Deployment
+deploy:
+  name: ${TRAVIS_TAG}
+  body: $(git for-each-ref --format '%(refname) %09 %(taggerdate) %(subject) %(taggeremail)' refs/tags/${TRAVIS_TAG})
+  provider: releases
+  api_key: $GH_TOKEN
+  skip_cleanup: true
+  draft: true # XXX Must "publish" on github
+  prerelease: true # XXX Set this to false to enable a stable release
+  file_glob: true
+  file: deploy/*.zip
+  on:
+    tags: true
+    repo: hid-io/hid-io
+    condition: $GH_TOKEN != ""
+
+# Update docs
 after_success:
 - bash deploy.bash
-
-env:
-  global:
-    secure: cRHAmBHjT3SIegILl5B++chRe7jHzTl08Qn5Jpq8IOURhzvF1asSeDnAPeAQWkbY3li/9OCi4Ik+A+VFJ/q0IAHJoV7E4vCnutqDmBPJN3REA5E9Gh5WsKTLrF0X3ffv/OK5XbB18qgqUbthy+9HV/17ispe0DVgnOlWFhT6SmSyafe5AsdBkSVwVRvsdltdmNU96fgr2fw/q1tuCRM51xzDNuAm5SFhE3YB2OQJjPe62Gn6HqvXHU8Un1nfap7DYw79GtXODuFteb4W7+/wTkzrYarqYh3CnGWNNr4d0Q9Z55gLBOq61DmxtdBKHlEVE7hDvnHdvS6pxYPYoqSD8a2RV3sW6qMB1xrrHwToGI0oIjyHkf/vId0xYUtmJ5xaG+Nn4NSmYQNXGYIzxoVUHfobTjfOpVuqjtlr8eYcbPLksfDC+uTZCQxcYOH9jBXUxBmfZYSarDzmbKgHnPEnVrfWJuiIUzmLwfI2eJ0VwUGTBkmebaamckzKA6B3kTeMoeAeEJ/S6Qo5dkT0MObf/xIOkgIzGpNjZTFTYaPsj2XXMTjRseykbD44DAE1C1sfKYw0Nnkqi4mqmFaSaTj+GM9W61vHMlzR4vcf2N/PZL/ZpTcHpn2A5zMvZKZkGpBfw9vrpbMsed+tJTwh4RfnIFXb8YODdMHJ33M5tslvAos=
-
