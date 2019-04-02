@@ -57,21 +57,36 @@ impl XConnection {
             );
 
             for i in keycode_low..keycode_high {
+                empty = true;
                 for j in 0..keysyms_per_keycode {
                     let symindex = (i - keycode_low) * keysyms_per_keycode + j;
                     let s = *keysyms.offset(symindex as isize);
-                    trace!("sym[{},{}] = '{}'", i, j, s);
-                    if s == 0 {
-                        empty = true;
-                        keycode = Some(i as u32);
+
+                    let c = XKeysymToString(s);
+                    if let Some(_) = c.as_ref() {
+                        let v = std::ffi::CStr::from_ptr(c);
+                        trace!("sym[{},{}] = {} ({:?})", i, j, s, v.to_str().unwrap_or(""));
+                    } else {
+                        trace!("sym[{},{}] = {}", i, j, s);
                     }
+
                     if s == keysym {
                         empty = false;
                         keycode = Some(i as u32);
                         break;
                     }
+                    if s != 0 {
+                        empty = false;
+                        break;
+                    }
+                }
+
+                if empty {
+                    keycode = Some(i as u32);
+                    break;
                 }
             }
+
 
             XFree(keysyms as *mut c_void);
         }
@@ -88,9 +103,11 @@ impl XConnection {
         }
     }
 
-    pub fn bind_key(&self, keycode: u32, mut keysym: u64) {
+    pub fn bind_key(&self, keycode: u32, keysym: u64) {
         unsafe {
-            XChangeKeyboardMapping(self.display, keycode as i32, 1, &mut keysym, 1);
+            // https://stackoverflow.com/a/44334103
+            let mut keysyms = [keysym, keysym];
+            XChangeKeyboardMapping(self.display, keycode as i32, keysyms.len() as i32, keysyms.as_mut_ptr(), 1);
             XSync(self.display, false as i32);
         }
     }
@@ -199,16 +216,14 @@ impl UnicodeOutput for XConnection {
             self.press_key(*k, false, time);
             //thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
         }
-        /*unsafe {
+
+        unsafe {
             XFlush(self.display);
-        }*/
+        }
 
         for c in string.chars() {
             self.unmap_sym(c);
         }
-        /*for k in keycodes.iter() {
-            self.unbind_key(*k);
-        }*/
     }
 
     fn press_symbol(&mut self, c: char, press: bool) {
@@ -227,6 +242,9 @@ impl UnicodeOutput for XConnection {
                     .iter()
                     .position(|&x| x == c)
                     .map(|e| self.held.remove(e));
+            }
+            unsafe {
+                XFlush(self.display);
             }
         }
     }
