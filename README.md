@@ -1,7 +1,7 @@
 # hid-io
 HID-IO Client Side Library and Daemon
 
-[![Travis Status](https://travis-ci.org/hid-io/hid-io.svg?branch=master)](https://travis-ci.org/hid-io/hid-io) [![Appveyor Status](https://ci.appveyor.com/api/projects/status/cdwt6apvvfn4fvt9/branch/master?svg=true)](https://ci.appveyor.com/project/kiibohd/hid-io/branch/master)
+[![Travis Status](https://travis-ci.org/hid-io/hid-io.svg?branch=master)](https://travis-ci.org/hid-io/hid-io)
 
 [![Visit our IRC channel](https://kiwiirc.com/buttons/irc.freenode.net/hid-io.png)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 
