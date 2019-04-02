@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ use crate::device::*;
 use crate::protocol::hidio::*;
 use crate::RUNNING;
 use hidapi;
+use libusb;
 use std::sync::atomic::Ordering;
 
 use std::sync::mpsc::channel;
@@ -28,13 +29,12 @@ use std::time::Instant;
 use crate::api::Endpoint;
 use crate::common_capnp::NodeType;
 
-// TODO (HaaTa) remove this constants when linux supports better matching
-pub const DEV_VID: u16 = 0x308f;
-pub const DEV_PID: u16 = 0x0011;
-pub const INTERFACE_NUMBER: i32 = 6;
-
-pub const USAGE_PAGE: u16 = 0xFF1C;
-pub const USAGE: u16 = 0x1100;
+pub const HIDIO_USAGE_PAGE: u16 = 0xFF1C;
+pub const HIDIO_USAGE: u16 = 0x1100;
+pub const KEYBOARD_USAGE_PAGE: u16 = 0x0001;
+pub const KEYBOARD_USAGE: u16 = 0x0006;
+pub const MOUSE_USAGE_PAGE: u16 = 0x0001;
+pub const MOUSE_USAGE: u16 = 0x0002;
 
 const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
@@ -141,24 +141,28 @@ fn device_name(device_info: &hidapi::HidDeviceInfo) -> String {
 
 #[cfg(target_os = "linux")]
 fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
-    // usage and usage_page both appear to always be 0, so we can't use them here
-    // product_string is also the same for all interfaces so it can't be used
-    // fall back to a manual interface number match
-    device_info.vendor_id == DEV_VID
-        && device_info.product_id == DEV_PID
-        && device_info.interface_number == INTERFACE_NUMBER
+    // XXX (HaaTa) usage and usage_page requires patched version of hidapi using hidraw
+    device_info.usage_page == HIDIO_USAGE_PAGE && device_info.usage == HIDIO_USAGE
 }
 
 #[cfg(target_os = "macos")]
 fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
     // interface_number is always -1 but usage is fine
-    device_info.usage_page == USAGE_PAGE && device_info.usage == USAGE
+    device_info.usage_page == HIDIO_USAGE_PAGE && device_info.usage == HIDIO_USAGE
 }
 
 #[cfg(target_os = "windows")]
 fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
     // interface and usage are both queryable. Prefer usage
-    device_info.usage_page == USAGE_PAGE && device_info.usage == USAGE
+    device_info.usage_page == HIDIO_USAGE_PAGE && device_info.usage == HIDIO_USAGE
+}
+
+fn match_keyboard(device_info: &hidapi::HidDeviceInfo) -> bool {
+    device_info.usage_page == KEYBOARD_USAGE_PAGE && device_info.usage == KEYBOARD_USAGE
+}
+
+fn match_usb(device_info: &hidapi::HidDeviceInfo, device_desc: &libusb::DeviceDescriptor) -> bool {
+    device_info.vendor_id == device_desc.vendor_id() && device_info.product_id == device_desc.product_id()
 }
 
 /// hidusb processing
@@ -181,6 +185,8 @@ fn processing(mut mailer: HIDIOMailer) {
     use rand::Rng;
     let mut rng = rand::thread_rng();
 
+    let usb_context = libusb::Context::new().unwrap();
+
     // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
         while enumerate {
@@ -197,14 +203,59 @@ fn processing(mut mailer: HIDIOMailer) {
             for device_info in api.devices() {
                 debug!("{:#x?}", device_info);
 
-                // TODO (HaaTa) Do not use vid, pid + interface number to do match
-                // Instead use:
-                // 1) bInterfaceClass 0x03 (HID) + bInterfaceSubClass 0x00 (None) + bInterfaceProtocol 0x00 (None)
-                // 2) 2 endpoints, EP IN + EP OUT (both Interrupt)
-                // 3) iInterface, RawIO API Interface
-                if !match_device(device_info) {
+                // Use only parts of HID descriptor for matching:
+                // USAGE_PAGE
+                // USAGE
+                let mut proceed = false;
+                if match_device(device_info) {
+                    println!("HIDIO! {}", device_name(device_info));
+                    proceed = true;
+                } else if match_keyboard(device_info) {
+                    println!("Keyboard! {}", device_name(device_info));
+                } else {
                     continue;
                 }
+
+                // Gather USB Descriptor information
+                // TODO Filter better than using iter and enumerate
+                for device in usb_context.devices().unwrap().iter() {
+                    let device_desc = device.device_descriptor().unwrap();
+                    if match_usb(device_info, &device_desc) {
+                    println!("  Bus {:03} Device {:03} ID {:04x}:{:04x}",
+                        device.bus_number(),
+                        device.address(),
+                        device_desc.vendor_id(),
+                        device_desc.product_id());
+                        let config = device.active_config_descriptor().unwrap();
+                        for (iface_num, iface_enum) in config.interfaces().enumerate() {
+                            for (_, interface) in iface_enum.descriptors().enumerate() {
+
+                                if device_info.interface_number as usize == iface_num {
+                                    println!("  Iface Num: {} Class: {} Sub-Class: {} Protocol: {}",
+                                        iface_num,
+                                        interface.class_code(),
+                                        interface.sub_class_code(),
+                                        interface.protocol_code());
+                                    for (_, endpoint) in interface.endpoint_descriptors().enumerate() {
+                                        println!("  Endpoint: {} Addr: {} Dir: {:?} Type: {:?} Max Packet: {} Interval: {}",
+                                            endpoint.number(),
+                                            endpoint.address(),
+                                            endpoint.direction(),
+                                            endpoint.transfer_type(),
+                                            endpoint.max_packet_size(),
+                                            endpoint.interval());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Only continue if completely matched and supported
+                if !proceed {
+                    continue;
+                }
+
                 // Add device
                 info!("Connecting to {:#?}", device_info);
 
@@ -215,7 +266,7 @@ fn processing(mut mailer: HIDIOMailer) {
                 // Connect to device
                 match api.open_path(&path) {
                     Ok(device) => {
-                        println!("Connected to {}", device_name(device_info));
+                        println!("HID-IO -> {}", device_name(device_info));
                         let device = HIDUSBDevice::new(device);
                         let mut device =
                             HIDIOEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
@@ -230,6 +281,9 @@ fn processing(mut mailer: HIDIOMailer) {
                         devices.push(master);
 
                         // Add to connected list
+                        // TODO (HaaTa): Should distinguish between USB and HID devices
+                        //               as USB HID devices have more information that can be
+                        //               queried
                         let info = Endpoint {
                             type_: NodeType::UsbKeyboard,
                             name: device_info
