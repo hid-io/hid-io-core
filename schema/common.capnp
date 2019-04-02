@@ -86,7 +86,7 @@ struct Destination {
     # Interface node of destination
     # A separate node is generated for each interface node
     # (i.e. there may be multiple nodes per physical/virtual device)
-    
+
     commands :union {
         usbKeyboard @5 :USBKeyboard.Commands;
 	hostMacro @6 :HostMacro.Commands;
