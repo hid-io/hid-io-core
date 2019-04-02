@@ -741,7 +741,7 @@ mod test {
 
         // Validate serialization worked
         assert!(
-            serialized.len() > 0,
+            !serialized.is_empty(),
             "Serialization bytes:{}",
             serialized.len()
         );
@@ -757,7 +757,7 @@ mod test {
                     bytes_used += result as usize;
                 }
                 _ => {
-                    assert!(false, "Failured decoding packet");
+                    panic!("Failured decoding packet");
                 }
             };
         }

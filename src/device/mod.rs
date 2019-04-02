@@ -53,7 +53,6 @@ impl HIDIOEndpoint {
     }
 
     pub fn recv_chunk(&mut self, buffer: &mut HIDIOPacketBuffer) -> Result<usize, std::io::Error> {
-        use std::io::Read;
         let mut rbuf = [0; MAX_RECV_SIZE];
         match self.socket.read(&mut rbuf) {
             Ok(len) => {
@@ -112,7 +111,6 @@ impl HIDIOEndpoint {
     }
 
     pub fn send_packet(&mut self, mut packet: HIDIOPacketBuffer) -> Result<(), std::io::Error> {
-        use std::io::Write;
         info!("Sending {:x?}", packet);
         let buf: Vec<u8> = packet.serialize_buffer().unwrap();
         for chunk in buf

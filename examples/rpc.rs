@@ -120,7 +120,7 @@ pub fn main() -> Result<(), ::capnp::Error> {
                 println!("Registering to {}", format_node(n));
                 n.get_id()
             } else {
-                println!("");
+                println!();
                 for n in nodes {
                     println!(" * {} - {}", n.get_id(), format_node(n));
                 }
@@ -200,7 +200,8 @@ pub fn main() -> Result<(), ::capnp::Error> {
                             runtime.block_on(request.send().promise)?
                         };
                     }
-                    _ => {}
+                    HostMacro(_node) => {}
+                    HidioPacket(_node) => {}
                 }
             }
         }
@@ -244,6 +245,8 @@ pub fn main() -> Result<(), ::capnp::Error> {
                                         pry!(std::io::stdout().write_all(&data));
                                         pry!(std::io::stdout().flush());
                                     }
+                                    HIDIOCommandID::HostMacro => {}
+                                    // ...
                                     _ => {}
                                 }
                             }

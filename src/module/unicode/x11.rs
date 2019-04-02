@@ -63,7 +63,7 @@ impl XConnection {
                     let s = *keysyms.offset(symindex as isize);
 
                     let c = XKeysymToString(s);
-                    if let Some(_) = c.as_ref() {
+                    if c.as_ref().is_some() {
                         let v = std::ffi::CStr::from_ptr(c);
                         trace!("sym[{},{}] = {} ({:?})", i, j, s, v.to_str().unwrap_or(""));
                     } else {
@@ -87,7 +87,6 @@ impl XConnection {
                 }
             }
 
-
             XFree(keysyms as *mut c_void);
         }
 
@@ -107,7 +106,13 @@ impl XConnection {
         unsafe {
             // https://stackoverflow.com/a/44334103
             let mut keysyms = [keysym, keysym];
-            XChangeKeyboardMapping(self.display, keycode as i32, keysyms.len() as i32, keysyms.as_mut_ptr(), 1);
+            XChangeKeyboardMapping(
+                self.display,
+                keycode as i32,
+                keysyms.len() as i32,
+                keysyms.as_mut_ptr(),
+                1,
+            );
             XSync(self.display, false as i32);
         }
     }
