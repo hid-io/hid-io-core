@@ -41,7 +41,8 @@ futures      = "0.1.25"
 hidapi       = { path = "../hidapi-rs" }
 #hidapi       = "=0.5.0"
 lazy_static  = "1.2.0"
-libusb       = "0.3.0"
+libusb       = { path = "../libusb-rs" }
+#libusb       = "0.3.0"
 log          = "0.4.3"
 open         = "1.2.2"
 rand         = "0.6.4"

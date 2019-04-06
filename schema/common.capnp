@@ -1,4 +1,4 @@
-# Copyright (C) 2017 by Jacob Alexander
+# Copyright (C) 2017-2019 by Jacob Alexander
 #
 # This file is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,15 @@
 
 using import "hidiowatcher.capnp".HIDIOWatcher;
 using import "hostmacro.capnp".HostMacro;
+
 using import "usbkeyboard.capnp".USBKeyboard;
+
+using import "blekeyboard.capnp".BLEKeyboardInfo;
+using import "blemouse.capnp".BLEMouseInfo;
+using import "usbkeyboard.capnp".USBKeyboardInfo;
+using import "usbmouse.capnp".USBMouseInfo;
+
+
 
 ## Enumerations ##
 
@@ -31,12 +39,27 @@ enum KeyEventState {
 }
 
 enum NodeType {
+    bleKeyboard @4;
+    bleMouse @5;
     hidioDaemon @0;
     hidioScript @1;
     usbKeyboard @2;
+    usbMouse @3;
+    unknown @6;
 }
 # Node types, please extend this enum as necessary
 # Should be generic types, nothing specific, use the text field for that
+
+enum EventState {
+    invalid @0;      # Invalid, id does not exist
+    connected @1;    # Connected and active
+    hung @2;         # Active, but has not responded with SYNCs in a while
+    inactive @3;     # No longer connected and considered inactive
+    reap @4;         # Set to be cleaned up and resources freed
+    notconnected @5; # Not connected, but have seen
+}
+# These states represent the status of device/api endpoint connections
+# The states indicate how the Info struct should be interpreted
 
 
 
@@ -92,6 +115,39 @@ struct Destination {
 	hostMacro @6 :HostMacro.Commands;
 	hidioPacket @7 :HIDIOWatcher.Commands;
     }
+}
+
+struct Event {
+    # Event container struct
+    # Indicates what happened and when
+
+    state @0 :EventState;
+    # State of this event
+
+    time @1 :UInt64;
+    # Timestamp of this event (unix time)
+}
+
+struct Info {
+    # Info container struct
+    # Depending on the type, a different struct will be available
+    # TODO (HaaTa): It may be useful to provide a function that can refresh info
+
+    event @0 :List(Event);
+    # Indicates how this Info struct should be interpreted
+    # If set to invalid, none of the other fields will contain useful data
+    # The last element of this list is the most recent (i.e. in chronological order)
+
+    type @1 :NodeType;
+    # Type of node this info struct is for
+
+    info :union {
+        usbKeyboard @2 :USBKeyboardInfo;
+	usbMouse @3 :USBMouseInfo;
+	bleKeyboard @4 :BLEKeyboardInfo;
+	bleMouse @5 :BLEMouseInfo;
+    }
+    # Info container union
 }
 
 

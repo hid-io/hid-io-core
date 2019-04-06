@@ -1,4 +1,4 @@
-# Copyright (C) 2017 by Jacob Alexander
+# Copyright (C) 2017-2019 by Jacob Alexander
 #
 # This file is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -71,5 +71,11 @@ interface HIDIO {
     # List of supported nodes
     # This may not contain all nodes due to authentication levels
     # The HIDIO daemon may revoke priviledges for certain modules during runtime
+
+    info @2 (id :UInt64) -> (info :Common.Info);
+    # Lookup the information given a unique id
+    # This information is still valid even if a device is disconnected
+    # (though this data will eventually be flushed)
+    # Some ids may be restricted due to authentication levels
 }
 

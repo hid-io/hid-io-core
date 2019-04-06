@@ -1,4 +1,4 @@
-# Copyright (C) 2017 by Jacob Alexander
+# Copyright (C) 2017-2019 by Jacob Alexander
 #
 # This file is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,6 +18,25 @@
 ## Imports ##
 
 using Common = import "common.capnp";
+
+using import "hid.capnp".HIDInfo;
+using import "usb.capnp".USBInfo;
+
+
+
+## Structs ##
+
+struct USBKeyboardInfo {
+    # This struct contains general information about a USB keyboard
+    # These fields are mostly informational to allow whatever calling the API
+    # to make better decisions about which devices are connected.
+
+    hid @0 :HIDInfo;
+    # hidapi information
+
+    usb @1 :USBInfo;
+    # libusb information
+}
 
 
 

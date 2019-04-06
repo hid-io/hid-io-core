@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,6 +42,18 @@ pub mod built_info {
 }
 
 /// [AUTO GENRATED]
+pub mod blekeyboard_capnp {
+    #![allow(clippy::all)]
+    include!(concat!(env!("OUT_DIR"), "/blekeyboard_capnp.rs"));
+}
+
+/// [AUTO GENRATED]
+pub mod blemouse_capnp {
+    #![allow(clippy::all)]
+    include!(concat!(env!("OUT_DIR"), "/blemouse_capnp.rs"));
+}
+
+/// [AUTO GENRATED]
 pub mod common_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/common_capnp.rs"));
@@ -54,9 +66,9 @@ pub mod devicefunction_capnp {
 }
 
 /// [AUTO GENRATED]
-pub mod hidiowatcher_capnp {
+pub mod hid_capnp {
     #![allow(clippy::all)]
-    include!(concat!(env!("OUT_DIR"), "/hidiowatcher_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/hid_capnp.rs"));
 }
 
 /// [AUTO GENRATED]
@@ -66,15 +78,33 @@ pub mod hidio_capnp {
 }
 
 /// [AUTO GENRATED]
+pub mod hidiowatcher_capnp {
+    #![allow(clippy::all)]
+    include!(concat!(env!("OUT_DIR"), "/hidiowatcher_capnp.rs"));
+}
+
+/// [AUTO GENRATED]
 pub mod hostmacro_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hostmacro_capnp.rs"));
 }
 
 /// [AUTO GENRATED]
+pub mod usb_capnp {
+    #![allow(clippy::all)]
+    include!(concat!(env!("OUT_DIR"), "/usb_capnp.rs"));
+}
+
+/// [AUTO GENRATED]
 pub mod usbkeyboard_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/usbkeyboard_capnp.rs"));
+}
+
+/// [AUTO GENRATED]
+pub mod usbmouse_capnp {
+    #![allow(clippy::all)]
+    include!(concat!(env!("OUT_DIR"), "/usbmouse_capnp.rs"));
 }
 
 // ----- Functions -----

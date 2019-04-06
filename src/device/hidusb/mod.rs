@@ -19,8 +19,9 @@ use crate::protocol::hidio::*;
 use crate::RUNNING;
 use hidapi;
 use libusb;
-use std::sync::atomic::Ordering;
 
+use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
@@ -36,9 +37,91 @@ pub const KEYBOARD_USAGE: u16 = 0x0006;
 pub const MOUSE_USAGE_PAGE: u16 = 0x0001;
 pub const MOUSE_USAGE: u16 = 0x0002;
 
+const USB_DESCRIPTOR_STRING_TIMEOUT: u64 = 5; // 5 seconds
 const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
 const POLL_DELAY: u64 = 1;
+
+struct USBEndpointInfo {
+    number: u8,
+    address: u8,
+    direction: libusb::Direction,
+    transfer_type: libusb::TransferType,
+    max_packet_size: u16,
+    interval: u8,
+}
+
+struct USBInterfaceInfo {
+    interface_number: u8,
+    setting_number: u8,
+    class_code: u8,
+    sub_class_code: u8,
+    protocol_code: u8,
+    interface_name: String,
+    num_endpoints: u8,
+    endpoints: Vec<USBEndpointInfo>,
+}
+
+struct USBInterfaceSettingInfo {
+    number: u8,
+    interfaces: Vec<USBInterfaceInfo>,
+}
+
+struct USBConfigurationInfo {
+    number: u8,
+    max_power: u16,
+    self_powered: bool,
+    remote_wakeup: bool,
+    configuration_name: String,
+    num_interfaces: u8,
+    interface_settings: Vec<USBInterfaceSettingInfo>,
+}
+
+struct USBDeviceInfo {
+    // TODO Event list
+
+    bus_number: u8,
+    address: u8,
+    speed: libusb::Speed,
+    usb_version: u16,
+    device_version: u16,
+    manufacturer_string: String,
+    product_string: String,
+    serial_number: String,
+    class_code: u8,
+    sub_class_code: u8,
+    protocol_code: u8,
+    vendor_id: u16,
+    product_id: u16,
+    max_packet_size: u8,
+    num_configurations: u8,
+    active_configuration: u8,
+    configurations: Vec<USBConfigurationInfo>,
+}
+
+#[derive(Hash, Eq, PartialEq, Debug)]
+struct USBEntry {
+    device_version: u16,
+    vid: u16,
+    pid: u16,
+    manufacturer: String,
+    product: String,
+    serial: String,
+}
+
+impl USBEntry {
+    /// Create new entry
+    fn new(device_version: u16, vid: u16, pid: u16, manufacturer: String, product: String, serial: String) -> USBEntry {
+        USBEntry {
+            device_version: device_version,
+            vid: vid,
+            pid: pid,
+            manufacturer: manufacturer,
+            product: product,
+            serial: serial,
+        }
+    }
+}
 
 pub struct HIDUSBDevice {
     device: hidapi::HidDevice,
@@ -165,6 +248,14 @@ fn match_usb(device_info: &hidapi::HidDeviceInfo, device_desc: &libusb::DeviceDe
     device_info.vendor_id == device_desc.vendor_id() && device_info.product_id == device_desc.product_id()
 }
 
+/// Version -> u16
+fn convert_version(version: libusb::Version) -> u16 {
+    let conv = (version.major() as u16) << 8 |
+    (version.minor() as u16) << 4 |
+    version.sub_minor() as u16;
+    conv
+}
+
 /// hidusb processing
 ///
 /// This thread periodically refreshes the USB device list to see if a new device needs to be attached
@@ -180,12 +271,14 @@ fn processing(mut mailer: HIDIOMailer) {
     let mut devices: Vec<HIDIOController> = vec![];
 
     let mut last_scan = Instant::now();
+    let timeout = Duration::new(USB_DESCRIPTOR_STRING_TIMEOUT, 0);
     let mut enumerate = true;
 
     use rand::Rng;
     let mut rng = rand::thread_rng();
 
     let usb_context = libusb::Context::new().unwrap();
+    //let mut usb_device_status_map = HashMap::new();
 
     // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
@@ -194,6 +287,186 @@ fn processing(mut mailer: HIDIOMailer) {
                 break;
             }
             last_scan = Instant::now();
+
+            // First scan for USB devices to see if any new devices were added or removed
+            // Use a USBEntry to determine if entry is already in the list
+            for device in usb_context.devices().unwrap().iter() {
+                let device_desc = device.device_descriptor().unwrap();
+
+                // Convert device version to u16 (from bcd)
+                let device_version = convert_version(device_desc.device_version());
+
+                // Handle for querying USB device directly
+                let usb_handle = device.open().unwrap();
+
+                // Determine primary language
+                let language = usb_handle.read_languages(timeout).unwrap()[0];
+
+                // Retrieve manufacturer, product and serial strings
+                let manufacturer = match usb_handle.read_manufacturer_string(
+                    language,
+                    &device_desc,
+                    timeout
+                ) {
+                    Ok(result) => {
+                        result
+                    }
+                    Err(_) => {
+                        "".to_string()
+                    }
+                };
+                let product = match usb_handle.read_product_string(
+                    language,
+                    &device_desc,
+                    timeout
+                ) {
+                    Ok(result) => {
+                        result
+                    }
+                    Err(_) => {
+                        "".to_string()
+                    }
+                };
+                let serial = match usb_handle.read_serial_number_string(
+                    language,
+                    &device_desc,
+                    timeout
+                ) {
+                    Ok(result) => {
+                        result
+                    }
+                    Err(_) => {
+                        "".to_string()
+                    }
+                };
+
+                // Construct unique key
+                let usb_key = USBEntry::new(
+                    device_version,
+                    device_desc.vendor_id(),
+                    device_desc.product_id(),
+                    manufacturer.clone(),
+                    product.clone(),
+                    serial.clone()
+                );
+
+                // Convert usb version to u16 (from bcd)
+                let usb_version = convert_version(device_desc.device_version());
+
+                // Configurations
+                let mut configurations: Vec<USBConfigurationInfo> = vec![];
+                for config_index in 0..device_desc.num_configurations() {
+                    match device.config_descriptor(config_index) {
+                        Ok(config) => {
+                            // Interface Settings
+                            let mut interface_settings: Vec<USBInterfaceSettingInfo> = vec![];
+                            for iface_setting in config.interfaces() {
+                                // Interfaces
+                                let mut interfaces: Vec<USBInterfaceInfo> = vec![];
+                                for iface in iface_setting.descriptors().next() {
+                                    // Endpoints
+                                    let mut endpoints: Vec<USBEndpointInfo> = vec![];
+                                    for endpoint in iface.endpoint_descriptors().next() {
+                                        // Build endpoint
+                                        endpoints.push(
+                                            USBEndpointInfo {
+                                                address: endpoint.address(),
+                                                number: endpoint.number(),
+                                                direction: endpoint.direction(),
+                                                transfer_type: endpoint.transfer_type(),
+                                                max_packet_size: endpoint.max_packet_size(),
+                                                interval: endpoint.interval(),
+                                            }
+                                        )
+                                    }
+
+                                    // Build interface
+                                    interfaces.push(
+                                        USBInterfaceInfo {
+                                            interface_number: iface.interface_number(),
+                                            setting_number: iface.setting_number(),
+                                            class_code: iface.class_code(),
+                                            sub_class_code: iface.sub_class_code(),
+                                            protocol_code: iface.protocol_code(),
+                                            interface_name: match usb_handle.read_interface_string(
+                                                language,
+                                                &iface,
+                                                timeout
+                                            ) {
+                                                Ok(result) => {
+                                                    result
+                                                }
+                                                Err(_) => {
+                                                    "".to_string()
+                                                }
+                                            },
+                                            num_endpoints: iface.num_endpoints(),
+                                            endpoints: endpoints,
+                                        }
+                                    )
+                                }
+
+                                // Build interface setting
+                                interface_settings.push(
+                                    USBInterfaceSettingInfo {
+                                        number: iface_setting.number(),
+                                        interfaces: interfaces,
+                                    }
+                                )
+                            }
+
+                            // Build configuration
+                            configurations.push(
+                                USBConfigurationInfo {
+                                    number: config.number(),
+                                    max_power: config.max_power(),
+                                    self_powered: config.self_powered(),
+                                    remote_wakeup: config.remote_wakeup(),
+                                    configuration_name: match usb_handle.read_configuration_string(
+                                        language,
+                                        &config,
+                                        timeout
+                                    ) {
+                                        Ok(result) => {
+                                            result
+                                        }
+                                        Err(_) => {
+                                            "".to_string()
+                                        }
+                                    },
+                                    num_interfaces: config.num_interfaces(),
+                                    interface_settings: interface_settings,
+                                }
+                            )
+                        }
+                        Err(_) => {}
+                        // Ignore if not successful
+                    }
+                }
+
+                // Construct entry
+                let usb_info = USBDeviceInfo {
+                    bus_number: device.bus_number(),
+                    address: device.address(),
+                    speed: device.speed(),
+                    active_configuration: device.active_config_descriptor().unwrap().number(),
+
+                    usb_version: usb_version,
+                    device_version: device_version,
+                    manufacturer_string: manufacturer,
+                    product_string: product,
+                    serial_number: serial,
+                    class_code: device_desc.class_code(),
+                    sub_class_code: device_desc.sub_class_code(),
+                    protocol_code: device_desc.protocol_code(),
+                    vendor_id: device_desc.vendor_id(),
+                    product_id: device_desc.product_id(),
+                    max_packet_size: device_desc.max_packet_size(),
+                    num_configurations: device_desc.num_configurations(),
+                    configurations: configurations,
+                };
+            }
+
 
             // Refresh devices list
             api.refresh_devices().unwrap();
@@ -264,6 +537,8 @@ fn processing(mut mailer: HIDIOMailer) {
                 // TODO: Don't try to connect to a device we are already processing
 
                 // Connect to device
+                // TODO (HaaTa): Distinguish between HID-IO support vs. generic HID devices (i.e.
+                // manually parsing descriptors)
                 match api.open_path(&path) {
                     Ok(device) => {
                         println!("HID-IO -> {}", device_name(device_info));
@@ -271,6 +546,7 @@ fn processing(mut mailer: HIDIOMailer) {
                         let mut device =
                             HIDIOEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
 
+                        // Send initial sync packet to see if device is alive
                         let (message_tx, message_rx) = channel::<HIDIOPacketBuffer>();
                         let (response_tx, response_rx) = channel::<HIDIOPacketBuffer>();
                         device.send_sync();
@@ -340,7 +616,7 @@ fn processing(mut mailer: HIDIOMailer) {
                 .drain_filter(|dev| {
                     let ret = dev.process();
                     if ret.is_err() {
-                        info!("{} disconnected. No loneger polling it", dev.id);
+                        info!("{} disconnected. No longer polling it", dev.id);
                         mailer.unregister_device(&dev.id);
                     }
                     ret.is_ok()

@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,12 +19,17 @@
 // ----- Modules -----
 mod auth;
 
+pub use crate::blekeyboard_capnp::*;
+pub use crate::blemouse_capnp::*;
 pub use crate::common_capnp::*;
 pub use crate::devicefunction_capnp::*;
+pub use crate::hid_capnp::*;
 pub use crate::hidio_capnp::*;
 pub use crate::hidiowatcher_capnp::*;
 pub use crate::hostmacro_capnp::*;
+pub use crate::usb_capnp::*;
 pub use crate::usbkeyboard_capnp::*;
+pub use crate::usbmouse_capnp::*;
 
 use crate::device::{HIDIOMailbox, HIDIOMessage};
 use crate::protocol::hidio::HIDIOCommandID;
@@ -73,9 +78,13 @@ lazy_static! {
 impl std::fmt::Display for NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
+            NodeType::BleKeyboard => write!(f, "BleKeyboard"),
+            NodeType::BleMouse => write!(f, "BleMouse"),
             NodeType::HidioDaemon => write!(f, "HidioDaemon"),
             NodeType::HidioScript => write!(f, "HidioScript"),
+            NodeType::Unknown => write!(f, "Unknown"),
             NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
+            NodeType::UsbMouse => write!(f, "UsbMouse"),
         }
     }
 }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,7 @@ fn main() {
     eprintln!("Compiling for {:?}", std::env::var("CARGO_CFG_TARGET_OS"));
 
     // Assert if we don't meet the minimum version
+    // XXX (HaaTa): Set to a new version once we can compile without nightly
     assert!(version().unwrap() >= Version::parse("1.17.0").unwrap());
 
     // Generate build-time information
@@ -38,12 +39,17 @@ fn main() {
     capnpc::CompilerCommand::new()
         .edition(capnpc::RustEdition::Rust2018)
         .src_prefix("schema")
+        .file("schema/blekeyboard.capnp")
+        .file("schema/blemouse.capnp")
         .file("schema/common.capnp")
         .file("schema/devicefunction.capnp")
+        .file("schema/hid.capnp")
         .file("schema/hidio.capnp")
         .file("schema/hidiowatcher.capnp")
         .file("schema/hostmacro.capnp")
+        .file("schema/usb.capnp")
         .file("schema/usbkeyboard.capnp")
+        .file("schema/usbmouse.capnp")
         .run()
         .expect("schema compiler command");
 
