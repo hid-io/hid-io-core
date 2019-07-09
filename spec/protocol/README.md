@@ -362,7 +362,16 @@ Modes:
 Returns a list of Scan Code:USB Code mappings for each key on the given layer. 0 is considered the default state of the keyboard. To request all layers, request until an nak is received for the command.
 Width of scan code is the number of bytes. In general this will be 0x01, and in extreme cases for a keyboard with over 256 keys, 0x02.
 
-+> <width of scan code> <scan code> <usb code> [<scan code> <usb code>...]
+USB Code Types:
+ * 0x00 - USB Keyboard
+ * 0x01 - LED
+ * 0x02 - Consumer Ctrl Space 0x00
+ * 0x03 - Consumer Ctrl Space 0x01
+ * 0x04 - Consumer Ctrl Space 0x02
+ * 0x05 - System Ctrl
+ * TBD (Mouse/Joystick)
+
++> <width of scan code> <scan code> <usb code type> <usb code> [<scan code> <usb code>...]
 -> No payload, layer doesn't exist
 ```
 
