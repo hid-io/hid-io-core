@@ -34,7 +34,7 @@ use std::sync::atomic::Ordering;
 #[cfg(windows)]
 fn main() -> Result<(), std::io::Error> {
     let args: Vec<_> = std::env::args().collect();
-    if args[1] == "-d" {
+    if args.len() > 1 && args[1] == "-d" {
         match service::run() {
             Ok(_) => (),
             Err(_e) => panic!("Service failed"),
