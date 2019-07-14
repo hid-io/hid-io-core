@@ -1,18 +1,37 @@
-use std::collections::HashMap;
-use std::ffi::CString;
-use std::os::raw::{c_int, c_uchar, c_void};
-use std::process::Command;
-use std::ptr::null;
-use std::{thread, time};
+/* Copyright (C) 2019 by Jacob Alexander
+ * Copyright (C) 2019 by Rowan Decker
+ *
+ * This file is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This file is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
-use core_graphics::event::{CGEvent, CGEventFlags, CGKeyCode};
+use std::collections::HashMap;
+//use std::ffi::CString;
+//use std::os::raw::{c_int, c_uchar, c_void};
+//use std::process::Command;
+//use std::ptr::null;
+//use std::{thread, time};
+
+use core_graphics::event::CGEvent;
+//use core_graphics::event::{CGEvent, CGEventFlags, CGKeyCode};
 use core_graphics::event_source::CGEventSource;
 use core_graphics::event_source::CGEventSourceStateID::HIDSystemState;
 
 use crate::module::unicode::UnicodeOutput;
 
-const KEY_DELAY_US: u64 = 60000;
+//const KEY_DELAY_US: u64 = 60000;
 
+#[allow(dead_code)]
 pub struct OSXConnection {
     charmap: HashMap<char, u32>,
     held: Vec<char>,
@@ -26,16 +45,15 @@ impl Default for OSXConnection {
 
 impl OSXConnection {
     pub fn new() -> OSXConnection {
-        unsafe {
-            let charmap = HashMap::new();
-            let held = Vec::new();
-            OSXConnection { charmap, held }
-        }
+        let charmap = HashMap::new();
+        let held = Vec::new();
+        OSXConnection { charmap, held }
     }
 
     pub fn press_key(&self, c: char, state: bool) {
-        use core_graphics::event::CGEventType::*;
-        use core_graphics::event::{CGEventTapLocation, CGEventType};
+        //use core_graphics::event::CGEventType::*;
+        //use core_graphics::event::{CGEventTapLocation, CGEventType};
+        use core_graphics::event::CGEventTapLocation;
         let source = CGEventSource::new(HIDSystemState).unwrap();
 
         let mut buf = [0; 2];
@@ -60,7 +78,7 @@ impl UnicodeOutput for OSXConnection {
         "".to_string()
     }
 
-    fn set_layout(&self, layout: &str) {
+    fn set_layout(&self, _layout: &str) {
         warn!("Unimplemented");
     }
 

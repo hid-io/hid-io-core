@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,12 +40,12 @@ const MAX_RECV_SIZE: usize = 1024;
 ///
 /// Contains helpers to encode/decode HIDIO packets
 pub struct HIDIOEndpoint {
-    socket: Box<HIDIOTransport>,
+    socket: Box<dyn HIDIOTransport>,
     max_packet_len: u32,
 }
 
 impl HIDIOEndpoint {
-    pub fn new(socket: Box<HIDIOTransport>, max_packet_len: u32) -> HIDIOEndpoint {
+    pub fn new(socket: Box<dyn HIDIOTransport>, max_packet_len: u32) -> HIDIOEndpoint {
         HIDIOEndpoint {
             socket,
             max_packet_len,

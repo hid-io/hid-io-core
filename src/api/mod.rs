@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -468,14 +468,14 @@ pub fn initialize(mailbox: HIDIOMailbox) {
 
     let connections = socket.incoming().map(move |socket| {
         socket.set_nodelay(true).unwrap();
-        let c: Box<Future<Item = Box<_>, Error = std::io::Error>> =
+        let c: Box<dyn Future<Item = Box<_>, Error = std::io::Error>> =
             if let Some(config) = &ssl_config {
                 Box::new(config.accept(socket).and_then(|a| {
-                    let accept: Box<Duplex> = Box::new(a);
+                    let accept: Box<dyn Duplex> = Box::new(a);
                     ok(accept)
                 }))
             } else {
-                let accept: Box<Duplex> = Box::new(socket);
+                let accept: Box<dyn Duplex> = Box::new(socket);
                 Box::new(ok(accept))
             };
 

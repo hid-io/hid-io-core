@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,26 +61,26 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
 /// Our "internal" node responsible for handling required commands
 struct HIDIOHandler {
     mailbox: HIDIOMailbox,
-    display: Box<UnicodeOutput>,
+    display: Box<dyn UnicodeOutput>,
 }
 
 #[cfg(not(feature = "unicode"))]
-fn get_display() -> Box<UnicodeOutput> {
+fn get_display() -> Box<dyn UnicodeOutput> {
     Box::new(StubOutput::new())
 }
 
 #[cfg(all(feature = "unicode", target_os = "linux"))]
-fn get_display() -> Box<UnicodeOutput> {
+fn get_display() -> Box<dyn UnicodeOutput> {
     Box::new(XConnection::new())
 }
 
 #[cfg(all(feature = "unicode", target_os = "windows"))]
-fn get_display() -> Box<UnicodeOutput> {
+fn get_display() -> Box<dyn UnicodeOutput> {
     Box::new(DisplayConnection::new())
 }
 
 #[cfg(all(feature = "unicode", target_os = "macos"))]
-fn get_display() -> Box<UnicodeOutput> {
+fn get_display() -> Box<dyn UnicodeOutput> {
     Box::new(OSXConnection::new())
 }
 

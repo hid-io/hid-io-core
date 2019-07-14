@@ -1,4 +1,21 @@
-#![feature(await_macro, async_await, futures_api)]
+/* Copyright (C) 2019 by Jacob Alexander
+ * Copyright (C) 2019 by Rowan Decker
+ *
+ * This file is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This file is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#![feature(await_macro, async_await)]
 
 extern crate tokio;
 
@@ -59,15 +76,15 @@ pub fn main() -> Result<(), ::capnp::Error> {
 
     let socket = ::tokio::net::TcpStream::connect(&addr).and_then(|socket| {
         socket.set_nodelay(true).unwrap();
-        let c: Box<Future<Item = Box<_>, Error = std::io::Error>> =
+        let c: Box<dyn Future<Item = Box<_>, Error = std::io::Error>> =
             if let Some(config) = &ssl_config {
                 let domain = webpki::DNSNameRef::try_from_ascii_str(host).unwrap();
                 Box::new(config.connect(domain, socket).and_then(|a| {
-                    let accept: Box<Duplex> = Box::new(a);
+                    let accept: Box<dyn Duplex> = Box::new(a);
                     ok(accept)
                 }))
             } else {
-                let accept: Box<Duplex> = Box::new(socket);
+                let accept: Box<dyn Duplex> = Box::new(socket);
                 Box::new(ok(accept))
             };
 
