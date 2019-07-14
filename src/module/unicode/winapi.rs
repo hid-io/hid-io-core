@@ -16,20 +16,18 @@
  */
 
 use std::collections::HashMap;
-use std::ffi::CString;
 use std::mem::size_of;
-use std::os::raw::{c_int, c_uchar, c_void};
 use std::process::Command;
-use std::ptr::null;
-use std::{thread, time};
 
 use crate::module::unicode::UnicodeOutput;
 
 use winapi::ctypes::wchar_t;
-use winapi::um::{winnls, winnt, winuser};
+//use winapi::um::{winnls, winnt, winuser};
+use winapi::um::winuser;
 
-const KEY_DELAY_US: u64 = 60000;
+//const KEY_DELAY_US: u64 = 60000;
 
+#[allow(dead_code)]
 pub struct DisplayConnection {
     charmap: HashMap<char, u32>,
     held: Vec<char>,
@@ -43,11 +41,9 @@ impl Default for DisplayConnection {
 
 impl DisplayConnection {
     pub fn new() -> DisplayConnection {
-        unsafe {
-            let charmap = HashMap::new();
-            let held = Vec::new();
-            DisplayConnection { charmap, held }
-        }
+        let charmap = HashMap::new();
+        let held = Vec::new();
+        DisplayConnection { charmap, held }
     }
 
     pub fn press_key(&self, c: wchar_t, state: bool) {
@@ -101,12 +97,16 @@ impl UnicodeOutput for DisplayConnection {
     }
 
     fn set_layout(&self, layout: &str) {
-        Command::new("powershell")
+        match Command::new("powershell")
             .args(&[
                 "-Command",
                 &format!("Set-WinUserLanguageList -Force '{}'", &layout),
             ])
-            .output();
+            .output()
+        {
+            Ok(_) => (),
+            Err(_e) => panic!("Could not set language"),
+        }
     }
 
     fn type_string(&mut self, string: &str) {

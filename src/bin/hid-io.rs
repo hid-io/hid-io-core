@@ -1,3 +1,20 @@
+/* Copyright (C) 2019 by Jacob Alexander
+ * Copyright (C) 2019 by Rowan Decker
+ *
+ * This file is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This file is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #[macro_use]
 extern crate log;
 
@@ -18,7 +35,10 @@ use std::sync::atomic::Ordering;
 fn main() -> Result<(), std::io::Error> {
     let args: Vec<_> = std::env::args().collect();
     if args[1] == "-d" {
-        service::run();
+        match service::run() {
+            Ok(_) => (),
+            Err(_e) => panic!("Service failed"),
+        }
     } else {
         flexi_logger::Logger::with_env()
             .start()
@@ -158,7 +178,7 @@ mod service {
         }
     }
 
-    fn run_service(arguments: Vec<OsString>) -> windows_service::Result<()> {
+    fn run_service(_arguments: Vec<OsString>) -> windows_service::Result<()> {
         let event_handler = move |control_event| -> ServiceControlHandlerResult {
             info!("EVENT: {:?}", control_event);
             match control_event {
