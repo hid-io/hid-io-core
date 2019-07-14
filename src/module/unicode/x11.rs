@@ -171,9 +171,9 @@ impl XConnection {
 
     pub fn get_sym(&mut self, c: char) -> Option<u32> {
         if let Some(keycode) = self.charmap.get(&c) {
-            return Some(*keycode);
+            Some(*keycode)
         } else {
-            return self.map_sym(c);
+            self.map_sym(c)
         }
     }
 }
