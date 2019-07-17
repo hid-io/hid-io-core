@@ -1,6 +1,8 @@
 # hid-io
 HID-IO Client Side Library and Daemon
 
+![Overview](misc/images/HID-IO_Overview.png)
+
 [![Travis Status](https://travis-ci.org/hid-io/hid-io.svg?branch=master)](https://travis-ci.org/hid-io/hid-io)
 
 [![Visit our IRC channel](https://kiwiirc.com/buttons/irc.freenode.net/hid-io.png)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
