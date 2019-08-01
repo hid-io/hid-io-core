@@ -1,4 +1,4 @@
-# Copyright (C) 2017 by Jacob Alexander
+# Copyright (C) 2017-2019 by Jacob Alexander
 #
 # This file is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,14 +27,54 @@ using import "usbkeyboard.capnp".USBKeyboard;
 
 ## Interfaces ##
 
+interface HIDIOInit {
+    # Key negotiation interface
+
+    struct Version {
+        version @0 :Text;
+        # Version number of running server
+
+        buildtime @1 :Text;
+        # Date server was build
+
+        serverarch @2 :Text;
+        # Architecture of running server
+
+        compilerversion @3 :Text;
+        # Version of the compiler used to build server
+    }
+
+    struct KeyInfo {
+        sslCertPath @0 :Text;
+        # File path to SSL cert
+        # Sent using native file path conventions
+
+        basicKeyPath @1 :Text;
+        # File path to basic key
+        # Has permissions of basic user
+
+        authKeyPath @2 :Text;
+        # File path to authenticated key
+        # Must have root/admin priviledges to read this key
+    }
+
+    version @0 () -> (version :Version);
+    # Returns the version number of the running server
+
+    key @1 () -> (key :KeyInfo);
+    # Returns information needed to authenticate with HIDIOServer
+}
+
 interface HIDIOServer {
     # Authentication interface for HIDIO
 
-    basic @0 (info :Common.Source) -> (port :HIDIO);
+    basic @0 (info :Common.Source, key :Text) -> (port :HIDIO);
     # Allocates a basic interface, with no special priviledges
+    # Must include a key retrieved using locations specified by HIDIOInit
 
-    # TODO Add authentication schemes
-    auth @1 (info :Common.Source) -> (port :HIDIO);
+    auth @1 (info :Common.Source, key :Text) -> (port :HIDIO);
+    # Priviledged interface
+    # Must include a key retrieved using locations specified by HIDIOInit
 }
 
 interface HIDIO {

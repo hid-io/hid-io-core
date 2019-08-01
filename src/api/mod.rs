@@ -26,33 +26,40 @@ pub use crate::hidiowatcher_capnp::*;
 pub use crate::hostmacro_capnp::*;
 pub use crate::usbkeyboard_capnp::*;
 
+use crate::built_info;
 use crate::device::{HIDIOMailbox, HIDIOMessage};
 use crate::protocol::hidio::HIDIOCommandID;
 use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use nanoid;
+use rcgen::generate_simple_self_signed;
 use std::sync::atomic::Ordering;
+use tempfile::NamedTempFile;
 use tokio::io::AsyncRead;
+use tokio::prelude::future::{lazy, ok};
 use tokio::prelude::{Future, Stream};
 use tokio::runtime::current_thread;
-
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fs;
-use std::io::BufReader;
-use std::rc::Rc;
-use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex, RwLock};
-use tokio::prelude::future::{lazy, ok};
 use tokio_rustls::{
     rustls::{AllowAnyAuthenticatedClient, RootCertStore, ServerConfig},
     TlsAcceptor,
 };
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::Write;
+use std::rc::Rc;
+use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex, RwLock};
+
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
+
 // TODO: Use config file or cli args
+const INIT_LISTEN_ADDR: &str = "localhost:7184";
 const LISTEN_ADDR: &str = "localhost:7185";
-const USE_SSL: bool = false;
+const USE_SSL: bool = true;
 
 #[cfg(debug_assertions)]
 const AUTH_LEVEL: AuthLevel = AuthLevel::Debug;
@@ -121,6 +128,153 @@ impl HIDIOMaster {
             connections: HashMap::new(),
             last_uid: 0,
         }
+    }
+}
+
+#[cfg(target_family = "unix")]
+pub fn set_file_permissions(file: &mut std::fs::File, restrictive: bool) {
+    // Sets the appropriate file permissions
+    let mut permissions = file.metadata().unwrap().permissions();
+    if restrictive {
+        // Restrictive enforces that only this user may read the file
+        permissions.set_mode(0o644);
+        assert_eq!(permissions.mode(), 0o644);
+    } else {
+        // R/W for this user, readable by everyone else
+        permissions.set_mode(0o600);
+        assert_eq!(permissions.mode(), 0o600);
+    }
+}
+
+#[cfg(target_family = "windows")]
+pub fn set_file_permissions(file: &mut std::fs::File, restrictive: bool) {
+    // Sets the appropriate file permissions
+    // Restrictive enforces that only this user may read the file
+    println!("TODO: Windows file permissions not yet complete!");
+    if restrictive {
+        println!("THIS IS A SERIOUS BUG FOR THE AUTH KEY");
+    }
+}
+
+use crate::hidio_capnp::h_i_d_i_o_init::*;
+
+struct HIDIOInitImpl {
+    ssl_cert: rcgen::Certificate,
+    basic_key: String,
+    auth_key: String,
+
+    ssl_cert_file: NamedTempFile,
+    basic_key_file: NamedTempFile,
+    auth_key_file: NamedTempFile,
+}
+
+impl HIDIOInitImpl {
+    fn new() -> HIDIOInitImpl {
+        // Generate new self-signed public/private key
+        // XXX - Private key must be only readable by this user
+        //       Public key is world readabile
+        let subject_alt_names = vec!["localhost".to_string()];
+        let cert = generate_simple_self_signed(subject_alt_names).unwrap();
+
+        // Create temp file for ssl cert
+        let mut ssl_cert_file = match NamedTempFile::new() {
+            Err(_) => panic!("couldn't create ssl cert tempfile"),
+            Ok(file) => file,
+        };
+        set_file_permissions(ssl_cert_file.as_file_mut(), false);
+
+        // Create temp file for basic key
+        let mut basic_key_file = match NamedTempFile::new() {
+            Err(_) => panic!("couldn't create basic key tempfile"),
+            Ok(file) => file,
+        };
+        set_file_permissions(basic_key_file.as_file_mut(), false);
+
+        // Create temp file for auth key
+        // Only this user can read the auth key
+        let mut auth_key_file = match NamedTempFile::new() {
+            Err(_) => panic!("couldn't create auth key tempfile"),
+            Ok(file) => file,
+        };
+        set_file_permissions(auth_key_file.as_file_mut(), true);
+
+        // Generate basic and auth keys
+        // XXX - Auth key must only be readable by this user
+        //       Basic key is world readable
+        //       These keys are purposefully not sent over RPC
+        //       to enforce local-only connections.
+        HIDIOInitImpl {
+            ssl_cert: cert,
+            basic_key: nanoid::simple().to_string(),
+            auth_key: nanoid::simple().to_string(),
+
+            // Set to empty for now
+            ssl_cert_file: ssl_cert_file,
+            basic_key_file: basic_key_file,
+            auth_key_file: auth_key_file,
+        }
+    }
+
+    fn refresh_files(&mut self) {
+        // Writes public key to file
+        match self
+            .ssl_cert_file
+            .write_all(self.ssl_cert.serialize_pem().unwrap().as_bytes())
+        {
+            Err(_) => panic!("couldn't write to: {}", self.ssl_cert_file.path().display()),
+            Ok(status) => status,
+        }
+        set_file_permissions(self.ssl_cert_file.as_file_mut(), false);
+
+        // Writes basic key to file
+        match self.basic_key_file.write_all(self.basic_key.as_bytes()) {
+            Err(_) => panic!(
+                "couldn't write to: {}",
+                self.basic_key_file.path().display()
+            ),
+            Ok(status) => status,
+        }
+        set_file_permissions(self.basic_key_file.as_file_mut(), false);
+
+        // Writes auth key to file
+        match self.auth_key_file.write_all(self.auth_key.as_bytes()) {
+            Err(_) => panic!("couldn't write to: {}", self.auth_key_file.path().display()),
+            Ok(status) => status,
+        }
+        set_file_permissions(self.auth_key_file.as_file_mut(), true);
+
+        // Show basic key information on stdout (SSL/TLS)
+        println!("{:}", self.ssl_cert_file.path().display());
+        println!("{}", self.ssl_cert.serialize_pem().unwrap());
+    }
+}
+
+impl h_i_d_i_o_init::Server for HIDIOInitImpl {
+    fn version(
+        &mut self,
+        _params: VersionParams,
+        mut results: VersionResults,
+    ) -> Promise<(), Error> {
+        // Get and set fields
+        let mut version = results.get().init_version();
+        version.set_version(&format!(
+            "{}{}",
+            built_info::PKG_VERSION,
+            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v))
+        ));
+        version.set_buildtime(&built_info::BUILT_TIME_UTC.to_string());
+        version.set_serverarch(&built_info::TARGET.to_string());
+        version.set_compilerversion(&built_info::RUSTC_VERSION.to_string());
+        Promise::ok(())
+    }
+
+    fn key(&mut self, _params: KeyParams, mut results: KeyResults) -> Promise<(), Error> {
+        // Get and set fields
+        let mut key = results.get().init_key();
+        key.set_ssl_cert_path(&self.ssl_cert_file.path().display().to_string());
+        key.set_basic_key_path(&self.basic_key_file.path().display().to_string());
+        key.set_auth_key_path(&self.auth_key_file.path().display().to_string());
+        Promise::ok(())
     }
 }
 
@@ -400,35 +554,6 @@ impl h_i_d_i_o_node::Server for HIDIONodeImpl {
     }
 }
 
-pub fn load_certs(filename: &str) -> Vec<rustls::Certificate> {
-    let certfile = fs::File::open(filename).expect("cannot open certificate file");
-    let mut reader = BufReader::new(certfile);
-    rustls::internal::pemfile::certs(&mut reader).unwrap()
-}
-
-pub fn load_private_key(filename: &str) -> rustls::PrivateKey {
-    let rsa_keys = {
-        let keyfile = fs::File::open(filename).expect("cannot open private key file");
-        let mut reader = BufReader::new(keyfile);
-        rustls::internal::pemfile::rsa_private_keys(&mut reader)
-            .expect("file contains invalid rsa private key")
-    };
-
-    let pkcs8_keys = {
-        let keyfile = fs::File::open(filename).expect("cannot open private key file");
-        let mut reader = BufReader::new(keyfile);
-        rustls::internal::pemfile::pkcs8_private_keys(&mut reader)
-            .expect("file contains invalid pkcs8 private key (encrypted keys not supported)")
-    };
-
-    if !pkcs8_keys.is_empty() {
-        pkcs8_keys[0].clone()
-    } else {
-        assert!(!rsa_keys.is_empty());
-        rsa_keys[0].clone()
-    }
-}
-
 /// Cap'n'Proto API Initialization
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Requires TLS TODO
@@ -437,34 +562,104 @@ pub fn initialize(mailbox: HIDIOMailbox) {
     info!("Initializing api...");
 
     use std::net::ToSocketAddrs;
+    let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
+
+    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
+    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
+
+    // Open unsecured capnproto interface for SSL/TLS and authentication keys
+    let init_addr = INIT_LISTEN_ADDR
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .expect("could not parse address");
+    let init_socket = ::tokio::net::TcpListener::bind(&init_addr).expect("Failed to open socket");
+    println!("Init API: Listening on {}", init_addr);
+
+    let init_connections = init_socket.incoming().map(move |init_socket| {
+        init_socket.set_nodelay(true).unwrap();
+        /*
+        let c: Box<dyn Future<Item = Box<_>, Error = std::io::Error>> =
+            // TODO FIXME
+            if USE_SSL {
+                let accept: Box<dyn Duplex> = Box::new(init_socket);
+                Box::new(ok(accept))
+            } else {
+                let accept: Box<dyn Duplex> = Box::new(init_socket);
+                Box::new(ok(accept))
+            };
+        c
+        */
+        init_socket
+    });
+
+    // Initialize SSL/TLS keys and auth tokens
+    let mut init = HIDIOInitImpl::new();
+    init.refresh_files();
+    let cert = rustls::Certificate(init.ssl_cert.serialize_der().unwrap());
+    let pkey = rustls::PrivateKey(init.ssl_cert.serialize_private_key_der());
+    let hidio_init = h_i_d_i_o_init::ToClient::new(init).into_client::<::capnp_rpc::Server>();
+
+    /*
+    let init_done = init_connections
+        .for_each(move |connect_promise| {
+            info!("New init connection");
+            connect_promise.and_then(|init_socket| {
+                let (reader, writer) = init_socket.split();
+
+                // Client connected, create node
+                let network = twoparty::VatNetwork::new(
+                    reader,
+                    writer,
+                    rpc_twoparty_capnp::Side::Server,
+                    Default::default(),
+                );
+                let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_init.clone().client));
+                current_thread::spawn(lazy(|| {
+                    rpc_system.map_err(|e| println!("error: {:?}", e))
+                }));
+                Ok(())
+            })
+        })
+        .map_err(|_| ());
+    */
+    //let init_done = init_socket.incoming().for_each(move |init_socket| {
+    let init_done = init_connections.for_each(move |init_socket| {
+        init_socket.set_nodelay(true)?;
+        let (reader, writer) = init_socket.split();
+
+        let network = twoparty::VatNetwork::new(
+            reader,
+            writer,
+            rpc_twoparty_capnp::Side::Server,
+            Default::default(),
+        );
+        let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_init.clone().client));
+        current_thread::spawn(lazy(|| rpc_system.map_err(|e| println!("error: {:?}", e))));
+        Ok(())
+    });
+    //current_thread::block_on_all(init_done).unwrap();
+
+    // Open secured capnproto interface (where most of API is handled)
     let addr = LISTEN_ADDR
         .to_socket_addrs()
         .unwrap()
         .next()
         .expect("could not parse address");
     let socket = ::tokio::net::TcpListener::bind(&addr).expect("Failed to open socket");
-    println!("API: Listening on {}", addr);
+    println!("Auth API: Listening on {}", addr);
 
     let ssl_config = if USE_SSL {
         let mut client_auth_roots = RootCertStore::empty();
-        let roots = load_certs("./test-ca/rsa/end.fullchain");
-        for root in &roots {
-            client_auth_roots.add(&root).unwrap();
-        }
+        client_auth_roots.add(&cert).unwrap();
         let client_auth = AllowAnyAuthenticatedClient::new(client_auth_roots);
-
         let mut config = ServerConfig::new(client_auth);
-        config
-            .set_single_cert(roots, load_private_key("./test-ca/rsa/end.key"))
-            .unwrap();
+        config.set_single_cert(vec![cert], pkey).unwrap();
         let config = TlsAcceptor::from(Arc::new(config));
         Some(config)
     } else {
         None
     };
-
-    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
-    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
 
     let connections = socket.incoming().map(move |socket| {
         socket.set_nodelay(true).unwrap();
@@ -489,7 +684,6 @@ pub fn initialize(mailbox: HIDIOMailbox) {
 
     use stream_cancel::{StreamExt, Tripwire};
 
-    let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
     let (trigger, tripwire) = Tripwire::new();
     let done = connections
         .take_until(tripwire)
@@ -576,5 +770,9 @@ pub fn initialize(mailbox: HIDIOMailbox) {
         drop(trigger);
     });
 
+    //let combined = done.join(hidio_init);
+
+    //rt.block_on(hidio_init).unwrap();
     rt.block_on(done).unwrap();
+    //rt.block_on(combined).unwrap();
 }

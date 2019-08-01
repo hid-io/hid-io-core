@@ -15,6 +15,8 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+pub fn main() {}
+/*
 #![feature(await_macro, async_await)]
 
 extern crate tokio;
@@ -287,3 +289,4 @@ pub fn main() -> Result<(), ::capnp::Error> {
         }
     }
 }
+*/
