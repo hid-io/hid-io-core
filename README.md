@@ -14,7 +14,7 @@ HID-IO Client Side Library and Daemon
 
 ## Getting
 
-Currently you have to build the HID-IO daemon yourself. But it will be made available in binary form once we are ready for a beta.
+Currently you have to build the HID-IO daemon yourself. But it will be made available in binary form once we are ready for a public beta.
 
 
 ## Usage
@@ -30,7 +30,7 @@ hid-io --help
 ## Dependencies
 
 * Rust nightly (may relax over time)
-* capnproto >= 0.6.0
+* capnproto >= 0.7.0
 
 
 ### i686-pc-windows-gnu Dependencies

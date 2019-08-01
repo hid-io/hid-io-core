@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+cython = "==0.29"
+pycapnp = {editable = true, ref = "develop", git = "https://github.com/haata/pycapnp"}
+pytest = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.7"

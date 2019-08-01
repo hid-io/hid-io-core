@@ -16,9 +16,6 @@
 
 // ----- Crates -----
 
-// ----- Modules -----
-mod auth;
-
 pub use crate::common_capnp::*;
 pub use crate::devicefunction_capnp::*;
 pub use crate::hidio_capnp::*;
@@ -26,33 +23,42 @@ pub use crate::hidiowatcher_capnp::*;
 pub use crate::hostmacro_capnp::*;
 pub use crate::usbkeyboard_capnp::*;
 
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::io::Write;
+use std::net::ToSocketAddrs;
+use std::rc::Rc;
+use std::sync::atomic::Ordering;
+use std::sync::mpsc::channel;
+use std::sync::{Arc, Mutex, RwLock};
+
+use crate::built_info;
+use crate::common_capnp::h_i_d_i_o_node::*;
 use crate::device::{HIDIOMailbox, HIDIOMessage};
+use crate::hidio_capnp::h_i_d_i_o::*;
+use crate::hidio_capnp::h_i_d_i_o_server::*;
 use crate::protocol::hidio::HIDIOCommandID;
 use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use std::sync::atomic::Ordering;
+use lazy_static::lazy_static;
+use nanoid;
+use rcgen::generate_simple_self_signed;
+use stream_cancel::{StreamExt, Tripwire};
+use tempfile::NamedTempFile;
 use tokio::io::AsyncRead;
-use tokio::prelude::{Future, Stream};
-use tokio::runtime::current_thread;
-
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fs;
-use std::io::BufReader;
-use std::rc::Rc;
-use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex, RwLock};
-use tokio::prelude::future::{lazy, ok};
+use tokio::prelude::*;
 use tokio_rustls::{
-    rustls::{AllowAnyAuthenticatedClient, RootCertStore, ServerConfig},
+    rustls::{NoClientAuth, ServerConfig},
     TlsAcceptor,
 };
+use u_s_b_keyboard::commands::*;
 
-// TODO: Use config file or cli args
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
+
 const LISTEN_ADDR: &str = "localhost:7185";
-const USE_SSL: bool = false;
 
 #[cfg(debug_assertions)]
 const AUTH_LEVEL: AuthLevel = AuthLevel::Debug;
@@ -60,7 +66,6 @@ const AUTH_LEVEL: AuthLevel = AuthLevel::Debug;
 #[cfg(not(debug_assertions))]
 const AUTH_LEVEL: AuthLevel = AuthLevel::Secure;
 
-use lazy_static::lazy_static;
 lazy_static! {
     static ref WRITERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> =
         Arc::new(Mutex::new(vec![]));
@@ -74,7 +79,7 @@ impl std::fmt::Display for NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             NodeType::HidioDaemon => write!(f, "HidioDaemon"),
-            NodeType::HidioScript => write!(f, "HidioScript"),
+            NodeType::HidioApi => write!(f, "HidioApi"),
             NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
         }
     }
@@ -124,35 +129,98 @@ impl HIDIOMaster {
     }
 }
 
-use crate::hidio_capnp::h_i_d_i_o_server::*;
+#[cfg(target_family = "unix")]
+pub fn set_file_permissions(file: &mut std::fs::File, restrictive: bool) {
+    // Sets the appropriate file permissions
+    let mut permissions = file.metadata().unwrap().permissions();
+    if restrictive {
+        // Restrictive enforces that only this user may read the file
+        permissions.set_mode(0o644);
+        assert_eq!(permissions.mode(), 0o644);
+    } else {
+        // R/W for this user, readable by everyone else
+        permissions.set_mode(0o600);
+        assert_eq!(permissions.mode(), 0o600);
+    }
+}
+
+#[cfg(target_family = "windows")]
+pub fn set_file_permissions(file: &mut std::fs::File, restrictive: bool) {
+    // Sets the appropriate file permissions
+    // Restrictive enforces that only this user may read the file
+    println!("TODO: Windows file permissions not yet complete!");
+    if restrictive {
+        println!("THIS IS A SERIOUS BUG FOR THE AUTH KEY");
+    }
+}
 
 struct HIDIOServerImpl {
     master: Rc<RefCell<HIDIOMaster>>,
     uid: u64,
     incoming: Rc<HIDIOMailbox>,
+
+    basic_key: String,
+    auth_key: String,
+
+    basic_key_file: NamedTempFile,
+    auth_key_file: NamedTempFile,
 }
 
 impl HIDIOServerImpl {
     fn new(master: Rc<RefCell<HIDIOMaster>>, uid: u64, incoming: HIDIOMailbox) -> HIDIOServerImpl {
+        // Create temp file for basic key
+        let mut basic_key_file = NamedTempFile::new().expect("Unable to create file");
+        set_file_permissions(basic_key_file.as_file_mut(), false);
+
+        // Create temp file for auth key
+        // Only this user can read the auth key
+        let mut auth_key_file = NamedTempFile::new().expect("Unable to create file");
+        set_file_permissions(auth_key_file.as_file_mut(), true);
+
         let incoming = Rc::new(incoming);
+
+        // Generate basic and auth keys
+        // XXX - Auth key must only be readable by this user
+        //       Basic key is world readable
+        //       These keys are purposefully not sent over RPC
+        //       to enforce local-only connections.
         HIDIOServerImpl {
             master,
             uid,
             incoming,
+
+            basic_key: nanoid::simple().to_string(),
+            auth_key: nanoid::simple().to_string(),
+
+            // Set to empty for now
+            basic_key_file,
+            auth_key_file,
         }
+    }
+
+    fn refresh_files(&mut self) {
+        // Writes basic key to file
+        self.basic_key_file
+            .write_all(self.basic_key.as_bytes())
+            .expect("Unable to write file");
+        set_file_permissions(self.basic_key_file.as_file_mut(), false);
+
+        // Writes auth key to file
+        self.auth_key_file
+            .write_all(self.auth_key.as_bytes())
+            .expect("Unable to write file");
+        set_file_permissions(self.auth_key_file.as_file_mut(), true);
     }
 
     fn create_connection(&mut self, mut node: Endpoint, auth: AuthLevel) -> h_i_d_i_o::Client {
         {
             let mut m = self.master.borrow_mut();
-            let id = m.last_uid + 1;
-            m.last_uid = id;
-            node.id = id;
+            node.id = self.uid;
             m.connections.get_mut(&self.uid).unwrap().push(node.id);
             m.nodes.push(node);
         }
 
-        println!("Connection authed!");
+        info!("Connection authed!");
         h_i_d_i_o::ToClient::new(HIDIOImpl::new(
             Rc::clone(&self.master),
             Rc::clone(&self.incoming),
@@ -165,12 +233,22 @@ impl HIDIOServerImpl {
 impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
+        let key = pry!(pry!(params.get()).get_key());
         let node = Endpoint {
             type_: info.get_type().unwrap(),
             name: info.get_name().unwrap().to_string(),
             serial: info.get_serial().unwrap().to_string(),
-            id: 0,
+            id: info.get_id(),
         };
+
+        // Verify incoming basic key
+        if key != self.basic_key {
+            return Promise::err(Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Authentication denied".to_string(),
+            });
+        }
+
         info!("New capnp node: {:?}", node);
         results
             .get()
@@ -179,35 +257,66 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     }
 
     fn auth(&mut self, params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
-        use crate::api::auth::UAC;
-
-        // TODO: Auth implementation selection
-        // TODO: Request desired level from node
-        let authenticator = auth::DummyAuth {};
-        let auth = AUTH_LEVEL;
-
         let info = pry!(pry!(params.get()).get_info());
+        let key = pry!(pry!(params.get()).get_key());
         let node = Endpoint {
             type_: info.get_type().unwrap(),
             name: info.get_name().unwrap().to_string(),
             serial: info.get_serial().unwrap().to_string(),
-            id: 0,
+            id: info.get_id(),
         };
-        info!("New capnp node: {:?}", node);
 
-        if authenticator.auth(&node, auth) {
-            results.get().set_port(self.create_connection(node, auth));
-            Promise::ok(())
-        } else {
-            Promise::err(Error {
+        // Verify incoming auth key
+        if key != self.auth_key {
+            return Promise::err(Error {
                 kind: capnp::ErrorKind::Failed,
                 description: "Authentication denied".to_string(),
-            })
+            });
         }
+
+        info!("New capnp node: {:?}", node);
+        results
+            .get()
+            .set_port(self.create_connection(node, AUTH_LEVEL));
+        Promise::ok(())
+    }
+
+    fn version(
+        &mut self,
+        _params: VersionParams,
+        mut results: VersionResults,
+    ) -> Promise<(), Error> {
+        // Get and set fields
+        let mut version = results.get().init_version();
+        version.set_version(&format!(
+            "{}{}",
+            built_info::PKG_VERSION,
+            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v))
+        ));
+        version.set_buildtime(&built_info::BUILT_TIME_UTC.to_string());
+        version.set_serverarch(&built_info::TARGET.to_string());
+        version.set_compilerversion(&built_info::RUSTC_VERSION.to_string());
+        Promise::ok(())
+    }
+
+    fn alive(&mut self, _params: AliveParams, mut results: AliveResults) -> Promise<(), Error> {
+        results.get().set_alive(true);
+        Promise::ok(())
+    }
+
+    fn key(&mut self, _params: KeyParams, mut results: KeyResults) -> Promise<(), Error> {
+        // Get and set fields
+        let mut key = results.get().init_key();
+        key.set_basic_key_path(&self.basic_key_file.path().display().to_string());
+        key.set_auth_key_path(&self.auth_key_file.path().display().to_string());
+        Promise::ok(())
+    }
+
+    fn id(&mut self, _params: IdParams, mut results: IdResults) -> Promise<(), Error> {
+        results.get().set_id(self.uid);
+        Promise::ok(())
     }
 }
-
-use crate::hidio_capnp::h_i_d_i_o::*;
 
 struct HIDIOImpl {
     master: Rc<RefCell<HIDIOMaster>>,
@@ -331,7 +440,6 @@ impl HIDIOKeyboardNodeImpl {
         HIDIOKeyboardNodeImpl { id, auth, incoming }
     }
 }
-use u_s_b_keyboard::commands::*;
 impl u_s_b_keyboard::commands::Server for HIDIOKeyboardNodeImpl {
     fn cli_command(
         &mut self,
@@ -371,7 +479,6 @@ impl HIDIONodeImpl {
     }
 }
 
-use crate::common_capnp::h_i_d_i_o_node::*;
 impl h_i_d_i_o_node::Server for HIDIONodeImpl {
     fn register(
         &mut self,
@@ -400,35 +507,6 @@ impl h_i_d_i_o_node::Server for HIDIONodeImpl {
     }
 }
 
-pub fn load_certs(filename: &str) -> Vec<rustls::Certificate> {
-    let certfile = fs::File::open(filename).expect("cannot open certificate file");
-    let mut reader = BufReader::new(certfile);
-    rustls::internal::pemfile::certs(&mut reader).unwrap()
-}
-
-pub fn load_private_key(filename: &str) -> rustls::PrivateKey {
-    let rsa_keys = {
-        let keyfile = fs::File::open(filename).expect("cannot open private key file");
-        let mut reader = BufReader::new(keyfile);
-        rustls::internal::pemfile::rsa_private_keys(&mut reader)
-            .expect("file contains invalid rsa private key")
-    };
-
-    let pkcs8_keys = {
-        let keyfile = fs::File::open(filename).expect("cannot open private key file");
-        let mut reader = BufReader::new(keyfile);
-        rustls::internal::pemfile::pkcs8_private_keys(&mut reader)
-            .expect("file contains invalid pkcs8 private key (encrypted keys not supported)")
-    };
-
-    if !pkcs8_keys.is_empty() {
-        pkcs8_keys[0].clone()
-    } else {
-        assert!(!rsa_keys.is_empty());
-        rsa_keys[0].clone()
-    }
-}
-
 /// Cap'n'Proto API Initialization
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Requires TLS TODO
@@ -436,122 +514,109 @@ pub fn load_private_key(filename: &str) -> rustls::PrivateKey {
 pub fn initialize(mailbox: HIDIOMailbox) {
     info!("Initializing api...");
 
-    use std::net::ToSocketAddrs;
+    let mut core = ::tokio_core::reactor::Core::new().unwrap();
+    let handle = core.handle();
+
+    // Open secured capnproto interface
     let addr = LISTEN_ADDR
         .to_socket_addrs()
         .unwrap()
         .next()
         .expect("could not parse address");
-    let socket = ::tokio::net::TcpListener::bind(&addr).expect("Failed to open socket");
+    let socket =
+        ::tokio_core::net::TcpListener::bind(&addr, &handle).expect("Failed to open socket");
     println!("API: Listening on {}", addr);
 
-    let ssl_config = if USE_SSL {
-        let mut client_auth_roots = RootCertStore::empty();
-        let roots = load_certs("./test-ca/rsa/end.fullchain");
-        for root in &roots {
-            client_auth_roots.add(&root).unwrap();
-        }
-        let client_auth = AllowAnyAuthenticatedClient::new(client_auth_roots);
+    // Generate new self-signed public/private key
+    // Private key is not written to disk and generated each time
+    let subject_alt_names = vec!["localhost".to_string()];
+    let pair = generate_simple_self_signed(subject_alt_names).unwrap();
 
-        let mut config = ServerConfig::new(client_auth);
-        config
-            .set_single_cert(roots, load_private_key("./test-ca/rsa/end.key"))
-            .unwrap();
-        let config = TlsAcceptor::from(Arc::new(config));
-        Some(config)
-    } else {
-        None
-    };
-
-    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
-    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
-
-    let connections = socket.incoming().map(move |socket| {
-        socket.set_nodelay(true).unwrap();
-        let c: Box<dyn Future<Item = Box<_>, Error = std::io::Error>> =
-            if let Some(config) = &ssl_config {
-                Box::new(config.accept(socket).and_then(|a| {
-                    let accept: Box<dyn Duplex> = Box::new(a);
-                    ok(accept)
-                }))
-            } else {
-                let accept: Box<dyn Duplex> = Box::new(socket);
-                Box::new(ok(accept))
-            };
-
-        c
-    });
+    let cert = rustls::Certificate(pair.serialize_der().unwrap());
+    let pkey = rustls::PrivateKey(pair.serialize_private_key_der());
+    let mut config = ServerConfig::new(NoClientAuth::new());
+    config.set_single_cert(vec![cert], pkey).unwrap();
+    let config = TlsAcceptor::from(Arc::new(config));
 
     let nodes = mailbox.nodes.clone();
     let m = HIDIOMaster::new(nodes.clone());
 
     let master = Rc::new(RefCell::new(m));
 
-    use stream_cancel::{StreamExt, Tripwire};
-
-    let mut rt = tokio::runtime::current_thread::Runtime::new().unwrap();
     let (trigger, tripwire) = Tripwire::new();
-    let done = connections
-        .take_until(tripwire)
-        .for_each(move |connect_promise| {
-            info!("New connection");
-            let rc = Rc::clone(&master);
 
-            let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
-            // TODO: poll reader too?
-            let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone(), nodes.clone());
-            {
-                let mut writers = WRITERS_RC.lock().unwrap();
-                (*writers).push(sink);
-                let mut readers = READERS_RC.lock().unwrap();
-                (*readers).push(hidapi_reader);
-            }
+    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
+    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
 
-            connect_promise.and_then(|socket| {
-                let (reader, writer) = socket.split();
+    let connections = socket.incoming().take_until(tripwire);
+    let tls_handshake = connections.map(|(socket, addr)| {
+        info!("New connection:7185 - {:?}", addr);
+        socket.set_nodelay(true).unwrap();
+        config.accept(socket)
+    });
 
-                // Client connected, create node
-                let network = twoparty::VatNetwork::new(
-                    reader,
-                    writer,
-                    rpc_twoparty_capnp::Side::Server,
-                    Default::default(),
-                );
-                current_thread::spawn(lazy(|| {
-                    let uid = {
-                        let mut m = rc.borrow_mut();
-                        m.last_uid += 1;
-                        let uid = m.last_uid;
-                        m.connections.insert(uid, vec![]);
-                        uid
-                    };
+    let server = tls_handshake.map(|acceptor| {
+        let rc = Rc::clone(&master);
+        let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
+        let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone(), nodes.clone());
+        {
+            let mut writers = WRITERS_RC.lock().unwrap();
+            (*writers).push(sink);
+            let mut readers = READERS_RC.lock().unwrap();
+            (*readers).push(hidapi_reader);
+        }
 
-                    let hidio_server = h_i_d_i_o_server::ToClient::new(HIDIOServerImpl::new(
-                        Rc::clone(&rc),
-                        uid,
-                        mailbox,
-                    ))
-                    .into_client::<::capnp_rpc::Server>();
-                    let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
+        let handle = handle.clone();
+        acceptor.and_then(move |stream| {
+            // Save connection address for later
+            let addr = stream.get_ref().0.peer_addr().ok().unwrap();
 
-                    rpc_system
-                        .map_err(|e| eprintln!("error: {:?}", e))
-                        .and_then(move |_| {
-                            info!("connection closed: {}", uid);
+            // Assign a uid to the connection
+            let uid = {
+                let mut m = rc.borrow_mut();
+                m.last_uid += 1;
+                let uid = m.last_uid;
+                m.connections.insert(uid, vec![]);
+                uid
+            };
 
-                            // Client disconnected, delete node
-                            let connected_nodes = &rc.borrow().connections[&uid].clone();
-                            rc.borrow_mut()
-                                .nodes
-                                .retain(|x| !connected_nodes.contains(&x.id));
-                            Ok(())
-                        })
-                }));
-                Ok(())
-            })
+            // Initialize auth tokens
+            let mut hidio_server = HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox);
+            hidio_server.refresh_files();
+
+            // Setup capnproto server
+            let hidio_server =
+                h_i_d_i_o_server::ToClient::new(hidio_server).into_client::<::capnp_rpc::Server>();
+
+            let (reader, writer) = stream.split();
+            let network = twoparty::VatNetwork::new(
+                reader,
+                writer,
+                rpc_twoparty_capnp::Side::Server,
+                Default::default(),
+            );
+
+            // Setup capnproto RPC
+            let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.clone().client));
+            handle.spawn(
+                rpc_system
+                    .map_err(|e| println!("{}", e))
+                    .and_then(move |_| {
+                        info!("Connection closed:7185 - {:?}", addr);
+
+                        // Client disconnected, delete node
+                        let connected_nodes = &rc.borrow().connections[&uid].clone();
+                        rc.borrow_mut()
+                            .nodes
+                            .retain(|x| !connected_nodes.contains(&x.id));
+                        Ok(())
+                    }),
+            );
+            Ok(())
         })
-        .map_err(|_| ());
+    });
 
+    // Mailbox thread
     std::thread::spawn(move || {
         loop {
             if !RUNNING.load(Ordering::SeqCst) {
@@ -576,5 +641,9 @@ pub fn initialize(mailbox: HIDIOMailbox) {
         drop(trigger);
     });
 
-    rt.block_on(done).unwrap();
+    core.run(server.for_each(|client| {
+        handle.spawn(client.map_err(|e| println!("{}", e)));
+        Ok(())
+    }))
+    .unwrap();
 }

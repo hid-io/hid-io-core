@@ -32,7 +32,7 @@ enum KeyEventState {
 
 enum NodeType {
     hidioDaemon @0;
-    hidioScript @1;
+    hidioApi @1;
     usbKeyboard @2;
 }
 # Node types, please extend this enum as necessary
