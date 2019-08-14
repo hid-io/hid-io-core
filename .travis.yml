@@ -68,23 +68,27 @@ before_deploy:
     zip -vr hidio-${TRAVIS_TAG}-${TRAVIS_OS_NAME}.zip hidio-${TRAVIS_TAG};
   fi
 - mv hidio-${TRAVIS_TAG}-${TRAVIS_OS_NAME}.zip deploy
+- cargo doc
 
 # Deployment
 deploy:
-  name: ${TRAVIS_TAG}
-  body: $(git for-each-ref --format '%(refname) %09 %(taggerdate) %(subject) %(taggeremail)' refs/tags/${TRAVIS_TAG})
-  provider: releases
-  api_key: $GH_TOKEN
-  skip_cleanup: true
-  draft: true # XXX Must "publish" on github
-  prerelease: true # XXX Set this to false to enable a stable release
-  file_glob: true
-  file: deploy/*.zip
-  on:
-    tags: true
-    repo: hid-io/hid-io
-    condition: $GH_TOKEN != ""
-
-# Update docs
-after_success:
-- bash deploy.bash
+  - provider: releases
+    name: ${TRAVIS_TAG}
+    body: $(git for-each-ref --format '%(refname) %09 %(taggerdate) %(subject) %(taggeremail)' refs/tags/${TRAVIS_TAG})
+    api_key: $GH_TOKEN
+    skip_cleanup: true
+    draft: true # XXX Must "publish" on github
+    prerelease: true # XXX Set this to false to enable a stable release
+    file_glob: true
+    file: deploy/*.zip
+    on:
+      tags: true
+      repo: hid-io/hid-io
+      condition: $GH_TOKEN != ""
+  - provider: pages
+    skip_cleanup: true
+    local_dir: target/doc
+    github_token: $GH_TOKEN
+    keep_history: false
+    on:
+      branch: master
