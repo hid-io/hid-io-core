@@ -3,7 +3,12 @@ HID-IO Client Side Library and Daemon
 
 ![Overview](misc/images/HID-IO_Overview.png)
 
-[![Travis Status](https://travis-ci.org/hid-io/hid-io.svg?branch=master)](https://travis-ci.org/hid-io/hid-io)
+[![Linux Status](https://github.com/hid-io/hid-io/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![macOS Status](https://github.com/hid-io/hid-io/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Windows Status](https://github.com/hid-io/hid-io/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Doc Status](https://github.com/hid-io/hid-io/workflows/Rust%20Doc%20Deploy/badge.svg)](https://github.com/hid-io/hid-io/actions)
+
+
 
 [![Visit our IRC channel](https://kiwiirc.com/buttons/irc.freenode.net/hid-io.png)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 
