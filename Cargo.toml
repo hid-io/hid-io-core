@@ -46,7 +46,8 @@ rcgen           = "0.5.1"
 rustls          = { version = "0.16.0", features = ["dangerous_configuration"] }
 serde           = "1.0.71"
 stream-cancel   = "0.4.4"
-tempfile        = "3.1.0"
+#tempfile        = "3.1.0"
+tempfile        = { git = "https://github.com/haata/tempfile" } # Needed for world accessible patches
 tokio           = { version = "0.1.22" }
 tokio-core      = "^0.1"
 tokio-rustls    = "0.10.2"

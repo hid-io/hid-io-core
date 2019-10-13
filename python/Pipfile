@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 cython = "==0.29"
-pycapnp = {editable = true, ref = "develop", git = "https://github.com/haata/pycapnp"}
+pycapnp = {editable = true,git = "https://github.com/haata/pycapnp",ref = "develop"}
 pytest = "*"
 
 [dev-packages]

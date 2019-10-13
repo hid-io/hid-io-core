@@ -46,7 +46,7 @@ use lazy_static::lazy_static;
 use nanoid;
 use rcgen::generate_simple_self_signed;
 use stream_cancel::{StreamExt, Tripwire};
-use tempfile::NamedTempFile;
+use tempfile;
 use tokio::io::AsyncRead;
 use tokio::prelude::*;
 use tokio_rustls::{
@@ -54,9 +54,6 @@ use tokio_rustls::{
     TlsAcceptor,
 };
 use u_s_b_keyboard::commands::*;
-
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 
 const LISTEN_ADDR: &str = "localhost:7185";
 
@@ -129,31 +126,6 @@ impl HIDIOMaster {
     }
 }
 
-#[cfg(target_family = "unix")]
-pub fn set_file_permissions(file: &mut std::fs::File, restrictive: bool) {
-    // Sets the appropriate file permissions
-    let mut permissions = file.metadata().unwrap().permissions();
-    if restrictive {
-        // Restrictive enforces that only this user may read the file
-        permissions.set_mode(0o644);
-        assert_eq!(permissions.mode(), 0o644);
-    } else {
-        // R/W for this user, readable by everyone else
-        permissions.set_mode(0o600);
-        assert_eq!(permissions.mode(), 0o600);
-    }
-}
-
-#[cfg(target_family = "windows")]
-pub fn set_file_permissions(file: &mut std::fs::File, restrictive: bool) {
-    // Sets the appropriate file permissions
-    // Restrictive enforces that only this user may read the file
-    println!("TODO: Windows file permissions not yet complete!");
-    if restrictive {
-        println!("THIS IS A SERIOUS BUG FOR THE AUTH KEY");
-    }
-}
-
 struct HIDIOServerImpl {
     master: Rc<RefCell<HIDIOMaster>>,
     uid: u64,
@@ -162,20 +134,38 @@ struct HIDIOServerImpl {
     basic_key: String,
     auth_key: String,
 
-    basic_key_file: NamedTempFile,
-    auth_key_file: NamedTempFile,
+    basic_key_file: tempfile::NamedTempFile,
+    auth_key_file: tempfile::NamedTempFile,
 }
 
 impl HIDIOServerImpl {
     fn new(master: Rc<RefCell<HIDIOMaster>>, uid: u64, incoming: HIDIOMailbox) -> HIDIOServerImpl {
         // Create temp file for basic key
-        let mut basic_key_file = NamedTempFile::new().expect("Unable to create file");
-        set_file_permissions(basic_key_file.as_file_mut(), false);
+        let mut basic_key_file = tempfile::Builder::new()
+            .world_accessible(true)
+            .tempfile()
+            .expect("Unable to create file");
 
         // Create temp file for auth key
         // Only this user can read the auth key
-        let mut auth_key_file = NamedTempFile::new().expect("Unable to create file");
-        set_file_permissions(auth_key_file.as_file_mut(), true);
+        let mut auth_key_file = tempfile::Builder::new()
+            .world_accessible(false)
+            .tempfile()
+            .expect("Unable to create file");
+
+        // Generate keys
+        let basic_key = nanoid::simple();
+        let auth_key = nanoid::simple();
+
+        // Writes basic key to file
+        basic_key_file
+            .write_all(basic_key.as_bytes())
+            .expect("Unable to write file");
+
+        // Writes auth key to file
+        auth_key_file
+            .write_all(auth_key.as_bytes())
+            .expect("Unable to write file");
 
         let incoming = Rc::new(incoming);
 
@@ -189,27 +179,12 @@ impl HIDIOServerImpl {
             uid,
             incoming,
 
-            basic_key: nanoid::simple(),
-            auth_key: nanoid::simple(),
+            basic_key,
+            auth_key,
 
-            // Set to empty for now
             basic_key_file,
             auth_key_file,
         }
-    }
-
-    fn refresh_files(&mut self) {
-        // Writes basic key to file
-        self.basic_key_file
-            .write_all(self.basic_key.as_bytes())
-            .expect("Unable to write file");
-        set_file_permissions(self.basic_key_file.as_file_mut(), false);
-
-        // Writes auth key to file
-        self.auth_key_file
-            .write_all(self.auth_key.as_bytes())
-            .expect("Unable to write file");
-        set_file_permissions(self.auth_key_file.as_file_mut(), true);
     }
 
     fn create_connection(&mut self, mut node: Endpoint, auth: AuthLevel) -> h_i_d_i_o::Client {
@@ -581,8 +556,7 @@ pub fn initialize(mailbox: HIDIOMailbox) {
             };
 
             // Initialize auth tokens
-            let mut hidio_server = HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox);
-            hidio_server.refresh_files();
+            let hidio_server = HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox);
 
             // Setup capnproto server
             let hidio_server =
