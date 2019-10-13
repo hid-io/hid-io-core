@@ -2,7 +2,7 @@
 name          = "hid-io"
 version       = "0.1.0-beta1"
 authors       = ["Jacob Alexander <haata@kiibohd.com>"]
-license       = "GPLv3"
+license       = "GPL-3.0-or-later"
 description   = """
 HID-IO is a host-side daemon for advanced HID devices.
 """
