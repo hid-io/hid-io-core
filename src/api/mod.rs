@@ -189,8 +189,8 @@ impl HIDIOServerImpl {
             uid,
             incoming,
 
-            basic_key: nanoid::simple().to_string(),
-            auth_key: nanoid::simple().to_string(),
+            basic_key: nanoid::simple(),
+            auth_key: nanoid::simple(),
 
             // Set to empty for now
             basic_key_file,
@@ -558,7 +558,7 @@ pub fn initialize(mailbox: HIDIOMailbox) {
     let server = tls_handshake.map(|acceptor| {
         let rc = Rc::clone(&master);
         let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
-        let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer.clone(), nodes.clone());
+        let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer, nodes.clone());
         {
             let mut writers = WRITERS_RC.lock().unwrap();
             (*writers).push(sink);
@@ -597,7 +597,7 @@ pub fn initialize(mailbox: HIDIOMailbox) {
             );
 
             // Setup capnproto RPC
-            let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.clone().client));
+            let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
             handle.spawn(
                 rpc_system
                     .map_err(|e| println!("{}", e))

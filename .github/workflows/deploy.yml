@@ -1,0 +1,35 @@
+name: Rust Doc Deploy
+
+on: [push]
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev -y
+          # Install capnproto
+          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
+          tar zxf capnproto-c++-0.7.0.tar.gz
+          cd capnproto-c++-0.7.0
+          mkdir -p build
+          cd build
+          cmake .. -G 'Ninja'
+          cmake --build .
+          sudo cmake --build . --target install
+      - name: cargo doc
+        run: |
+          cargo doc
+      - name: GitHub Pages Deploy
+        if: github.ref == 'refs/heads/master'
+        uses: maxheld83/ghpages@v0.2.1
+        env:
+          BUILD_DIR: target/doc
+          GH_PAT: ${{ secrets.GH_PAT }}

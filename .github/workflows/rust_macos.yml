@@ -1,0 +1,20 @@
+name: Rust macOS
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: macOS-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          brew install capnp
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test

@@ -1,0 +1,20 @@
+name: Rust Windows
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          choco install capnproto
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test

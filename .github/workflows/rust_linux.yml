@@ -1,0 +1,96 @@
+name: Rust Linux
+
+on: [push, pull_request]
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev -y
+          # Install capnproto
+          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
+          tar zxf capnproto-c++-0.7.0.tar.gz
+          cd capnproto-c++-0.7.0
+          mkdir -p build
+          cd build
+          cmake .. -G 'Ninja'
+          cmake --build .
+          sudo cmake --build . --target install
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev -y
+          # Install capnproto
+          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
+          tar zxf capnproto-c++-0.7.0.tar.gz
+          cd capnproto-c++-0.7.0
+          mkdir -p build
+          cd build
+          cmake .. -G 'Ninja'
+          cmake --build .
+          sudo cmake --build . --target install
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev -y
+          # Install capnproto
+          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
+          tar zxf capnproto-c++-0.7.0.tar.gz
+          cd capnproto-c++-0.7.0
+          mkdir -p build
+          cd build
+          cmake .. -G 'Ninja'
+          cmake --build .
+          sudo cmake --build . --target install
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings

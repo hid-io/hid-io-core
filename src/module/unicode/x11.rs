@@ -113,10 +113,8 @@ impl XConnection {
     pub fn lookup_sym(symbol: char) -> u64 {
         let hex: u32 = symbol.into();
         let s = format!("U{:x}", hex);
-        unsafe {
-            let xs = CString::new(s);
-            XStringToKeysym(xs.unwrap().as_ptr())
-        }
+        let xs = CString::new(s).unwrap();
+        unsafe { XStringToKeysym(xs.as_ptr()) }
     }
 
     pub fn bind_key(&self, keycode: u32, keysym: u64) {

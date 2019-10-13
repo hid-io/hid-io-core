@@ -110,7 +110,7 @@ fn start() {
     mailer.register_listener(sink1);
 
     let nodes2 = mailer.devices();
-    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer.clone(), nodes2);
+    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer, nodes2);
     mailer.register_listener(sink2);
 
     // Initialize Modules
