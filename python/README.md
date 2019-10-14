@@ -1,23 +1,42 @@
-#!/usr/bin/env python3
+# hidio Client Python Library
+HID-IO Client Side Library for Python
 
+[![Linux Status](https://github.com/hid-io/hid-io/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![macOS Status](https://github.com/hid-io/hid-io/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Windows Status](https://github.com/hid-io/hid-io/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io/actions)
+
+[![Visit our IRC channel](https://kiwiirc.com/buttons/irc.freenode.net/hid-io.png)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
+
+## Getting
+
+```bash
+pip install hidio
+```
+
+
+## Overview
+
+This is a convenience Python library for the HID-IO daemon which handles automatic reconnection if the server goes down for any reason.
+The library also handles the HID-IO authentication procedure (key negotiation and TLS wrapping).
+
+
+## Usage
+
+```python
 import asyncio
-import logging
 import sys
 
 import hidio.client
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
+# Optional callbacks
 class MyHIDIOClient(hidio.client.HIDIOClient):
     async def on_connect(self, cap):
-        logger.info("Connected!")
+        print("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
 
 
     async def on_disconnect(self):
-        logger.info("Disconnected!")
+        print("Disconnected!")
 
 
 async def main():
@@ -37,7 +56,7 @@ async def main():
                     timeout=2.0
                 ))
             except asyncio.TimeoutError:
-                logger.info("Alive timeout.")
+                print("Alive timeout.")
                 continue
         await asyncio.sleep(5)
 
@@ -46,6 +65,6 @@ try:
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
 except KeyboardInterrupt:
-    logger.warning("Ctrl+C detected, exiting...")
+    print("Ctrl+C detected, exiting...")
     sys.exit(1)
-
+```

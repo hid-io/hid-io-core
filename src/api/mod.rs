@@ -88,7 +88,7 @@ impl std::fmt::Debug for NodeType {
 }
 
 /// Authorization level for a remote node
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum AuthLevel {
     /// Allows connecting and listing devices
     Basic,
@@ -195,7 +195,7 @@ impl HIDIOServerImpl {
             m.nodes.push(node);
         }
 
-        info!("Connection authed!");
+        info!("Connection authed! - {:?}", auth);
         h_i_d_i_o::ToClient::new(HIDIOImpl::new(
             Rc::clone(&self.master),
             Rc::clone(&self.incoming),

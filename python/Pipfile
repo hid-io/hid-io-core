@@ -9,6 +9,7 @@ pycapnp = {editable = true,git = "https://github.com/haata/pycapnp",ref = "devel
 pytest = "*"
 
 [dev-packages]
+flit = "*"
 
 [requires]
 python_version = "3.7"

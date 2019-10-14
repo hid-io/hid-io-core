@@ -6,15 +6,29 @@ jobs:
   test:
     name: Test Suite
     runs-on: macOS-latest
+    strategy:
+      matrix:
+        python-version: [3.7]
     steps:
       - uses: actions/checkout@v1
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
           override: true
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
           brew install capnp
+          python -m pip install --upgrade pip
       - uses: actions-rs/cargo@v1
         with:
           command: test
+      - name: Install pycapnp dependencies and run test
+        run: |
+          cd python
+          python -m pip install cython pytest
+          python -m pip install git+https://github.com/haata/pycapnp.git@develop#egg=pycapnp
+          python -m pytest -vvv

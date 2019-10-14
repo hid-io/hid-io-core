@@ -1,3 +1,7 @@
+'''
+HID-IO Python Client Library
+'''
+
 # Copyright (C) 2019 by Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -29,11 +33,7 @@ import ssl
 
 ## Capnp Imports
 import capnp
-# We need to include the schema files directly
-# TODO This may not work for flit packaging
-this_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.append(os.path.join(this_dir, "..", "..", "..", "schema"))
-import hidio_capnp
+import hidio.schema.hidio_capnp as hidio_capnp
 
 # Logging
 logger = logging.getLogger(__name__)
