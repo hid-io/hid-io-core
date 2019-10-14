@@ -6,7 +6,7 @@ build-backend = "flit.buildapi"
 module = "hidio"
 author = "Jacob Alexander"
 author-email = "haata@kiibohd.com"
-home-page = "https://github.com/kiibohd/kll"
+home-page = "http://hid-io.com"
 classifiers = [
     "Topic :: Software Development :: Libraries",
     "Intended Audience :: Developers",
