@@ -1,12 +1,12 @@
-# hid-io
+# hid-io core
 HID-IO Client Side Library and Daemon
 
 ![Overview](misc/images/HID-IO_Overview.png)
 
-[![Linux Status](https://github.com/hid-io/hid-io/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io/actions)
-[![macOS Status](https://github.com/hid-io/hid-io/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io/actions)
-[![Windows Status](https://github.com/hid-io/hid-io/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io/actions)
-[![Doc Status](https://github.com/hid-io/hid-io/workflows/Rust%20Doc%20Deploy/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Linux Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![macOS Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Windows Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Doc Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Doc%20Deploy/badge.svg)](https://github.com/hid-io/hid-io/actions)
 
 
 
