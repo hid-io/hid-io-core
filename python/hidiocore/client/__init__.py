@@ -33,7 +33,7 @@ import ssl
 
 ## Capnp Imports
 import capnp
-import hidio.schema.hidio_capnp as hidio_capnp
+import hidiocore.schema.hidio_capnp as hidio_capnp
 
 # Logging
 logger = logging.getLogger(__name__)

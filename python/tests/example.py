@@ -30,13 +30,13 @@ import os
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-import hidio.client
+import hidiocore.client
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class MyHIDIOClient(hidio.client.HIDIOClient):
+class MyHIDIOClient(hidiocore.client.HIDIOClient):
     async def on_connect(self, cap):
         logger.info("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
@@ -50,7 +50,7 @@ async def main(args):
     client = MyHIDIOClient('Python example.py')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    tasks = [asyncio.gather(*[client.connect(auth=hidio.client.HIDIOClient.AUTH_BASIC)], return_exceptions=True)]
+    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HIDIOClient.AUTH_BASIC)], return_exceptions=True)]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:

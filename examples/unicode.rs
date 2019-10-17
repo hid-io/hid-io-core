@@ -16,15 +16,15 @@
  */
 
 #[cfg(target_os = "linux")]
-use hid_io::module::unicode::x11::*;
+use hid_io_core::module::unicode::x11::*;
 
 #[cfg(target_os = "macos")]
-use hid_io::module::unicode::osx::*;
+use hid_io_core::module::unicode::osx::*;
 
 #[cfg(target_os = "windows")]
-use hid_io::module::unicode::winapi::*;
+use hid_io_core::module::unicode::winapi::*;
 
-use hid_io::module::unicode::UnicodeOutput;
+use hid_io_core::module::unicode::UnicodeOutput;
 
 pub fn main() {
     #[cfg(target_os = "linux")]

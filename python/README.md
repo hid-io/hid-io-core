@@ -1,5 +1,5 @@
-# hidio Client Python Library
-HID-IO Client Side Library for Python
+# hidio core Client Python Library
+HID-IO Core Client Side Library for Python
 
 [![Linux Status](https://github.com/hid-io/hid-io/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io/actions)
 [![macOS Status](https://github.com/hid-io/hid-io/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io/actions)
@@ -10,7 +10,7 @@ HID-IO Client Side Library for Python
 ## Getting
 
 ```bash
-pip install hidio
+pip install hidiocore
 ```
 
 
@@ -26,10 +26,10 @@ The library also handles the HID-IO authentication procedure (key negotiation an
 import asyncio
 import sys
 
-import hidio.client
+import hidiocore.client
 
 # Optional callbacks
-class MyHIDIOClient(hidio.client.HIDIOClient):
+class MyHIDIOClient(hidiocore.client.HIDIOClient):
     async def on_connect(self, cap):
         print("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
@@ -43,7 +43,7 @@ async def main():
     client = MyHIDIOClient('Python example.py')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    tasks = [asyncio.gather(*[client.connect(auth=hidio.client.HIDIOClient.AUTH_BASIC)], return_exceptions=True)]
+    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HIDIOClient.AUTH_BASIC)], return_exceptions=True)]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:

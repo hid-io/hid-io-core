@@ -30,9 +30,9 @@ use tokio::io::AsyncRead;
 use tokio::prelude::Future;
 use tokio_rustls::{rustls::ClientConfig, TlsConnector};
 
-use hid_io::common_capnp::NodeType;
-use hid_io::hidio_capnp::h_i_d_i_o_server;
-use hid_io::protocol::hidio::*;
+use hid_io_core::common_capnp::NodeType;
+use hid_io_core::hidio_capnp::h_i_d_i_o_server;
+use hid_io_core::protocol::hidio::*;
 
 const LISTEN_ADDR: &str = "localhost:7185";
 
@@ -52,7 +52,7 @@ mod danger {
     }
 }
 
-fn format_node(node: hid_io::common_capnp::destination::Reader<'_>) -> String {
+fn format_node(node: hid_io_core::common_capnp::destination::Reader<'_>) -> String {
     format!(
         "{}: {} ({})",
         node.get_type().unwrap(),
@@ -236,7 +236,7 @@ pub fn main() -> Result<(), ::capnp::Error> {
         }
 
         if !vt_buf.is_empty() {
-            use hid_io::common_capnp::destination::commands::Which::*;
+            use hid_io_core::common_capnp::destination::commands::Which::*;
             if let Ok(commands) = device.get_commands().which() {
                 match commands {
                     UsbKeyboard(node) => {
@@ -253,9 +253,13 @@ pub fn main() -> Result<(), ::capnp::Error> {
             }
         }
 
-        use hid_io::hidio_capnp::h_i_d_i_o::signal::type_::{HidioPacket, HostMacro, UsbKeyboard};
-        use hid_io::hidiowatcher_capnp::h_i_d_i_o_watcher::signal::{DevicePacket, HostPacket};
-        use hid_io::usbkeyboard_capnp::u_s_b_keyboard::signal::{KeyEvent, ScanCodeEvent};
+        use hid_io_core::hidio_capnp::h_i_d_i_o::signal::type_::{
+            HidioPacket, HostMacro, UsbKeyboard,
+        };
+        use hid_io_core::hidiowatcher_capnp::h_i_d_i_o_watcher::signal::{
+            DevicePacket, HostPacket,
+        };
+        use hid_io_core::usbkeyboard_capnp::u_s_b_keyboard::signal::{KeyEvent, ScanCodeEvent};
 
         let mut req = hidio.signal_request();
         req.get().set_time(27); // TODO: Timing

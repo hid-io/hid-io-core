@@ -23,12 +23,12 @@ extern crate log;
 extern crate windows_service;
 
 use clap::App;
-use hid_io::{api, built_info, device, module};
+use hid_io_core::{api, built_info, device, module};
 
 use crate::device::{HIDIOMailbox, HIDIOMailer, HIDIOMessage};
 use std::sync::mpsc::channel;
 
-use hid_io::RUNNING;
+use hid_io_core::RUNNING;
 use std::sync::atomic::Ordering;
 
 #[cfg(windows)]
@@ -139,7 +139,7 @@ fn stop() {
 #[cfg(windows)]
 mod service {
     use flexi_logger::{opt_format, Logger};
-    use hid_io::built_info;
+    use hid_io_core::built_info;
     use windows_service::service_dispatcher;
 
     const SERVICE_NAME: &str = built_info::PKG_NAME;

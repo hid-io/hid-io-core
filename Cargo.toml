@@ -1,5 +1,5 @@
 [package]
-name          = "hid-io"
+name          = "hid-io-core"
 version       = "0.1.0-beta1"
 authors       = ["Jacob Alexander <haata@kiibohd.com>"]
 license       = "GPL-3.0-or-later"
@@ -7,8 +7,8 @@ description   = """
 HID-IO is a host-side daemon for advanced HID devices.
 """
 
-homepage      = "https://github.com/hid-io/hid-io"
-repository    = "https://github.com/hid-io/hid-io"
+homepage      = "https://github.com/hid-io/hid-io-core"
+repository    = "https://github.com/hid-io/hid-io-core"
 documentation = "https://hid-io.github.io/hid-io/hid_io/"
 
 edition       = "2018"

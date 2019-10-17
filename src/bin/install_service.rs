@@ -2,7 +2,7 @@
 extern crate windows_service;
 
 #[cfg(windows)]
-use hid_io::built_info;
+use hid_io_core::built_info;
 
 #[cfg(windows)]
 const SERVICE_NAME: &str = built_info::PKG_NAME;
