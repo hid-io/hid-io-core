@@ -1,6 +1,6 @@
 [package]
 name          = "hid-io-core"
-version       = "0.1.0-beta1"
+version       = "0.1.0-beta2"
 authors       = ["Jacob Alexander <haata@kiibohd.com>"]
 license       = "GPL-3.0-or-later"
 description   = """

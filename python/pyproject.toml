@@ -3,7 +3,7 @@ requires = ["flit"]
 build-backend = "flit.buildapi"
 
 [tool.flit.metadata]
-module = "hidio"
+module = "hidiocore"
 author = "Jacob Alexander"
 author-email = "haata@kiibohd.com"
 home-page = "http://hid-io.com"
