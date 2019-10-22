@@ -4,8 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-cython = "==0.29"
-pycapnp = {editable = true,git = "https://github.com/haata/pycapnp",ref = "develop"}
+cython = "*"
+pycapnp-async = "==0.7"
 pytest = "*"
 
 [dev-packages]

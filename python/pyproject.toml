@@ -14,8 +14,8 @@ classifiers = [
 ]
 description-file = "README.md"
 requires = [
-    "cython>=0.29.12",
-    "pycapnp==0.6.4",
+    "cython>=0.29",
+    "pycapnp-async>=0.7",
 ]
 requires-python = ">=3.7"
 
