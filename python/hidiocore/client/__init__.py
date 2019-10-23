@@ -248,7 +248,7 @@ class HIDIOClient:
             logger.debug("Authenticated with %s", self.auth)
 
         # Callback
-        await self.on_connect(self.cap)
+        await self.on_connect(self.cap, self.cap_auth)
 
         # Spin here until connection is broken
         while self.retry_task:
@@ -319,11 +319,15 @@ class HIDIOClient:
 
 
 
-    async def on_connect(self, cap):
+    async def on_connect(self, cap, cap_auth):
         '''
         This callback is meant to be overridden
         It is called on server connection events.
         This may occur if the server restarts, or due to some network issue.
+
+        @param cap: Reference to capnp HIDIOServer interface
+        @param cap_auth: Reference to capnp HIDIO interface
+                         (May be set to None, if not authenticated)
         '''
 
 

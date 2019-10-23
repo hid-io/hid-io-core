@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 class MyHIDIOClient(hidiocore.client.HIDIOClient):
-    async def on_connect(self, cap):
+    async def on_connect(self, cap, cap_auth):
         logger.info("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
 
