@@ -103,7 +103,11 @@ class HIDIOClient:
             except asyncio.TimeoutError:
                 logger.debug("socketreader timeout.")
                 continue
+            except Exception as err:
+                logger.error("Unknown socketreader err: %s", err)
+                return False
             self.client.write(data)
+        logger.debug("socketreader done.")
         return True
 
 
@@ -123,6 +127,10 @@ class HIDIOClient:
             except asyncio.TimeoutError:
                 logger.debug("socketwriter timeout.")
                 continue
+            except Exception as err:
+                logger.error("Unknown socketwriter err: %s", err)
+                return False
+        logger.debug("socketwriter done.")
         return True
 
 
@@ -144,6 +152,10 @@ class HIDIOClient:
                 # End other tasks
                 await self.disconnect(retry_connection=True)
                 return False
+            except Exception as err:
+                logger.error("Unknown socketwatcher err: %s", err)
+                return False
+        logger.debug("socketwatcher done.")
         return True
 
 
@@ -161,19 +173,25 @@ class HIDIOClient:
         # Handle both IPv4 and IPv6 cases
         try:
             logging.debug("Try IPv4 (may autodetect IPv6)")
-            self.reader, self.writer = await asyncio.open_connection(
-                self.addr, self.port,
-                ssl=self.ctx,
-            )
-        except OSError:
-            logging.debug("Try IPv6")
-            try:
-                self.reader, self.writer = await asyncio.open_connection(
+            self.reader, self.writer = await asyncio.wait_for(
+                asyncio.open_connection(
                     self.addr, self.port,
                     ssl=self.ctx,
-                    family=socket.AF_INET6
+                ),
+                timeout=1.0,
+            )
+        except (asyncio.TimeoutError, OSError):
+            logging.debug("Try IPv6")
+            try:
+                self.reader, self.writer = await asyncio.wait_for(
+                    asyncio.open_connection(
+                        self.addr, self.port,
+                        ssl=self.ctx,
+                        family=socket.AF_INET6
+                    ),
+                    timeout=1.0,
                 )
-            except OSError:
+            except (asyncio.TimeoutError, OSError):
                 logger.debug("Retrying port connection {}:{} auth level {}".format(self.addr, self.port, self.auth))
                 return False
 
@@ -245,7 +263,7 @@ class HIDIOClient:
             # Validate auth key
             try:
                 self.cap_auth = (await request.send().a_wait()).port
-            except:
+            except Exception:
                 logger.error("Invalid auth key!")
                 await self.disconnect()
                 return False
@@ -257,6 +275,7 @@ class HIDIOClient:
         # Spin here until connection is broken
         while self.retry_task:
             await asyncio.sleep(1)
+        logger.debug("socketconnection done.")
 
 
     async def connect(self, auth=AUTH_NONE, addr='localhost', port='7185'):
@@ -285,6 +304,7 @@ class HIDIOClient:
 
         # Remove reference to loop once we finish
         self.loop = None
+        logger.debug("Connection ended")
 
 
     async def disconnect(self, retry_connection=False):
