@@ -73,6 +73,10 @@ class HIDIOClient:
         self.version_info = None
         self.client_name = client_name
 
+        # Generate serial number once per initialization
+        # Just a random number
+        self.serial = "{}".format(random.getrandbits(64))
+
 
     def __del__(self):
         '''
@@ -235,7 +239,7 @@ class HIDIOClient:
             request.key = self.key
             request.info.type = 'hidioApi'
             request.info.name = self.client_name
-            request.info.serial = "{}".format(random.getrandbits(64)) # Just use a random number
+            request.info.serial = self.serial
             request.info.id = self.uid_info
 
             # Validate auth key
