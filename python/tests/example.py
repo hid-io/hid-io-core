@@ -59,7 +59,7 @@ async def main(args):
                     timeout=2.0
                 ))
                 print("API Call", await asyncio.wait_for(
-                    client.capability_authenticated().nodes().a_wait(),
+                    client.nodes(),
                     timeout=2.0
                 ))
                 # Check if this is just a single-shot test

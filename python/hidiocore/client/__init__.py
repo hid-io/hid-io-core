@@ -254,23 +254,8 @@ class HIDIOClient:
             logger.info("Key: %s", self.key)
 
             # Connect to specified auth level
-            key_usage = {
-                self.AUTH_BASIC: self.cap.basic_request(),
-                self.AUTH_ADMIN: self.cap.auth_request(),
-            }
-
-            request = key_usage[self.auth]
-            request.key = self.key
-            request.info.type = 'hidioApi'
-            request.info.name = self.client_name
-            request.info.serial = self.serial
-            request.info.id = self.uid_info
-
-            # Validate auth key
-            try:
-                cap_auth = (await request.send().a_wait()).port
-            except Exception:
-                logger.error("Invalid auth key!")
+            cap_auth = self.capability_authenticate()
+            if not cap_auth:
                 await self.disconnect()
                 return False
             logger.debug("Authenticated with %s", self.auth)
@@ -382,13 +367,45 @@ class HIDIOClient:
         return self.cap
 
 
-    def capability_authenticated(self):
+    def auth_promise(self):
+        '''
+        Returns a promise that can be awaited or pipelined
+        This will return None if not authenticated
+        '''
+        if self.auth:
+            # Connect to specified auth level
+            key_usage = {
+                self.AUTH_BASIC: self.cap.basic_request(),
+                self.AUTH_ADMIN: self.cap.auth_request(),
+            }
+
+            request = key_usage[self.auth]
+            request.key = self.key
+            request.info.type = 'hidioApi'
+            request.info.name = self.client_name
+            request.info.serial = self.serial
+            request.info.id = self.uid_info
+
+            return request.send()
+        return None
+
+
+    async def capability_authenticate(self):
         '''
         Returns a reference to the authenticated capability
         This will return None if not authenticated.
         '''
-        # TODO Must re-authenticate
-        #return self.cap_auth
+        if self.auth:
+            # Get auth promise
+            promise = self.auth_promise()
+
+            # Validate auth key
+            try:
+                cap_auth = (await promise.a_wait()).port
+            except Exception:
+                logger.error("Invalid auth key!")
+                return None
+            return cap_auth
         return None
 
 
@@ -426,16 +443,14 @@ class HIDIOClient:
         '''
         If connected, will return a list of nodes
         '''
-        nodes = None
+        # Gather initial list of nodes
         if self.auth:
-            pass
-            # Gather initial list of nodes
-            # TODO Must re-auth
-            #nodes = (
-            #    await self.capability_authenticated().nodes().a_wait()
-            #).nodes
-            #logger.info("nodes: %s", nodes)
-        return None
+            nodes = (
+                await self.auth_promise().port.nodes().a_wait()
+            )
+            logger.info("nodes: %s", nodes)
+            return nodes
+        return []
 
 
     async def nodesupdate(self):
