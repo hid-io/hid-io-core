@@ -36,13 +36,13 @@ fn main() {
 
     // Generate Cap'n Proto rust files
     capnpc::CompilerCommand::new()
-        .src_prefix("schema")
-        .file("schema/common.capnp")
-        .file("schema/devicefunction.capnp")
-        .file("schema/hidio.capnp")
-        .file("schema/hidiowatcher.capnp")
-        .file("schema/hostmacro.capnp")
-        .file("schema/usbkeyboard.capnp")
+        .src_prefix("python/hidiocore/schema")
+        .file("python/hidiocore/schema/common.capnp")
+        .file("python/hidiocore/schema/devicefunction.capnp")
+        .file("python/hidiocore/schema/hidio.capnp")
+        .file("python/hidiocore/schema/hidiowatcher.capnp")
+        .file("python/hidiocore/schema/hostmacro.capnp")
+        .file("python/hidiocore/schema/usbkeyboard.capnp")
         .run()
         .expect("schema compiler command");
 

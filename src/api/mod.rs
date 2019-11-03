@@ -291,6 +291,11 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
         results.get().set_id(self.uid);
         Promise::ok(())
     }
+
+    fn name(&mut self, _params: NameParams, mut results: NameResults) -> Promise<(), Error> {
+        results.get().set_name("hid-io-core");
+        Promise::ok(())
+    }
 }
 
 struct HIDIOImpl {
@@ -484,7 +489,6 @@ impl h_i_d_i_o_node::Server for HIDIONodeImpl {
 
 /// Cap'n'Proto API Initialization
 /// Sets up a localhost socket to deal with localhost-only API usages
-/// Requires TLS TODO
 /// Some API usages may require external authentication to validate trustworthiness
 pub fn initialize(mailbox: HIDIOMailbox) {
     info!("Initializing api...");

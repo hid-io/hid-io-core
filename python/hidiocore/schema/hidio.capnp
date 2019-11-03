@@ -75,6 +75,9 @@ interface HIDIOServer {
     # Unique id
     # Assigned per socket connection
     # This must be used when attempting basic/auth authentication
+
+    name @6 () -> (name :Text);
+    # Name of HID-IO Server
 }
 
 interface HIDIO {
@@ -107,9 +110,11 @@ interface HIDIO {
     # The return time is the time the signal list starts
     # This may be the same time, or earlier than the first signal, to signify nothing came before it
 
-    nodes @1 () -> (nodes :List(Common.Destination));
+    nodes @1 (onUpdate :Bool = false) -> (nodes :List(Common.Destination));
     # List of supported nodes
     # This may not contain all nodes due to authentication levels
     # The HIDIO daemon may revoke priviledges for certain modules during runtime
+    # If onUpdate is set to True, then the function will only return
+    # if the nodes list changes
 }
 

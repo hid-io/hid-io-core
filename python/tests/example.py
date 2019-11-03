@@ -29,7 +29,7 @@ import logging
 import os
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import hidiocore.client
 
 logging.basicConfig(level=logging.DEBUG)

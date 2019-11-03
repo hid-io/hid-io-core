@@ -66,12 +66,13 @@ class HIDIOClient:
         self.writer = None
         self.client = None
         self.cap = None
-        self.cap_auth = None
         self.overalltasks = []
         self.auth = self.AUTH_NONE
         self.loop = None
-        self.version_info = None
         self.client_name = client_name
+
+        self.version_info = None
+        self.daemon_name = None
 
         # Generate serial number once per initialization
         # Just a random number
@@ -221,7 +222,12 @@ class HIDIOClient:
         self.uid_info = (await self.cap.id().a_wait()).id
         logger.info("uid: %s", self.uid_info)
 
+        # Lookup name
+        self.daemon_name = (await self.cap.name().a_wait()).name
+        logger.info("name: %s", self.daemon_name)
+
         # AUTH_NONE doesn't need to go any further
+        cap_auth = None
         if self.auth:
             # Lookup key information
             self.key_info = (await self.cap.key().a_wait()).key
@@ -262,7 +268,7 @@ class HIDIOClient:
 
             # Validate auth key
             try:
-                self.cap_auth = (await request.send().a_wait()).port
+                cap_auth = (await request.send().a_wait()).port
             except Exception:
                 logger.error("Invalid auth key!")
                 await self.disconnect()
@@ -270,7 +276,7 @@ class HIDIOClient:
             logger.debug("Authenticated with %s", self.auth)
 
         # Callback
-        await self.on_connect(self.cap, self.cap_auth)
+        await self.on_connect(self.cap, cap_auth)
 
         # Spin here until connection is broken
         while self.retry_task:
@@ -301,6 +307,7 @@ class HIDIOClient:
                 logger.error("Unhandled Exception")
                 logger.error(err)
             await asyncio.sleep(1)
+            logger.debug("connect retry: %s", self.retry_connection)
 
         # Remove reference to loop once we finish
         self.loop = None
@@ -318,6 +325,11 @@ class HIDIOClient:
         # Callback
         await self.on_disconnect()
 
+        # Indicate if we are stopping the connection
+        # This needs to be set before ending tasks
+        if not retry_connection:
+            self.retry_connection = False
+
         # Gently end tasks (should not delay more than 5 seconds)
         self.retry_task = False
         logger.debug("Tasks open: %s", len(self.overalltasks))
@@ -331,16 +343,15 @@ class HIDIOClient:
         self.ctx = None
         self.client = None
         self.cap = None
-        self.cap_auth = None
+
         self.version_info = None
+        self.daemon_name = None
 
         # Stop retrying connection if specified
         if retry_connection:
             logger.debug("Retrying connection.")
             return
         logger.debug("Stopping client.")
-        self.retry_connection = False
-
 
 
     async def on_connect(self, cap, cap_auth):
@@ -376,7 +387,9 @@ class HIDIOClient:
         Returns a reference to the authenticated capability
         This will return None if not authenticated.
         '''
-        return self.cap_auth
+        # TODO Must re-authenticate
+        #return self.cap_auth
+        return None
 
 
     def retry_connection_status(self):
@@ -400,3 +413,35 @@ class HIDIOClient:
         '''
         return self.version_info
 
+    def name(self):
+        '''
+        If connected successfully, will return the name of the HIDIO daemon
+
+        Fox example:
+        hid-io-core
+        '''
+        return self.daemon_name
+
+    async def nodes(self):
+        '''
+        If connected, will return a list of nodes
+        '''
+        nodes = None
+        if self.auth:
+            pass
+            # Gather initial list of nodes
+            # TODO Must re-auth
+            #nodes = (
+            #    await self.capability_authenticated().nodes().a_wait()
+            #).nodes
+            #logger.info("nodes: %s", nodes)
+        return None
+
+
+    async def nodesupdate(self):
+        '''
+        If connected, will return a list of nodes only when the list updates
+
+        This is an asynchronous event sent by HID-IO Core
+        '''
+        # TODO
