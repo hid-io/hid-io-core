@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,6 +14,7 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#![feature(checked_duration_since)]
 #![feature(drain_filter)]
 
 // ----- Crates -----

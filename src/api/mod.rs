@@ -31,6 +31,7 @@ use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Instant;
 
 use crate::built_info;
 use crate::common_capnp::h_i_d_i_o_node::*;
@@ -104,8 +105,20 @@ pub struct Endpoint {
     pub type_: NodeType,
     pub name: String,
     pub serial: String,
-    /// Automatically generated
     pub id: u64,
+    pub created: Instant,
+}
+
+impl Endpoint {
+    pub fn new(type_: NodeType, name: String, serial: String, id: u64) -> Endpoint {
+        Endpoint {
+            type_,
+            name,
+            serial,
+            id,
+            created: Instant::now(),
+        }
+    }
 }
 
 struct HIDIOMaster {
@@ -136,10 +149,19 @@ struct HIDIOServerImpl {
 
     basic_key_file: tempfile::NamedTempFile,
     auth_key_file: tempfile::NamedTempFile,
+
+    subscribers_next_id: Arc<RwLock<u64>>,
+    subscribers: Arc<RwLock<SubscriberMap>>,
 }
 
 impl HIDIOServerImpl {
-    fn new(master: Rc<RefCell<HIDIOMaster>>, uid: u64, incoming: HIDIOMailbox) -> HIDIOServerImpl {
+    fn new(
+        master: Rc<RefCell<HIDIOMaster>>,
+        uid: u64,
+        incoming: HIDIOMailbox,
+        subscribers_next_id: Arc<RwLock<u64>>,
+        subscribers: Arc<RwLock<SubscriberMap>>,
+    ) -> HIDIOServerImpl {
         // Create temp file for basic key
         let mut basic_key_file = tempfile::Builder::new()
             .world_accessible(true)
@@ -184,6 +206,9 @@ impl HIDIOServerImpl {
 
             basic_key_file,
             auth_key_file,
+
+            subscribers_next_id,
+            subscribers,
         }
     }
 
@@ -191,8 +216,13 @@ impl HIDIOServerImpl {
         {
             let mut m = self.master.borrow_mut();
             node.id = self.uid;
-            m.connections.get_mut(&self.uid).unwrap().push(node.id);
-            m.nodes.push(node);
+            let conn = m.connections.get_mut(&self.uid).unwrap();
+            // Check if a capnp node already exists (might just be re-authenticating the interface)
+            if !conn.contains(&node.id) {
+                info!("New capnp node: {:?}", node);
+                conn.push(node.id);
+                m.nodes.push(node);
+            }
         }
 
         info!("Connection authed! - {:?}", auth);
@@ -200,6 +230,8 @@ impl HIDIOServerImpl {
             Rc::clone(&self.master),
             Rc::clone(&self.incoming),
             auth,
+            self.subscribers_next_id.clone(),
+            self.subscribers.clone(),
         ))
         .into_client::<::capnp_rpc::Server>()
     }
@@ -209,12 +241,12 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
-        let node = Endpoint {
-            type_: info.get_type().unwrap(),
-            name: info.get_name().unwrap().to_string(),
-            serial: info.get_serial().unwrap().to_string(),
-            id: info.get_id(),
-        };
+        let node = Endpoint::new(
+            info.get_type().unwrap(),
+            info.get_name().unwrap().to_string(),
+            info.get_serial().unwrap().to_string(),
+            info.get_id(),
+        );
 
         // Verify incoming basic key
         if key != self.basic_key {
@@ -224,7 +256,7 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
             });
         }
 
-        info!("New capnp node: {:?}", node);
+        // Either re-use a capnp node or create a new one
         results
             .get()
             .set_port(self.create_connection(node, AuthLevel::Basic));
@@ -234,12 +266,12 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn auth(&mut self, params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
-        let node = Endpoint {
-            type_: info.get_type().unwrap(),
-            name: info.get_name().unwrap().to_string(),
-            serial: info.get_serial().unwrap().to_string(),
-            id: info.get_id(),
-        };
+        let node = Endpoint::new(
+            info.get_type().unwrap(),
+            info.get_name().unwrap().to_string(),
+            info.get_serial().unwrap().to_string(),
+            info.get_id(),
+        );
 
         // Verify incoming auth key
         if key != self.auth_key {
@@ -249,7 +281,7 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
             });
         }
 
-        info!("New capnp node: {:?}", node);
+        // Either re-use a capnp node or create a new one
         results
             .get()
             .set_port(self.create_connection(node, AUTH_LEVEL));
@@ -303,6 +335,9 @@ struct HIDIOImpl {
     auth: AuthLevel,
     registered: Rc<RefCell<HashMap<u64, bool>>>,
     incoming: Rc<HIDIOMailbox>,
+
+    nodes_subscribers_next_id: Arc<RwLock<u64>>,
+    nodes_subscribers: Arc<RwLock<SubscriberMap>>,
 }
 
 impl HIDIOImpl {
@@ -310,12 +345,17 @@ impl HIDIOImpl {
         master: Rc<RefCell<HIDIOMaster>>,
         incoming: Rc<HIDIOMailbox>,
         auth: AuthLevel,
+        nodes_subscribers_next_id: Arc<RwLock<u64>>,
+        nodes_subscribers: Arc<RwLock<SubscriberMap>>,
     ) -> HIDIOImpl {
         HIDIOImpl {
             master,
             auth,
             registered: Rc::new(RefCell::new(HashMap::new())),
             incoming,
+
+            nodes_subscribers_next_id,
+            nodes_subscribers,
         }
     }
 
@@ -408,7 +448,77 @@ impl h_i_d_i_o::Server for HIDIOImpl {
         }
         Promise::ok(())
     }
+
+    fn subscribe_nodes(
+        &mut self,
+        params: SubscribeNodesParams,
+        mut results: SubscribeNodesResults,
+    ) -> Promise<(), Error> {
+        info!(
+            "Adding subscribeNodes watcher id #{}",
+            self.nodes_subscribers_next_id.read().unwrap()
+        );
+        self.nodes_subscribers.write().unwrap().subscribers.insert(
+            *self.nodes_subscribers_next_id.read().unwrap(),
+            SubscriberHandle {
+                client: pry!(pry!(params.get()).get_subscriber()),
+                requests_in_flight: 0,
+            },
+        );
+
+        results.get().set_subscription(
+            nodes_subscription::ToClient::new(NodesSubscriptionImpl::new(
+                *self.nodes_subscribers_next_id.read().unwrap(),
+                self.nodes_subscribers.clone(),
+            ))
+            .into_client::<::capnp_rpc::Server>(),
+        );
+
+        *self.nodes_subscribers_next_id.write().unwrap() += 1;
+        Promise::ok(())
+    }
 }
+
+struct SubscriberHandle {
+    client: nodes_subscriber::Client,
+    requests_in_flight: i32,
+}
+
+struct SubscriberMap {
+    subscribers: HashMap<u64, SubscriberHandle>,
+}
+
+impl SubscriberMap {
+    fn new() -> SubscriberMap {
+        SubscriberMap {
+            subscribers: HashMap::new(),
+        }
+    }
+}
+
+struct NodesSubscriptionImpl {
+    id: u64,
+    subscribers: Arc<RwLock<SubscriberMap>>,
+}
+
+impl NodesSubscriptionImpl {
+    fn new(id: u64, subscribers: Arc<RwLock<SubscriberMap>>) -> NodesSubscriptionImpl {
+        NodesSubscriptionImpl { id, subscribers }
+    }
+}
+
+impl Drop for NodesSubscriptionImpl {
+    fn drop(&mut self) {
+        info!("Subscription dropped id: {}", self.id);
+        self.subscribers
+            .write()
+            .unwrap()
+            .subscribers
+            .remove(&self.id);
+    }
+}
+
+impl nodes_subscription::Server for NodesSubscriptionImpl {}
 
 struct HIDIOKeyboardNodeImpl {
     id: u64,
@@ -522,12 +632,15 @@ pub fn initialize(mailbox: HIDIOMailbox) {
 
     let master = Rc::new(RefCell::new(m));
 
+    let subscribers_next_id = Arc::new(RwLock::new(0));
+    let subscribers = Arc::new(RwLock::new(SubscriberMap::new()));
+
     let (trigger, tripwire) = Tripwire::new();
 
     trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
     impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
 
-    let connections = socket.incoming().take_until(tripwire);
+    let connections = socket.incoming().take_until(tripwire.clone());
     let tls_handshake = connections.map(|(socket, addr)| {
         info!("New connection:7185 - {:?}", addr);
         socket.set_nodelay(true).unwrap();
@@ -546,6 +659,8 @@ pub fn initialize(mailbox: HIDIOMailbox) {
         }
 
         let handle = handle.clone();
+        let subscribers_next_id = subscribers_next_id.clone();
+        let subscribers = subscribers.clone();
         acceptor.and_then(move |stream| {
             // Save connection address for later
             let addr = stream.get_ref().0.peer_addr().ok().unwrap();
@@ -560,7 +675,13 @@ pub fn initialize(mailbox: HIDIOMailbox) {
             };
 
             // Initialize auth tokens
-            let hidio_server = HIDIOServerImpl::new(Rc::clone(&rc), uid, mailbox);
+            let hidio_server = HIDIOServerImpl::new(
+                Rc::clone(&rc),
+                uid,
+                mailbox,
+                subscribers_next_id,
+                subscribers,
+            );
 
             // Setup capnproto server
             let hidio_server =
@@ -619,9 +740,145 @@ pub fn initialize(mailbox: HIDIOMailbox) {
         drop(trigger);
     });
 
-    core.run(server.for_each(|client| {
-        handle.spawn(client.map_err(|e| println!("{}", e)));
-        Ok(())
-    }))
+    let infinite = ::futures::stream::iter_ok::<_, std::io::Error>(::std::iter::repeat(()));
+    let rc = Rc::clone(&master);
+    let mut last_node_refresh = Instant::now();
+    let mut last_node_count = 0;
+    let send_to_subscribers = infinite.take_until(tripwire).fold(
+        (handle.clone(), subscribers.clone()),
+        move |(handle, subscribers),
+              ()|
+              -> Promise<
+            (::tokio_core::reactor::Handle, Arc<RwLock<SubscriberMap>>),
+            std::io::Error,
+        > {
+            {
+                let sub_count = subscribers.read().unwrap().subscribers.len();
+                let subs = &mut subscribers.write().unwrap().subscribers;
+                let subscribers1 = subscribers.clone();
+
+                let master = rc.borrow();
+
+                // Determine most recent device addition
+                let devices = master.devices.read().unwrap();
+                let nodes = master.nodes.clone();
+                let mut nodes_update = false;
+                let mut cur_node_count = 0;
+                nodes.iter().chain(devices.iter()).for_each(|endpoint| {
+                    if let Some(_duration) =
+                        endpoint.created.checked_duration_since(last_node_refresh)
+                    {
+                        nodes_update = true;
+                    }
+                    // Count total nodes, if total count doesn't match the last loop
+                    // a nodes update should be sent (node removal case)
+                    cur_node_count += 1;
+                });
+                if cur_node_count != last_node_count {
+                    nodes_update = true;
+                }
+                last_node_count = cur_node_count;
+
+                if nodes_update {
+                    info!(
+                        "Node list update detected, pushing list to subscribers -> {}",
+                        sub_count
+                    );
+
+                    for (&idx, mut subscriber) in subs.iter_mut() {
+                        if subscriber.requests_in_flight < 5 {
+                            subscriber.requests_in_flight += 1;
+                            let mut request = subscriber.client.nodes_update_request();
+                            {
+                                let mut c_nodes = request.get().init_nodes(last_node_count as u32);
+                                for (i, n) in nodes.iter().chain(devices.iter()).enumerate() {
+                                    let mut node = c_nodes.reborrow().get(i as u32);
+                                    node.set_type(n.type_);
+                                    node.set_name(&n.name);
+                                    node.set_serial(&n.serial);
+                                    node.set_id(n.id);
+                                    /* TODO(HaaTa): This field may be tricky to get
+                                     *              Use nodes() rpc call for now
+                                    node.set_node(
+                                        h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::new(
+                                            Rc::clone(&self.registered),
+                                            n.id,
+                                        ))
+                                        .into_client::<::capnp_rpc::Server>(),
+                                    );
+                                    */
+                                    /* TODO(HaaTa): This field may be tricky to get
+                                     *              Use nodes() rpc call for now
+                                    commands.set_usb_keyboard(
+                                        u_s_b_keyboard::commands::ToClient::new(HIDIOKeyboardNodeImpl::new(
+                                            n.id,
+                                            self.auth,
+                                            Rc::clone(&self.incoming),
+                                        ))
+                                        .into_client::<::capnp_rpc::Server>(),
+                                    );
+                                    */
+                                }
+                            }
+
+                            //request.get().set_nodes();
+                            //pry!(request.get().set_message(
+                            //    &format!("system time is: {:?}", ::std::time::SystemTime::now())[..]));
+                            //request.get().set_message(&format!("YARRR {}", sub_count));
+
+                            let subscribers2 = subscribers1.clone();
+                            handle.spawn(
+                                request
+                                    .send()
+                                    .promise
+                                    .then(move |r| {
+                                        match r {
+                                            Ok(_) => {
+                                                if let Some(ref mut s) = subscribers2
+                                                    .write()
+                                                    .unwrap()
+                                                    .subscribers
+                                                    .get_mut(&idx)
+                                                {
+                                                    s.requests_in_flight -= 1;
+                                                }
+                                            }
+                                            Err(e) => {
+                                                warn!("Got error: {:?}. Dropping subscriber.", e);
+                                                subscribers2
+                                                    .write()
+                                                    .unwrap()
+                                                    .subscribers
+                                                    .remove(&idx);
+                                            }
+                                        }
+                                        Ok::<(), std::io::Error>(())
+                                    })
+                                    .map_err(|_| unreachable!()),
+                            );
+                        }
+                    }
+                    last_node_refresh = Instant::now();
+                }
+            }
+            let timeout = pry!(::tokio_core::reactor::Timeout::new(
+                ::std::time::Duration::from_secs(1),
+                &handle
+            ));
+            let timeout = timeout
+                .and_then(move |()| Ok((handle, subscribers)))
+                .map_err(|_| unreachable!());
+            Promise::from_future(timeout)
+        },
+    );
+
+    core.run(
+        server
+            .for_each(|client| {
+                handle.spawn(client.map_err(|e| println!("{}", e)));
+                Ok(())
+            })
+            .join(send_to_subscribers),
+    )
     .unwrap();
 }

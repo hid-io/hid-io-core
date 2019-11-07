@@ -46,6 +46,10 @@ class MyHIDIOClient(hidiocore.client.HIDIOClient):
         logger.info("Disconnected!")
 
 
+    def on_nodesupdate(self, nodes):
+        print("Nodes Update", nodes)
+
+
 async def main(args):
     client = MyHIDIOClient('Python example.py')
     # Connect the client to the server using a background task

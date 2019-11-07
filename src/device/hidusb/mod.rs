@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2019 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@ use std::time::Instant;
 use crate::api::Endpoint;
 use crate::common_capnp::NodeType;
 
-// TODO (HaaTa) remove this constants when linux supports better matching
+// TODO (HaaTa) remove these constants when linux supports better matching
 pub const DEV_VID: u16 = 0x308f;
 pub const DEV_PID: u16 = 0x0011;
 pub const INTERFACE_NUMBER: i32 = 6;
@@ -230,18 +230,18 @@ fn processing(mut mailer: HIDIOMailer) {
                         devices.push(master);
 
                         // Add to connected list
-                        let info = Endpoint {
-                            type_: NodeType::UsbKeyboard,
-                            name: device_info
+                        let info = Endpoint::new(
+                            NodeType::UsbKeyboard,
+                            device_info
                                 .product_string
                                 .clone()
                                 .unwrap_or_else(|| "[NONE]".to_string()),
-                            serial: device_info
+                            device_info
                                 .serial_number
                                 .clone()
                                 .unwrap_or_else(|| "".to_string()),
                             id,
-                        };
+                        );
                         let device = HIDIOQueue::new(info, message_rx, response_tx);
                         mailer.register_device(id.to_string(), device);
                     }

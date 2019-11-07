@@ -39,6 +39,24 @@ import hidiocore.schema.hidio_capnp as hidio_capnp
 logger = logging.getLogger(__name__)
 
 
+class NodesSubscriberImpl(hidio_capnp.HIDIO.NodesSubscriber.Server):
+    '''
+    NodesSubscriber response interface for HID-IO
+    '''
+    def __init__(self, hidioclient):
+        hidio_capnp.HIDIO.NodesSubscriber.Server.__init__(self)
+
+        # Reference used to make callback
+        self.hidioclient = hidioclient
+
+    def nodesUpdate(self, nodes, **kwargs):
+        '''
+        Push notification from HID-IO Core that the nodes
+        list has updated
+        '''
+        self.hidioclient.on_nodesupdate(nodes)
+
+
 class HIDIOClient:
     '''
     HID-IO RPC interface class
@@ -160,6 +178,23 @@ class HIDIOClient:
         return True
 
 
+    async def nodeswatcher(self):
+        '''
+        Processes node list updates
+        '''
+        try:
+            subscriber = NodesSubscriberImpl(self)
+            promise = (await self.auth_promise().a_wait()).port.subscribeNodes(subscriber)
+            await promise.a_wait()
+            while self.retry_task:
+                await asyncio.sleep(1)
+        except Exception as err:
+            logger.error("Unknown nodeswatcher err: %s", err)
+            return False
+        logger.debug("nodeswatcher done.")
+        return True
+
+
     async def socketconnection(self):
         '''
         Main socket connection function
@@ -254,11 +289,15 @@ class HIDIOClient:
             logger.info("Key: %s", self.key)
 
             # Connect to specified auth level
-            cap_auth = self.capability_authenticate()
+            cap_auth = await self.capability_authenticate()
             if not cap_auth:
                 await self.disconnect()
                 return False
             logger.debug("Authenticated with %s", self.auth)
+
+            # Add nodes subscription
+            background_tasks = [self.nodeswatcher()]
+            self.overalltasks.append(asyncio.gather(*background_tasks, return_exceptions=True))
 
         # Callback
         await self.on_connect(self.cap, cap_auth)
@@ -359,6 +398,13 @@ class HIDIOClient:
         '''
 
 
+    def on_nodesupdate(self, nodes):
+        '''
+        This callback is an asynchronous event by HID-IO Core
+        If connected, will return a list of nodes only when the list updates
+        '''
+
+
     def capability_hidioserver(self):
         '''
         Returns a reference to the capability
@@ -451,12 +497,3 @@ class HIDIOClient:
             logger.info("nodes: %s", nodes)
             return nodes
         return []
-
-
-    async def nodesupdate(self):
-        '''
-        If connected, will return a list of nodes only when the list updates
-
-        This is an asynchronous event sent by HID-IO Core
-        '''
-        # TODO

@@ -110,11 +110,25 @@ interface HIDIO {
     # The return time is the time the signal list starts
     # This may be the same time, or earlier than the first signal, to signify nothing came before it
 
-    nodes @1 (onUpdate :Bool = false) -> (nodes :List(Common.Destination));
+    nodes @1 () -> (nodes :List(Common.Destination));
     # List of supported nodes
     # This may not contain all nodes due to authentication levels
     # The HIDIO daemon may revoke priviledges for certain modules during runtime
-    # If onUpdate is set to True, then the function will only return
-    # if the nodes list changes
+
+    interface NodesSubscription {}
+    # Node subscription interface
+    # Handles subscription ownership and when to drop subscription
+
+    interface NodesSubscriber {
+        # Client node subscriber
+        # Handles any push methods that hid-io-core can send
+
+        nodesUpdate @0 (nodes :List(Common.Destination));
+        # Called whenever the list of nodes changes
+    }
+
+    subscribeNodes @2 (subscriber :NodesSubscriber) -> (subscription :NodesSubscription);
+    # Subscribes a NodesSubscriber interface
+    # Registers push notifications for node list changes
 }
 
