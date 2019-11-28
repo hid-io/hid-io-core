@@ -14,7 +14,6 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#![feature(checked_duration_since)]
 #![feature(drain_filter)]
 
 // ----- Crates -----
