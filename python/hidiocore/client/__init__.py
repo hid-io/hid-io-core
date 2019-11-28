@@ -26,6 +26,7 @@ HID-IO Python Client Library
 import asyncio
 import logging
 import os
+import pygtail
 import random
 import sys
 import socket
@@ -91,6 +92,8 @@ class HIDIOClient:
 
         self.version_info = None
         self.daemon_name = None
+        self.core_log_files = None
+        self.core_current_log_file = None
 
         # Generate serial number once per initialization
         # Just a random number
@@ -195,6 +198,40 @@ class HIDIOClient:
         return True
 
 
+    def reset_corelog_followposition(self):
+        '''
+        Resets the hid-io-core log position
+        Will cause the watcher to re-emit the entire log file
+        '''
+        try:
+            os.remove(self.core_current_log_file_offset)
+        except Exception as err:
+            logger.warn("No hid-io-core log offset file: %s", err)
+            pass
+
+
+    async def corelogwatcher(self):
+        '''
+        Watches for activity on the hid-io-core log file
+        '''
+        while self.retry_task:
+            # Make sure there is a log file to watch
+            if self.core_current_log_file:
+                try:
+                    for line in pygtail.Pygtail(
+                        self.core_current_log_file,
+                        offset_file=self.core_current_log_file_offset
+                    ):
+                        self.on_core_log_entry(line)
+                except Exception as err:
+                    logger.error(err)
+                    pass
+                await asyncio.sleep(0.5)
+            else:
+                await asyncio.sleep(1)
+        os_remove(offset_path)
+
+
     async def socketconnection(self):
         '''
         Main socket connection function
@@ -249,6 +286,11 @@ class HIDIOClient:
         watcher = [self.socketwatcher()]
         self.overalltasks.append(asyncio.gather(*watcher, return_exceptions=True))
 
+        # Start hid-io-core log watcher
+        logging.debug("Backgrounding corelogwatcher")
+        watcher = [self.corelogwatcher()]
+        self.overalltasks.append(asyncio.gather(*watcher, return_exceptions=True))
+
         # Lookup version information
         self.version_info = (await self.cap.version().a_wait()).version
         logger.info(self.version_info)
@@ -260,6 +302,20 @@ class HIDIOClient:
         # Lookup name
         self.daemon_name = (await self.cap.name().a_wait()).name
         logger.info("name: %s", self.daemon_name)
+
+        # Lookup log files
+        self.core_log_files = (await self.cap.logFiles().a_wait()).paths
+        logger.info("hid-io-core log files: %s", self.core_log_files)
+        try:
+            self.core_current_log_file = [f for f in self.core_log_files if 'rCURRENT' in f][0]
+            self.core_current_log_file_offset = "{}.offset.{}".format(
+                self.core_current_log_file,
+                self.uid_info
+            )
+            self.reset_corelog_followposition()
+        except IndexError:
+            self.core_current_log_file = None
+            logger.warn("Could not find current hid-io-core log file...")
 
         # AUTH_NONE doesn't need to go any further
         cap_auth = None
@@ -402,6 +458,22 @@ class HIDIOClient:
         '''
         This callback is an asynchronous event by HID-IO Core
         If connected, will return a list of nodes only when the list updates
+        '''
+
+
+    def on_core_log_entry(self, entry):
+        '''
+        This callback is triggered whenever a new entry is made
+        in the hid-io-core log file.
+        If hid-io-core is not available the location of the log
+        file is not known (and thus will not be called).
+        It's possible that the location of the log file can
+        change on hid-io-core restart.
+        i.e. this function will follow the new log file as soon
+        as it is known.
+
+        The log file location is not cleared on disconnect in case
+        of problems starting/reconnecting with hid-io-core.
         '''
 
 

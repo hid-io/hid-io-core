@@ -16,6 +16,7 @@ description-file = "README.md"
 requires = [
     "cython>=0.29",
     "pycapnp-async>=0.7",
+    "pygtail>=0.11.1",
 ]
 requires-python = ">=3.7"
 

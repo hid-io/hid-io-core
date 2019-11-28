@@ -193,7 +193,7 @@ fn processing(mut mailer: HIDIOMailer) {
             api.refresh_devices().unwrap();
 
             // Iterate over found USB interfaces and select usable ones
-            info!("Scanning for devices");
+            debug!("Scanning for devices");
             for device_info in api.devices() {
                 debug!("{:#x?}", device_info);
 

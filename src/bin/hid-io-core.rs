@@ -22,49 +22,58 @@ extern crate log;
 #[macro_use]
 extern crate windows_service;
 
-use clap::App;
-use hid_io_core::{api, built_info, device, module};
-
 use crate::device::{HIDIOMailbox, HIDIOMailer, HIDIOMessage};
+use clap::App;
+use hid_io_core::RUNNING;
+use hid_io_core::{api, built_info, device, module};
+use std::env;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::channel;
 
-use hid_io_core::RUNNING;
-use std::sync::atomic::Ordering;
+/// Logging setup
+fn setup_logging() {
+    flexi_logger::Logger::with_env_or_str("")
+        .log_to_file()
+        .format(flexi_logger::colored_default_format)
+        .format_for_files(flexi_logger::colored_detailed_format)
+        .directory(env::temp_dir())
+        .rotate(
+            flexi_logger::Criterion::Size(1_000_000),
+            flexi_logger::Naming::Numbers,
+            flexi_logger::Cleanup::KeepLogFiles(5),
+        )
+        .duplicate_to_stderr(flexi_logger::Duplicate::All)
+        .start()
+        .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
+    info!("-------------------------- HID-IO Core starting! --------------------------");
+    info!("Log location -> {:?}", env::temp_dir());
+}
 
 #[cfg(windows)]
 fn main() -> Result<(), std::io::Error> {
     let args: Vec<_> = std::env::args().collect();
     if args.len() > 1 && args[1] == "-d" {
+        info!("-------------------------- HID-IO Core starting! --------------------------");
         match service::run() {
             Ok(_) => (),
             Err(_e) => panic!("Service failed"),
         }
     } else {
-        flexi_logger::Logger::with_env()
-            .start()
-            .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
-        info!("Running in interactive mode");
-
+        setup_logging();
         start();
     }
-
     Ok(())
 }
 
 #[cfg(not(windows))]
 fn main() -> Result<(), std::io::Error> {
-    flexi_logger::Logger::with_env()
-        .start()
-        .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
-
+    setup_logging();
     start();
     Ok(())
 }
 
 /// Main entry point
 fn start() {
-    info!("Starting!");
-
     // Setup signal handler
     let r = RUNNING.clone();
     ctrlc::set_handler(move || {
@@ -73,30 +82,29 @@ fn start() {
     .expect("Error setting Ctrl-C handler");
     println!("Press Ctrl-C to exit...");
 
+    let version_info = format!(
+        "{}{} - {}",
+        built_info::PKG_VERSION,
+        built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
+        built_info::PROFILE,
+    );
+    info!("Version: {}", version_info);
+    let after_info = format!(
+        "{} ({}) -> {} ({})",
+        built_info::RUSTC_VERSION,
+        built_info::HOST,
+        built_info::TARGET,
+        built_info::BUILT_TIME_UTC,
+    );
+    info!("Build: {}", after_info);
+
     // Process command-line arguments
     // Most of the information is generated from Cargo.toml using built crate (build.rs)
     App::new(built_info::PKG_NAME.to_string())
-        .version(
-            format!(
-                "{}{} - {}",
-                built_info::PKG_VERSION,
-                built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
-                built_info::PROFILE,
-            )
-            .as_str(),
-        )
+        .version(version_info.as_str())
         .author(built_info::PKG_AUTHORS)
         .about(format!("\n{}", built_info::PKG_DESCRIPTION).as_str())
-        .after_help(
-            format!(
-                "{} ({}) -> {} ({})",
-                built_info::RUSTC_VERSION,
-                built_info::HOST,
-                built_info::TARGET,
-                built_info::BUILT_TIME_UTC,
-            )
-            .as_str(),
-        )
+        .after_help(after_info.as_str())
         .get_matches();
 
     // Start initialization
@@ -126,7 +134,7 @@ fn start() {
     while RUNNING.load(Ordering::SeqCst) {}
     println!("Waiting for threads to finish...");
     thread.join().unwrap();
-    println!("Exiting.");
+    info!("-------------------------- HID-IO Core exiting! --------------------------");
 }
 
 #[cfg(windows)]

@@ -20,7 +20,7 @@ fn main() -> windows_service::Result<()> {
 
     let service_binary_path = ::std::env::current_exe()
         .unwrap()
-        .with_file_name("hid-io.exe");
+        .with_file_name("hid-io-core.exe");
 
     let service_info = ServiceInfo {
         name: OsString::from(SERVICE_NAME),

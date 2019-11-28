@@ -13,7 +13,7 @@ documentation = "https://hid-io.github.io/hid-io/hid_io/"
 
 edition       = "2018"
 build         = "build.rs"
-default-run   = "hid-io"
+default-run   = "hid-io-core"
 
 
 [features]
@@ -35,10 +35,11 @@ clap            = "2.32.0"
 ctrlc           = "3.0"
 daemon          = "0.0.8"
 lazy_static     = "1.2.0"
-flexi_logger    = "0.10.6"
+flexi_logger    = "0.14.5"
 futures         = "0.1.28"
+glob            = "0.3"
 hidapi          = "1.0.1"
-log             = "0.4.3"
+log             = "0.4"
 nanoid          = "0.2.0"
 open            = "1.2.2"
 rand            = "0.6.4"
@@ -75,10 +76,10 @@ core-graphics = "0.17.3"
 
 
 [package.metadata.bundle]
-identifier = "io.github.hid-io.hid-io"
+identifier = "io.github.hid-io.hid-io-core"
 category = "public.app-category.utilities"
 icon = ["128x128.png"]
-resources = ["hid-io.service"]
+resources = ["hid-io-core.service"]
 
 
 [profile.release]

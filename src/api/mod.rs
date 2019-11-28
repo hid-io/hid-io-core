@@ -25,6 +25,7 @@ pub use crate::usbkeyboard_capnp::*;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::env;
 use std::io::Write;
 use std::net::ToSocketAddrs;
 use std::rc::Rc;
@@ -43,6 +44,7 @@ use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use glob::glob;
 use lazy_static::lazy_static;
 use nanoid;
 use rcgen::generate_simple_self_signed;
@@ -326,6 +328,32 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn name(&mut self, _params: NameParams, mut results: NameResults) -> Promise<(), Error> {
         results.get().set_name("hid-io-core");
+        Promise::ok(())
+    }
+
+    fn log_files(
+        &mut self,
+        _params: LogFilesParams,
+        mut results: LogFilesResults,
+    ) -> Promise<(), Error> {
+        // Get list of log files
+        let path = env::temp_dir()
+            .join("hid-io-core*.log")
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let files: Vec<_> = glob(path.as_str())
+            .expect("Failed to find log files...")
+            .collect();
+        let mut result = results.get().init_paths(files.len() as u32);
+        for (i, f) in files.iter().enumerate() {
+            if let Ok(f) = f {
+                result.set(
+                    i as u32,
+                    f.clone().into_os_string().into_string().unwrap().as_str(),
+                );
+            }
+        }
         Promise::ok(())
     }
 }

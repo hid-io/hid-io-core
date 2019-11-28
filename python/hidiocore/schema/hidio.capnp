@@ -78,6 +78,10 @@ interface HIDIOServer {
 
     name @6 () -> (name :Text);
     # Name of HID-IO Server
+
+    logFiles @7 () -> (paths :List(Text));
+    # Path to the local hid-io core log file(s)
+    # rCURRENT is the current active log file
 }
 
 interface HIDIO {
