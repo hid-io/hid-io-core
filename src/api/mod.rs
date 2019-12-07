@@ -675,61 +675,60 @@ pub fn initialize(mailbox: HIDIOMailbox) {
         config.accept(socket)
     });
 
-    let server = tls_handshake.map(|acceptor| {
-        let rc = Rc::clone(&master);
-        let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
-        let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer, nodes.clone());
-        {
-            let mut writers = WRITERS_RC.lock().unwrap();
-            (*writers).push(sink);
-            let mut readers = READERS_RC.lock().unwrap();
-            (*readers).push(hidapi_reader);
-        }
+    let server =
+        tls_handshake.map(|acceptor| {
+            let rc = Rc::clone(&master);
+            let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
+            let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer, nodes.clone());
+            {
+                let mut writers = WRITERS_RC.lock().unwrap();
+                (*writers).push(sink);
+                let mut readers = READERS_RC.lock().unwrap();
+                (*readers).push(hidapi_reader);
+            }
 
-        let handle = handle.clone();
-        let subscribers_next_id = subscribers_next_id.clone();
-        let subscribers = subscribers.clone();
-        acceptor.and_then(move |stream| {
-            // Save connection address for later
-            let addr = stream.get_ref().0.peer_addr().ok().unwrap();
+            let handle = handle.clone();
+            let subscribers_next_id = subscribers_next_id.clone();
+            let subscribers = subscribers.clone();
+            acceptor.and_then(move |stream| {
+                // Save connection address for later
+                let addr = stream.get_ref().0.peer_addr().ok().unwrap();
 
-            // Assign a uid to the connection
-            let uid = {
-                let mut m = rc.borrow_mut();
-                m.last_uid += 1;
-                let uid = m.last_uid;
-                m.connections.insert(uid, vec![]);
-                uid
-            };
+                // Assign a uid to the connection
+                let uid = {
+                    let mut m = rc.borrow_mut();
+                    m.last_uid += 1;
+                    let uid = m.last_uid;
+                    m.connections.insert(uid, vec![]);
+                    uid
+                };
 
-            // Initialize auth tokens
-            let hidio_server = HIDIOServerImpl::new(
-                Rc::clone(&rc),
-                uid,
-                mailbox,
-                subscribers_next_id,
-                subscribers,
-            );
+                // Initialize auth tokens
+                let hidio_server = HIDIOServerImpl::new(
+                    Rc::clone(&rc),
+                    uid,
+                    mailbox,
+                    subscribers_next_id,
+                    subscribers,
+                );
 
-            // Setup capnproto server
-            let hidio_server =
-                h_i_d_i_o_server::ToClient::new(hidio_server).into_client::<::capnp_rpc::Server>();
+                // Setup capnproto server
+                let hidio_server = h_i_d_i_o_server::ToClient::new(hidio_server)
+                    .into_client::<::capnp_rpc::Server>();
 
-            let (reader, writer) = stream.split();
-            let network = twoparty::VatNetwork::new(
-                reader,
-                writer,
-                rpc_twoparty_capnp::Side::Server,
-                Default::default(),
-            );
+                let (reader, writer) = stream.split();
+                let network = twoparty::VatNetwork::new(
+                    reader,
+                    writer,
+                    rpc_twoparty_capnp::Side::Server,
+                    Default::default(),
+                );
 
-            // Setup capnproto RPC
-            let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
-            handle.spawn(
-                rpc_system
-                    .map_err(|e| println!("{}", e))
-                    .and_then(move |_| {
-                        info!("Connection closed:7185 - {:?}", addr);
+                // Setup capnproto RPC
+                let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
+                handle.spawn(rpc_system.map_err(|e| info!("rpc_system: {}", e)).and_then(
+                    move |_| {
+                        info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);
 
                         // Client disconnected, delete node
                         let connected_nodes = &rc.borrow().connections[&uid].clone();
@@ -737,11 +736,11 @@ pub fn initialize(mailbox: HIDIOMailbox) {
                             .nodes
                             .retain(|x| !connected_nodes.contains(&x.id));
                         Ok(())
-                    }),
-            );
-            Ok(())
-        })
-    });
+                    },
+                ));
+                Ok(())
+            })
+        });
 
     // Mailbox thread
     std::thread::spawn(move || {
@@ -903,7 +902,7 @@ pub fn initialize(mailbox: HIDIOMailbox) {
     core.run(
         server
             .for_each(|client| {
-                handle.spawn(client.map_err(|e| println!("{}", e)));
+                handle.spawn(client.map_err(|e| info!("core.run.server: {}", e)));
                 Ok(())
             })
             .join(send_to_subscribers),
