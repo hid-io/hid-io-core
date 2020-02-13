@@ -2,7 +2,7 @@
 HID-IO Python Client Library
 '''
 
-# Copyright (C) 2019 by Jacob Alexander
+# Copyright (C) 2019-2020 by Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -207,7 +207,6 @@ class HIDIOClient:
             os.remove(self.core_current_log_file_offset)
         except Exception as err:
             logger.warn("No hid-io-core log offset file: %s", err)
-            pass
 
 
     async def corelogwatcher(self):
@@ -225,7 +224,6 @@ class HIDIOClient:
                         self.on_core_log_entry(line)
                 except Exception as err:
                     logger.error(err)
-                    pass
                 await asyncio.sleep(0.5)
             else:
                 await asyncio.sleep(1)
@@ -241,7 +239,7 @@ class HIDIOClient:
         self.retry_task = True
 
         # Setup SSL context
-        self.ctx = ssl.SSLContext()
+        self.ctx = ssl.SSLContext(protocol=ssl.PROTOCOL_TLSv1_2)
 
         # Handle both IPv4 and IPv6 cases
         try:
@@ -338,7 +336,8 @@ class HIDIOClient:
                 with open(key_location, 'r') as myfile:
                     self.key = myfile.read()
             except OSError as err:
-                logger.error("Could not read '%s'. This usually means insufficient permissions.", key_location)
+                #logger.error("Could not read '%s'. This usually means insufficient permissions.", key_location) # XXX (HaaTa): Commented out as this info is sensitive
+                logger.error("Could not read keyfile. This usually means insufficient permissions.")
                 logger.error(err)
                 await self.disconnect()
                 return False

@@ -63,8 +63,8 @@ jobs:
       - name: Install pycapnp dependencies and run test
         run: |
           cd python
-          python -m pip install cython pytest
-          CXXFLAGS=-fPIC CFLAGS=-fPIC python -m pip install pycapnp-async
+          python -m pip install cython
+          CXXFLAGS=-fPIC CFLAGS=-fPIC python -m pip install -r requirements.txt
           python -m pytest -vvv
 
   fmt:
