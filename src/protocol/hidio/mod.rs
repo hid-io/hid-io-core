@@ -16,15 +16,12 @@
 
 // ----- Crates -----
 
-use bincode;
-use serde;
-
 // ----- Modules -----
 
 use std::fmt;
 
-use self::bincode::serialize;
-use self::serde::ser::{self, Serialize, SerializeSeq, Serializer};
+use bincode::serialize;
+use serde::ser::{self, Serialize, SerializeSeq, Serializer};
 
 // ----- Enumerations -----
 

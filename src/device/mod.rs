@@ -65,7 +65,7 @@ impl HIDIOEndpoint {
                         println!("current state: {:?}", buffer);
                         std::process::exit(2);
                     } else {
-                        info!("R{} {:x?}", buffer.data.len(), buffer);
+                        debug!("R{} {:x?}", buffer.data.len(), buffer);
                     }
                 }
 
@@ -111,7 +111,7 @@ impl HIDIOEndpoint {
     }
 
     pub fn send_packet(&mut self, mut packet: HIDIOPacketBuffer) -> Result<(), std::io::Error> {
-        info!("Sending {:x?}", packet);
+        debug!("Sending {:x?}", packet);
         let buf: Vec<u8> = packet.serialize_buffer().unwrap();
         for chunk in buf
             .chunks(self.max_packet_len as usize)
@@ -254,19 +254,19 @@ impl HIDIOController {
 ///
 /// Can be cloned and passed around freely, even between threads
 pub struct HIDIOQueue {
-    pub info: Endpoint,
+    pub node: Endpoint,
     message_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
     response_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
 }
 
 impl HIDIOQueue {
     pub fn new(
-        info: Endpoint,
+        node: Endpoint,
         message_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
         response_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
     ) -> HIDIOQueue {
         HIDIOQueue {
-            info,
+            node,
             message_queue,
             response_queue,
         }
@@ -306,6 +306,7 @@ pub struct HIDIOMailer {
     connected: Arc<RwLock<Vec<Endpoint>>>,
     incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
     outgoing: Vec<std::sync::mpsc::Sender<HIDIOMessage>>,
+    lookup: HashMap<String, Vec<u64>>, // Used to re-use ids, a vector is used in case there are duplicates
 }
 
 impl HIDIOMailer {
@@ -313,19 +314,53 @@ impl HIDIOMailer {
         let devices = HashMap::new();
         let outgoing = vec![];
         let connected = Arc::new(RwLock::new(vec![]));
+        let lookup = HashMap::new();
 
         HIDIOMailer {
             devices,
             connected,
             incoming,
             outgoing,
+            lookup,
         }
+    }
+
+    /// Attempt to locate an unused id for the device key
+    pub fn get_id(&mut self, key: String, path: String) -> Option<u64> {
+        let lookup_entry = self.lookup.entry(key).or_insert(vec![]);
+
+        // Locate an id
+        'outer: for id in (*lookup_entry).iter() {
+            for mut node in (*self.connected.read().unwrap()).clone() {
+                if node.id() == *id {
+                    // Id is being used, and has the same path (i.e. this device)
+                    if node.path() == path {
+                        // Return an invalid Id (0)
+                        return Some(0);
+                    }
+
+                    // Id is being used, and is not available
+                    continue 'outer;
+                }
+            }
+            // Id is not being used
+            return Some(*id);
+        }
+
+        // Could not locate an id
+        None
+    }
+
+    /// Add id to lookup
+    pub fn add_id(&mut self, key: String, id: u64) {
+        let lookup_entry = self.lookup.entry(key).or_insert(vec![]);
+        (*lookup_entry).push(id);
     }
 
     pub fn register_device(&mut self, id: String, device: HIDIOQueue) {
         info!("Registering device: {}", id);
         let mut connected = self.connected.write().unwrap();
-        (*connected).push(device.info.clone());
+        (*connected).push(device.node.clone());
         self.devices.insert(id, device);
     }
 
@@ -333,7 +368,7 @@ impl HIDIOMailer {
         info!("Unregistering device: {}", id);
         let mut connected = self.connected.write().unwrap();
         *connected = connected
-            .drain_filter(|dev| dev.id.to_string() != id)
+            .drain_filter(|dev| dev.id().to_string() != id)
             .collect::<Vec<_>>();
         self.devices.remove(id);
     }
@@ -376,6 +411,7 @@ impl HIDIOMailer {
 /// Provides utility functions to construct common messages.
 pub struct HIDIOMailbox {
     pub nodes: Arc<RwLock<Vec<Endpoint>>>,
+    pub last_uid: Arc<RwLock<u64>>,
     incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
     outgoing: std::sync::mpsc::Sender<HIDIOMessage>,
 }
@@ -383,11 +419,13 @@ pub struct HIDIOMailbox {
 impl HIDIOMailbox {
     pub fn new(
         nodes: Arc<RwLock<Vec<Endpoint>>>,
+        last_uid: Arc<RwLock<u64>>,
         incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
         outgoing: std::sync::mpsc::Sender<HIDIOMessage>,
     ) -> HIDIOMailbox {
         HIDIOMailbox {
             nodes,
+            last_uid,
             incoming,
             outgoing,
         }
@@ -396,9 +434,10 @@ impl HIDIOMailbox {
     pub fn from_sender(
         dest: mpsc::Sender<HIDIOMessage>,
         nodes: Arc<RwLock<Vec<Endpoint>>>,
+        last_uid: Arc<RwLock<u64>>,
     ) -> (mpsc::Sender<HIDIOMessage>, HIDIOMailbox) {
         let (writer, reader) = channel::<HIDIOMessage>();
-        let mailbox = HIDIOMailbox::new(nodes, reader, dest);
+        let mailbox = HIDIOMailbox::new(nodes, last_uid, reader, dest);
         (writer, mailbox)
     }
 
@@ -492,11 +531,11 @@ impl HIDIOMailbox {
 /// Each device is repsonsible for accepting and responding to packet requests.
 /// It is also possible to send requests asynchronously back to any Modules.
 /// Each device may have it's own RPC API.
-pub fn initialize(mailer: HIDIOMailer) {
+pub fn initialize(mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
     info!("Initializing devices...");
 
     // Initialize device watcher threads
-    hidusb::initialize(mailer);
+    hidusb::initialize(mailer, last_uid);
 
     debug::initialize();
 }

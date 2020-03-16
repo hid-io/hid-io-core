@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 by Jacob Alexander
+/* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -29,6 +29,7 @@ use hid_io_core::{api, built_info, device, module};
 use std::env;
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::channel;
+use std::sync::{Arc, RwLock};
 
 /// Logging setup
 fn setup_logging() {
@@ -112,20 +113,22 @@ fn start() {
 
     let (mailer_writer, mailer_reader) = channel::<HIDIOMessage>();
     let mut mailer = HIDIOMailer::new(mailer_reader);
+    let last_uid = Arc::new(RwLock::new(0));
 
     let nodes1 = mailer.devices();
-    let (sink1, mailbox1) = HIDIOMailbox::from_sender(mailer_writer.clone(), nodes1);
+    let (sink1, mailbox1) =
+        HIDIOMailbox::from_sender(mailer_writer.clone(), nodes1, last_uid.clone());
     mailer.register_listener(sink1);
 
     let nodes2 = mailer.devices();
-    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer, nodes2);
+    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer, nodes2, last_uid.clone());
     mailer.register_listener(sink2);
 
     // Initialize Modules
     let thread = module::initialize(mailbox2);
 
     // Initialize Devices
-    device::initialize(mailer);
+    device::initialize(mailer, last_uid);
 
     // Initialize Cap'n'Proto API Server
     api::initialize(mailbox1);

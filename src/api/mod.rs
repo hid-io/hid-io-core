@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2019 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -46,10 +46,8 @@ use capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use glob::glob;
 use lazy_static::lazy_static;
-use nanoid;
 use rcgen::generate_simple_self_signed;
 use stream_cancel::{StreamExt, Tripwire};
-use tempfile;
 use tokio::io::AsyncRead;
 use tokio::prelude::*;
 use tokio_rustls::{
@@ -81,6 +79,7 @@ impl std::fmt::Display for NodeType {
             NodeType::HidioDaemon => write!(f, "HidioDaemon"),
             NodeType::HidioApi => write!(f, "HidioApi"),
             NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
+            NodeType::BleKeyboard => write!(f, "BleKeyboard"),
         }
     }
 }
@@ -101,25 +100,209 @@ pub enum AuthLevel {
     Debug,
 }
 
+/// HIDAPI Information
+#[derive(Debug, Clone, Default)]
+pub struct HIDAPIInfo {
+    path: String,
+    vendor_id: u16,
+    product_id: u16,
+    serial_number: String,
+    release_number: u16,
+    manufacturer_string: String,
+    product_string: String,
+    usage_page: u16,
+    usage: u16,
+    interface_number: i32,
+}
+
 /// Information about a connected node
 #[derive(Debug, Clone)]
 pub struct Endpoint {
-    pub type_: NodeType,
-    pub name: String,
-    pub serial: String,
-    pub id: u64,
-    pub created: Instant,
+    type_: NodeType,
+    name: String,   // Used for hidio (e.g. hidioDaemon, hidioApi) types
+    serial: String, // Used for hidio (e.g. hidioDaemon, hidioApi) types
+    id: u64,
+    created: Instant,
+    hidapi: HIDAPIInfo,
+}
+
+impl std::fmt::Display for Endpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(
+            format!(
+                "id:{} {} {}",
+                self.id,
+                match self.type_ {
+                    NodeType::BleKeyboard => format!(
+                        "BLE [{:04x}:{:04x}-{:x}:{:x}] {}",
+                        self.hidapi.vendor_id,
+                        self.hidapi.product_id,
+                        self.hidapi.usage_page,
+                        self.hidapi.usage,
+                        self.hidapi.product_string,
+                    ),
+                    NodeType::UsbKeyboard => format!(
+                        "USB [{:04x}:{:04x}-{:x}:{:x}] [{}] {}",
+                        self.hidapi.vendor_id,
+                        self.hidapi.product_id,
+                        self.hidapi.usage_page,
+                        self.hidapi.usage,
+                        self.hidapi.manufacturer_string,
+                        self.hidapi.product_string,
+                    ),
+                    _ => self.name.clone(),
+                },
+                match self.type_ {
+                    NodeType::BleKeyboard | NodeType::UsbKeyboard =>
+                        self.hidapi.serial_number.clone(),
+                    _ => self.serial.clone(),
+                },
+            )
+            .as_str(),
+        )
+    }
 }
 
 impl Endpoint {
-    pub fn new(type_: NodeType, name: String, serial: String, id: u64) -> Endpoint {
+    pub fn new(type_: NodeType, id: u64) -> Endpoint {
         Endpoint {
             type_,
-            name,
-            serial,
+            name: "".to_string(),
+            serial: "".to_string(),
             id,
             created: Instant::now(),
+            hidapi: HIDAPIInfo {
+                ..Default::default()
+            },
         }
+    }
+
+    pub fn set_hidio_params(&mut self, name: String, serial: String) {
+        self.name = name;
+        self.serial = serial;
+    }
+
+    pub fn set_hidapi_params(
+        &mut self,
+        path: String,
+        vendor_id: u16,
+        product_id: u16,
+        serial_number: String,
+        release_number: u16,
+        manufacturer_string: String,
+        product_string: String,
+        usage_page: u16,
+        usage: u16,
+        interface_number: i32,
+    ) {
+        self.hidapi = HIDAPIInfo {
+            path,
+            vendor_id,
+            product_id,
+            serial_number,
+            release_number,
+            manufacturer_string,
+            product_string,
+            usage_page,
+            usage,
+            interface_number,
+        };
+        self.name = self.name();
+        self.serial = self.serial();
+    }
+
+    pub fn set_hidapi_path(&mut self, path: String) {
+        self.hidapi.path = path;
+    }
+
+    pub fn type_(&mut self) -> NodeType {
+        self.type_
+    }
+
+    pub fn name(&mut self) -> String {
+        match self.type_ {
+            NodeType::BleKeyboard => format!(
+                "[{:04x}:{:04x}-{:x}:{:x}] {}",
+                self.hidapi.vendor_id,
+                self.hidapi.product_id,
+                self.hidapi.usage_page,
+                self.hidapi.usage,
+                self.hidapi.product_string,
+            ),
+            NodeType::UsbKeyboard => format!(
+                "[{:04x}:{:04x}-{:x}:{:x}] [{}] {}",
+                self.hidapi.vendor_id,
+                self.hidapi.product_id,
+                self.hidapi.usage_page,
+                self.hidapi.usage,
+                self.hidapi.manufacturer_string,
+                self.hidapi.product_string,
+            ),
+            _ => self.name.clone(),
+        }
+    }
+
+    /// Used to generate a unique key that will point to this device
+    /// Empty fields are still used (in the case of bluetooth and the interface field on Windows
+    /// sometimes)
+    /// Does not include path, as the path may not uniquely identify device port or device
+    /// Does not include release number as this may be incrementing
+    pub fn key(&mut self) -> String {
+        match self.type_ {
+            NodeType::BleKeyboard | NodeType::UsbKeyboard => Endpoint::build_hidapi_key(
+                self.hidapi.vendor_id,
+                self.hidapi.product_id,
+                self.hidapi.serial_number.clone(),
+                self.hidapi.manufacturer_string.clone(),
+                self.hidapi.product_string.clone(),
+                self.hidapi.usage_page,
+                self.hidapi.usage,
+                self.hidapi.interface_number,
+            ),
+            _ => format!("name:{} serial:{}", self.name, self.serial,),
+        }
+    }
+
+    pub fn build_hidapi_key(
+        vendor_id: u16,
+        product_id: u16,
+        serial_number: String,
+        manufacturer_string: String,
+        product_string: String,
+        usage_page: u16,
+        usage: u16,
+        interface_number: i32,
+    ) -> String {
+        format!(
+            "vid:{:04x} pid:{:04x} serial:{} manufacturer:{} product:{} usage_page:{:x} usage:{:x} interface:{}",
+            vendor_id,
+            product_id,
+            serial_number,
+            manufacturer_string,
+            product_string,
+            usage_page,
+            usage,
+            interface_number,
+        )
+    }
+
+    pub fn serial(&mut self) -> String {
+        match self.type_ {
+            NodeType::BleKeyboard | NodeType::UsbKeyboard => self.hidapi.serial_number.clone(),
+            _ => self.serial.clone(),
+        }
+    }
+
+    pub fn id(&mut self) -> u64 {
+        self.id
+    }
+
+    pub fn created(&mut self) -> Instant {
+        self.created
+    }
+
+    pub fn path(&mut self) -> String {
+        self.hidapi.path.clone()
     }
 }
 
@@ -127,7 +310,6 @@ struct HIDIOMaster {
     nodes: Vec<Endpoint>,
     devices: Arc<RwLock<Vec<Endpoint>>>,
     connections: HashMap<u64, Vec<u64>>,
-    last_uid: u64,
 }
 
 impl HIDIOMaster {
@@ -136,7 +318,6 @@ impl HIDIOMaster {
             nodes: Vec::new(),
             devices,
             connections: HashMap::new(),
-            last_uid: 0,
         }
     }
 }
@@ -243,11 +424,10 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn basic(&mut self, params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
-        let node = Endpoint::new(
-            info.get_type().unwrap(),
+        let mut node = Endpoint::new(info.get_type().unwrap(), info.get_id());
+        node.set_hidio_params(
             info.get_name().unwrap().to_string(),
             info.get_serial().unwrap().to_string(),
-            info.get_id(),
         );
 
         // Verify incoming basic key
@@ -268,11 +448,10 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
     fn auth(&mut self, params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
-        let node = Endpoint::new(
-            info.get_type().unwrap(),
+        let mut node = Endpoint::new(info.get_type().unwrap(), info.get_id());
+        node.set_hidio_params(
             info.get_name().unwrap().to_string(),
             info.get_serial().unwrap().to_string(),
-            info.get_id(),
         );
 
         // Verify incoming auth key
@@ -657,6 +836,7 @@ pub fn initialize(mailbox: HIDIOMailbox) {
 
     let nodes = mailbox.nodes.clone();
     let m = HIDIOMaster::new(nodes.clone());
+    let last_uid = mailbox.last_uid.clone();
 
     let master = Rc::new(RefCell::new(m));
 
@@ -678,8 +858,10 @@ pub fn initialize(mailbox: HIDIOMailbox) {
     let server =
         tls_handshake.map(|acceptor| {
             let rc = Rc::clone(&master);
+            let last_uid = last_uid.clone();
             let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
-            let (sink, mailbox) = HIDIOMailbox::from_sender(hidapi_writer, nodes.clone());
+            let (sink, mailbox) =
+                HIDIOMailbox::from_sender(hidapi_writer, nodes.clone(), last_uid.clone());
             {
                 let mut writers = WRITERS_RC.lock().unwrap();
                 (*writers).push(sink);
@@ -697,10 +879,11 @@ pub fn initialize(mailbox: HIDIOMailbox) {
                 // Assign a uid to the connection
                 let uid = {
                     let mut m = rc.borrow_mut();
-                    m.last_uid += 1;
-                    let uid = m.last_uid;
-                    m.connections.insert(uid, vec![]);
-                    uid
+                    // Increment
+                    (*last_uid.write().unwrap()) += 1;
+                    let this_uid = *last_uid.read().unwrap();
+                    m.connections.insert(this_uid, vec![]);
+                    this_uid
                 };
 
                 // Initialize auth tokens

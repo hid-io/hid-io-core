@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2019 by Jacob Alexander
+# Copyright (C) 2017-2020 by Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,7 @@ enum NodeType {
     hidioDaemon @0;
     hidioApi @1;
     usbKeyboard @2;
+    bleKeyboard @3;
 }
 # Node types, please extend this enum as necessary
 # Should be generic types, nothing specific, use the text field for that

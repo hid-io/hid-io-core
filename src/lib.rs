@@ -41,37 +41,37 @@ pub mod built_info {
     include!(concat!(env!("OUT_DIR"), "/built.rs"));
 }
 
-/// [AUTO GENRATED]
+/// [AUTO GENERATED]
 pub mod common_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/common_capnp.rs"));
 }
 
-/// [AUTO GENRATED]
+/// [AUTO GENERATED]
 pub mod devicefunction_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/devicefunction_capnp.rs"));
 }
 
-/// [AUTO GENRATED]
+/// [AUTO GENERATED]
 pub mod hidiowatcher_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hidiowatcher_capnp.rs"));
 }
 
-/// [AUTO GENRATED]
+/// [AUTO GENERATED]
 pub mod hidio_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hidio_capnp.rs"));
 }
 
-/// [AUTO GENRATED]
+/// [AUTO GENERATED]
 pub mod hostmacro_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hostmacro_capnp.rs"));
 }
 
-/// [AUTO GENRATED]
+/// [AUTO GENERATED]
 pub mod usbkeyboard_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/usbkeyboard_capnp.rs"));

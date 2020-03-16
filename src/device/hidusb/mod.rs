@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2019 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,8 @@
 use crate::device::*;
 use crate::protocol::hidio::*;
 use crate::RUNNING;
-use hidapi;
+use lazy_static::lazy_static;
+use regex::Regex;
 use std::sync::atomic::Ordering;
 
 use std::sync::mpsc::channel;
@@ -27,11 +28,6 @@ use std::time::Instant;
 
 use crate::api::Endpoint;
 use crate::common_capnp::NodeType;
-
-// TODO (HaaTa) remove these constants when linux supports better matching
-pub const DEV_VID: u16 = 0x308f;
-pub const DEV_PID: u16 = 0x0011;
-pub const INTERFACE_NUMBER: i32 = 6;
 
 pub const USAGE_PAGE: u16 = 0xFF1C;
 pub const USAGE: u16 = 0x1100;
@@ -62,7 +58,7 @@ impl std::io::Read for HIDUSBDevice {
                 Ok(len)
             }
             Err(e) => {
-                warn!("{:?}", e);
+                warn!("Read - {:?}", e);
                 Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     format!("{:?}", e),
@@ -106,7 +102,7 @@ impl std::io::Write for HIDUSBDevice {
                 Ok(len)
             }
             Err(e) => {
-                warn!("{:?}", e);
+                warn!("Write - {:?}", e);
                 Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     format!("{:?}", e),
@@ -122,43 +118,44 @@ impl std::io::Write for HIDUSBDevice {
 
 impl HIDIOTransport for HIDUSBDevice {}
 
-fn device_name(device_info: &hidapi::HidDeviceInfo) -> String {
+fn device_name(device_info: &hidapi::DeviceInfo) -> String {
     let mut string = format!(
-        "[{:04x}:{:04x}] ",
-        device_info.vendor_id, device_info.product_id
+        "[{:04x}:{:04x}-{:x}:{:x}] I:{} ",
+        device_info.vendor_id(),
+        device_info.product_id(),
+        device_info.usage_page(),
+        device_info.usage(),
+        device_info.interface_number(),
     );
-    if let Some(m) = &device_info.manufacturer_string {
+    if let Some(m) = &device_info.manufacturer_string() {
         string += &m;
     }
-    if let Some(p) = &device_info.product_string {
+    if let Some(p) = &device_info.product_string() {
         string += &format!(" {}", p);
     }
-    if let Some(s) = &device_info.serial_number {
+    if let Some(s) = &device_info.serial_number() {
         string += &format!(" ({})", s);
     }
     string
 }
 
 #[cfg(target_os = "linux")]
-fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
-    // usage and usage_page both appear to always be 0, so we can't use them here
-    // product_string is also the same for all interfaces so it can't be used
-    // fall back to a manual interface number match
-    device_info.vendor_id == DEV_VID
-        && device_info.product_id == DEV_PID
-        && device_info.interface_number == INTERFACE_NUMBER
+fn match_device(device_info: &hidapi::DeviceInfo) -> bool {
+    // NOTE: This requires some patches to hidapi (https://github.com/libusb/hidapi/pull/139)
+    // interface number and usage are both queryable. Prefer usage
+    device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
 }
 
 #[cfg(target_os = "macos")]
-fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
+fn match_device(device_info: &hidapi::DeviceInfo) -> bool {
     // interface_number is always -1 but usage is fine
-    device_info.usage_page == USAGE_PAGE && device_info.usage == USAGE
+    device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
 }
 
 #[cfg(target_os = "windows")]
-fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
+fn match_device(device_info: &hidapi::DeviceInfo) -> bool {
     // interface and usage are both queryable. Prefer usage
-    device_info.usage_page == USAGE_PAGE && device_info.usage == USAGE
+    device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
 }
 
 /// hidusb processing
@@ -167,7 +164,7 @@ fn match_device(device_info: &hidapi::HidDeviceInfo) -> bool {
 /// The thread also handles reading/writing from connected interfaces
 ///
 /// XXX (HaaTa) hidapi is not thread-safe on all platforms, so don't try to create a thread per device
-fn processing(mut mailer: HIDIOMailer) {
+fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
     info!("Spawning hidusb spawning thread...");
 
     // Initialize HID interface
@@ -177,9 +174,6 @@ fn processing(mut mailer: HIDIOMailer) {
 
     let mut last_scan = Instant::now();
     let mut enumerate = true;
-
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
 
     // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
@@ -194,28 +188,113 @@ fn processing(mut mailer: HIDIOMailer) {
 
             // Iterate over found USB interfaces and select usable ones
             debug!("Scanning for devices");
-            for device_info in api.devices() {
-                debug!("{:#x?}", device_info);
+            for device_info in api.device_list() {
+                let device_str = format!(
+                    "Device: {:#?}\n    {} R:{}",
+                    device_info.path(),
+                    device_name(device_info),
+                    device_info.release_number()
+                );
+                debug!("{}", device_str);
 
-                // TODO (HaaTa) Do not use vid, pid + interface number to do match
-                // Instead use:
-                // 1) bInterfaceClass 0x03 (HID) + bInterfaceSubClass 0x00 (None) + bInterfaceProtocol 0x00 (None)
-                // 2) 2 endpoints, EP IN + EP OUT (both Interrupt)
-                // 3) iInterface, RawIO API Interface
+                // Use usage page and usage for matching HID-IO compatible device
                 if !match_device(device_info) {
                     continue;
                 }
+
+                // Determine if id can be reused
+                // Criteria
+                // 1. Must match (even if field isn't valid)
+                //    vid, pid, usage page, usage, manufacturer, product, serial, interface
+                // 2. Must not currently be in use (generally, use path to differentiate)
+                let key = Endpoint::build_hidapi_key(
+                    device_info.vendor_id(),
+                    device_info.product_id(),
+                    match device_info.serial_number() {
+                        Some(s) => s.to_string(),
+                        _ => "<Serial Unset>".to_string(),
+                    },
+                    match device_info.manufacturer_string() {
+                        Some(s) => s.to_string(),
+                        _ => "<Manufacturer Unset>".to_string(),
+                    },
+                    match device_info.product_string() {
+                        Some(s) => s.to_string(),
+                        _ => "<Product Unset>".to_string(),
+                    },
+                    device_info.usage_page(),
+                    device_info.usage(),
+                    device_info.interface_number(),
+                );
+
+                let id = match mailer.get_id(key.clone(), format!("{:#?}", device_info.path())) {
+                    Some(0) => {
+                        // Device has already been registered
+                        continue;
+                    }
+                    Some(id) => id,
+                    None => {
+                        // Get last created id and increment
+                        (*last_uid.write().unwrap()) += 1;
+                        let id = *last_uid.read().unwrap();
+
+                        // Add id to lookup
+                        mailer.add_id(key, id);
+                        id
+                    }
+                };
+
                 // Add device
-                info!("Connecting to {:#?}", device_info);
+                info!("Connecting to id:{} {}", id, device_str);
 
-                let path = device_info.path.clone();
+                // If serial number is a MAC address, this is a bluetooth device
+                lazy_static! {
+                    static ref RE: Regex =
+                        Regex::new(r"([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])")
+                            .unwrap();
+                }
+                let is_ble = RE.is_match(match device_info.serial_number() {
+                    Some(s) => s,
+                    _ => "",
+                });
 
-                // TODO: Don't try to connect to a device we are already processing
+                // Create node
+                let mut node = Endpoint::new(
+                    if is_ble {
+                        NodeType::BleKeyboard
+                    } else {
+                        NodeType::UsbKeyboard
+                    },
+                    id,
+                );
+                node.set_hidapi_params(
+                    format!("{:#?}", device_info.path()),
+                    device_info.vendor_id(),
+                    device_info.product_id(),
+                    match device_info.serial_number() {
+                        Some(s) => s.to_string(),
+                        _ => "<Serial Unset>".to_string(),
+                    },
+                    device_info.release_number(),
+                    match device_info.manufacturer_string() {
+                        Some(s) => s.to_string(),
+                        _ => "<Manufacturer Unset>".to_string(),
+                    },
+                    match device_info.product_string() {
+                        Some(s) => s.to_string(),
+                        _ => "<Product Unset>".to_string(),
+                    },
+                    device_info.usage_page(),
+                    device_info.usage(),
+                    device_info.interface_number(),
+                );
 
                 // Connect to device
+                debug!("Attempt to open {:#?}", node);
+                let path = device_info.path().clone();
                 match api.open_path(&path) {
                     Ok(device) => {
-                        println!("Connected to {}", device_name(device_info));
+                        println!("Connected to {}", node);
                         let device = HIDUSBDevice::new(device);
                         let mut device =
                             HIDIOEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
@@ -224,37 +303,24 @@ fn processing(mut mailer: HIDIOMailer) {
                         let (response_tx, response_rx) = channel::<HIDIOPacketBuffer>();
                         device.send_sync();
 
-                        let id = rng.gen::<u64>();
                         let master =
                             HIDIOController::new(id.to_string(), device, message_tx, response_rx);
                         devices.push(master);
 
                         // Add to connected list
-                        let info = Endpoint::new(
-                            NodeType::UsbKeyboard,
-                            device_info
-                                .product_string
-                                .clone()
-                                .unwrap_or_else(|| "[NONE]".to_string()),
-                            device_info
-                                .serial_number
-                                .clone()
-                                .unwrap_or_else(|| "".to_string()),
-                            id,
-                        );
-                        let device = HIDIOQueue::new(info, message_rx, response_tx);
+                        let device = HIDIOQueue::new(node, message_rx, response_tx);
                         mailer.register_device(id.to_string(), device);
                     }
                     Err(e) => {
                         // Could not open device (likely removed, or in use)
-                        warn!("{}", e);
+                        warn!("Processing - {}", e);
                         break;
                     }
                 };
             }
 
             if !devices.is_empty() {
-                info!("Enumeration finished");
+                debug!("Enumeration finished");
                 enumerate = false;
                 break;
             }
@@ -275,8 +341,9 @@ fn processing(mut mailer: HIDIOMailer) {
                 break;
             }
 
-            if last_scan.elapsed().as_secs() >= 60 {
-                info!("Been a while. Checking for new devices");
+            // TODO (HaaTa): Make command-line argument/config option
+            if last_scan.elapsed().as_secs() >= 5 {
+                debug!("Been a while. Checking for new devices");
                 enumerate = true;
                 break;
             }
@@ -286,7 +353,7 @@ fn processing(mut mailer: HIDIOMailer) {
                 .drain_filter(|dev| {
                     let ret = dev.process();
                     if ret.is_err() {
-                        info!("{} disconnected. No loneger polling it", dev.id);
+                        info!("{} disconnected. No longer polling it", dev.id);
                         mailer.unregister_device(&dev.id);
                     }
                     ret.is_ok()
@@ -304,12 +371,12 @@ fn processing(mut mailer: HIDIOMailer) {
 /// hidusb initialization
 ///
 /// Sets up a processing thread for hidusb.
-pub fn initialize(mailer: HIDIOMailer) {
+pub fn initialize(mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
     info!("Initializing device/hidusb...");
 
     // Spawn watcher thread
     thread::Builder::new()
         .name("hidusb".to_string())
-        .spawn(|| processing(mailer))
+        .spawn(|| processing(mailer, last_uid))
         .unwrap();
 }
