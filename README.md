@@ -3,10 +3,10 @@ HID-IO Client Side Library and Daemon
 
 ![Overview](misc/images/HID-IO_Overview.png)
 
-[![Linux Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io/actions)
-[![macOS Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io/actions)
-[![Windows Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io/actions)
-[![Doc Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Doc%20Deploy/badge.svg)](https://github.com/hid-io/hid-io/actions)
+[![Linux Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
+[![macOS Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
+[![Windows Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
+[![Doc Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Doc%20Deploy/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/hid-io/hid-io-core.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hid-io/hid-io-core/alerts/)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/hid-io/hid-io-core.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hid-io/hid-io-core/context:python)
 
