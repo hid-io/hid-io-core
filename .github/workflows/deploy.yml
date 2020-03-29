@@ -14,7 +14,7 @@ jobs:
           override: true
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev -y
+          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev libudev-dev -y
           # Install capnproto
           curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
           tar zxf capnproto-c++-0.7.0.tar.gz
