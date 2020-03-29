@@ -44,11 +44,8 @@ fn main() {
         .expect("schema compiler command");
 
     // Link libraries
-    match std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
-        "linux" => {
-            println!("cargo:rustc-link-lib=X11");
-            println!("cargo:rustc-link-lib=Xtst");
-        }
-        _ => {}
+    if let "linux" = std::env::var("CARGO_CFG_TARGET_OS").unwrap().as_str() {
+        println!("cargo:rustc-link-lib=X11");
+        println!("cargo:rustc-link-lib=Xtst");
     };
 }
