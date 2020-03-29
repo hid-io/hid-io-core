@@ -27,6 +27,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::api::Endpoint;
+use crate::api::HIDAPIInfo;
 use crate::common_capnp::NodeType;
 
 pub const USAGE_PAGE: u16 = 0xFF1C;
@@ -202,31 +203,35 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
                     continue;
                 }
 
+                // Build set of HID info to make unique comparisons
+                let mut info = HIDAPIInfo {
+                    path: format!("{:#?}", device_info.path()),
+                    vendor_id: device_info.vendor_id(),
+                    product_id: device_info.product_id(),
+                    serial_number: match device_info.serial_number() {
+                        Some(s) => s.to_string(),
+                        _ => "<Serial Unset>".to_string(),
+                    },
+                    release_number: device_info.release_number(),
+                    manufacturer_string: match device_info.manufacturer_string() {
+                        Some(s) => s.to_string(),
+                        _ => "<Manufacturer Unset>".to_string(),
+                    },
+                    product_string: match device_info.product_string() {
+                        Some(s) => s.to_string(),
+                        _ => "<Product Unset>".to_string(),
+                    },
+                    usage_page: device_info.usage_page(),
+                    usage: device_info.usage(),
+                    interface_number: device_info.interface_number(),
+                };
+
                 // Determine if id can be reused
                 // Criteria
                 // 1. Must match (even if field isn't valid)
                 //    vid, pid, usage page, usage, manufacturer, product, serial, interface
                 // 2. Must not currently be in use (generally, use path to differentiate)
-                let key = Endpoint::build_hidapi_key(
-                    device_info.vendor_id(),
-                    device_info.product_id(),
-                    match device_info.serial_number() {
-                        Some(s) => s.to_string(),
-                        _ => "<Serial Unset>".to_string(),
-                    },
-                    match device_info.manufacturer_string() {
-                        Some(s) => s.to_string(),
-                        _ => "<Manufacturer Unset>".to_string(),
-                    },
-                    match device_info.product_string() {
-                        Some(s) => s.to_string(),
-                        _ => "<Product Unset>".to_string(),
-                    },
-                    device_info.usage_page(),
-                    device_info.usage(),
-                    device_info.interface_number(),
-                );
-
+                let key = info.build_hidapi_key();
                 let id = match mailer.get_id(key.clone(), format!("{:#?}", device_info.path())) {
                     Some(0) => {
                         // Device has already been registered
@@ -267,32 +272,11 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
                     },
                     id,
                 );
-                node.set_hidapi_params(
-                    format!("{:#?}", device_info.path()),
-                    device_info.vendor_id(),
-                    device_info.product_id(),
-                    match device_info.serial_number() {
-                        Some(s) => s.to_string(),
-                        _ => "<Serial Unset>".to_string(),
-                    },
-                    device_info.release_number(),
-                    match device_info.manufacturer_string() {
-                        Some(s) => s.to_string(),
-                        _ => "<Manufacturer Unset>".to_string(),
-                    },
-                    match device_info.product_string() {
-                        Some(s) => s.to_string(),
-                        _ => "<Product Unset>".to_string(),
-                    },
-                    device_info.usage_page(),
-                    device_info.usage(),
-                    device_info.interface_number(),
-                );
+                node.set_hidapi_params(info);
 
                 // Connect to device
                 debug!("Attempt to open {:#?}", node);
-                let path = device_info.path().clone();
-                match api.open_path(&path) {
+                match api.open_path(device_info.path()) {
                     Ok(device) => {
                         println!("Connected to {}", node);
                         let device = HIDUSBDevice::new(device);
@@ -342,7 +326,7 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
             }
 
             // TODO (HaaTa): Make command-line argument/config option
-            if last_scan.elapsed().as_secs() >= 5 {
+            if last_scan.elapsed().as_secs() >= 1 {
                 debug!("Been a while. Checking for new devices");
                 enumerate = true;
                 break;

@@ -103,16 +103,32 @@ pub enum AuthLevel {
 /// HIDAPI Information
 #[derive(Debug, Clone, Default)]
 pub struct HIDAPIInfo {
-    path: String,
-    vendor_id: u16,
-    product_id: u16,
-    serial_number: String,
-    release_number: u16,
-    manufacturer_string: String,
-    product_string: String,
-    usage_page: u16,
-    usage: u16,
-    interface_number: i32,
+    pub path: String,
+    pub vendor_id: u16,
+    pub product_id: u16,
+    pub serial_number: String,
+    pub release_number: u16,
+    pub manufacturer_string: String,
+    pub product_string: String,
+    pub usage_page: u16,
+    pub usage: u16,
+    pub interface_number: i32,
+}
+
+impl HIDAPIInfo {
+    pub fn build_hidapi_key(&mut self) -> String {
+        format!(
+            "vid:{:04x} pid:{:04x} serial:{} manufacturer:{} product:{} usage_page:{:x} usage:{:x} interface:{}",
+            self.vendor_id,
+            self.product_id,
+            self.serial_number,
+            self.manufacturer_string,
+            self.product_string,
+            self.usage_page,
+            self.usage,
+            self.interface_number,
+        )
+    }
 }
 
 /// Information about a connected node
@@ -182,31 +198,8 @@ impl Endpoint {
         self.serial = serial;
     }
 
-    pub fn set_hidapi_params(
-        &mut self,
-        path: String,
-        vendor_id: u16,
-        product_id: u16,
-        serial_number: String,
-        release_number: u16,
-        manufacturer_string: String,
-        product_string: String,
-        usage_page: u16,
-        usage: u16,
-        interface_number: i32,
-    ) {
-        self.hidapi = HIDAPIInfo {
-            path,
-            vendor_id,
-            product_id,
-            serial_number,
-            release_number,
-            manufacturer_string,
-            product_string,
-            usage_page,
-            usage,
-            interface_number,
-        };
+    pub fn set_hidapi_params(&mut self, info: HIDAPIInfo) {
+        self.hidapi = info;
         self.name = self.name();
         self.serial = self.serial();
     }
@@ -249,41 +242,9 @@ impl Endpoint {
     /// Does not include release number as this may be incrementing
     pub fn key(&mut self) -> String {
         match self.type_ {
-            NodeType::BleKeyboard | NodeType::UsbKeyboard => Endpoint::build_hidapi_key(
-                self.hidapi.vendor_id,
-                self.hidapi.product_id,
-                self.hidapi.serial_number.clone(),
-                self.hidapi.manufacturer_string.clone(),
-                self.hidapi.product_string.clone(),
-                self.hidapi.usage_page,
-                self.hidapi.usage,
-                self.hidapi.interface_number,
-            ),
+            NodeType::BleKeyboard | NodeType::UsbKeyboard => self.hidapi.build_hidapi_key(),
             _ => format!("name:{} serial:{}", self.name, self.serial,),
         }
-    }
-
-    pub fn build_hidapi_key(
-        vendor_id: u16,
-        product_id: u16,
-        serial_number: String,
-        manufacturer_string: String,
-        product_string: String,
-        usage_page: u16,
-        usage: u16,
-        interface_number: i32,
-    ) -> String {
-        format!(
-            "vid:{:04x} pid:{:04x} serial:{} manufacturer:{} product:{} usage_page:{:x} usage:{:x} interface:{}",
-            vendor_id,
-            product_id,
-            serial_number,
-            manufacturer_string,
-            product_string,
-            usage_page,
-            usage,
-            interface_number,
-        )
     }
 
     pub fn serial(&mut self) -> String {

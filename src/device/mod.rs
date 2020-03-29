@@ -327,7 +327,7 @@ impl HIDIOMailer {
 
     /// Attempt to locate an unused id for the device key
     pub fn get_id(&mut self, key: String, path: String) -> Option<u64> {
-        let lookup_entry = self.lookup.entry(key).or_insert(vec![]);
+        let lookup_entry = self.lookup.entry(key).or_insert_with(|| vec![]);
 
         // Locate an id
         'outer: for id in (*lookup_entry).iter() {
@@ -353,7 +353,7 @@ impl HIDIOMailer {
 
     /// Add id to lookup
     pub fn add_id(&mut self, key: String, id: u64) {
-        let lookup_entry = self.lookup.entry(key).or_insert(vec![]);
+        let lookup_entry = self.lookup.entry(key).or_insert_with(|| vec![]);
         (*lookup_entry).push(id);
     }
 
