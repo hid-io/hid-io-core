@@ -35,7 +35,7 @@ pub const USAGE: u16 = 0x1100;
 
 const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
-const POLL_DELAY: u64 = 1;
+const POLL_DELAY: u64 = 10;
 
 pub struct HIDUSBDevice {
     device: hidapi::HidDevice,
@@ -204,27 +204,7 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
                 }
 
                 // Build set of HID info to make unique comparisons
-                let mut info = HIDAPIInfo {
-                    path: format!("{:#?}", device_info.path()),
-                    vendor_id: device_info.vendor_id(),
-                    product_id: device_info.product_id(),
-                    serial_number: match device_info.serial_number() {
-                        Some(s) => s.to_string(),
-                        _ => "<Serial Unset>".to_string(),
-                    },
-                    release_number: device_info.release_number(),
-                    manufacturer_string: match device_info.manufacturer_string() {
-                        Some(s) => s.to_string(),
-                        _ => "<Manufacturer Unset>".to_string(),
-                    },
-                    product_string: match device_info.product_string() {
-                        Some(s) => s.to_string(),
-                        _ => "<Product Unset>".to_string(),
-                    },
-                    usage_page: device_info.usage_page(),
-                    usage: device_info.usage(),
-                    interface_number: device_info.interface_number(),
-                };
+                let mut info = HIDAPIInfo::new(device_info);
 
                 // Determine if id can be reused
                 // Criteria

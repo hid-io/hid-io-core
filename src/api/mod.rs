@@ -129,6 +129,30 @@ impl HIDAPIInfo {
             self.interface_number,
         )
     }
+
+    pub fn new(device_info: &hidapi::DeviceInfo) -> HIDAPIInfo {
+        HIDAPIInfo {
+            path: format!("{:#?}", device_info.path()),
+            vendor_id: device_info.vendor_id(),
+            product_id: device_info.product_id(),
+            serial_number: match device_info.serial_number() {
+                Some(s) => s.to_string(),
+                _ => "<Serial Unset>".to_string(),
+            },
+            release_number: device_info.release_number(),
+            manufacturer_string: match device_info.manufacturer_string() {
+                Some(s) => s.to_string(),
+                _ => "<Manufacturer Unset>".to_string(),
+            },
+            product_string: match device_info.product_string() {
+                Some(s) => s.to_string(),
+                _ => "<Product Unset>".to_string(),
+            },
+            usage_page: device_info.usage_page(),
+            usage: device_info.usage(),
+            interface_number: device_info.interface_number(),
+        }
+    }
 }
 
 /// Information about a connected node

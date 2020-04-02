@@ -223,7 +223,7 @@ impl HIDIOController {
         }
 
         if self.last_sync.elapsed().as_secs() >= 5 {
-            if let Err(_) = self.device.send_sync() {
+            if self.device.send_sync().is_err() {
                 return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
             };
             self.received = self.device.create_buffer();
