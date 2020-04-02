@@ -527,16 +527,25 @@ impl HIDIOImpl {
         }
     }
 
-    fn init_signal(&self, mut signal: h_i_d_i_o::signal::Builder<'_>, message: HIDIOMessage) {
+    fn init_signal(
+        &self,
+        mut signal: h_i_d_i_o::signal::Builder<'_>,
+        message: HIDIOMessage,
+    ) -> Promise<(), Error> {
         signal.set_time(15);
 
         {
             let master = self.master.borrow();
             let devices = &master.devices.read().unwrap();
-            let device = devices
-                .iter()
-                .find(|d| d.id.to_string() == message.device)
-                .unwrap();
+            let device = match devices.iter().find(|d| d.id.to_string() == message.device) {
+                None => {
+                    return Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: format!("Could not find id {} in device list", message.device),
+                    })
+                }
+                Some(v) => v,
+            };
 
             let mut source = signal.reborrow().init_source();
             source.set_type(device.type_);
@@ -557,6 +566,7 @@ impl HIDIOImpl {
                 d.set(i as u32, message.message.data[i]);
             }
         }
+        Promise::ok(())
     }
 }
 
@@ -568,8 +578,7 @@ impl h_i_d_i_o::Server for HIDIOImpl {
                 if let Some(message) = incoming.recv_psuedoblocking() {
                     results.get().set_time(10);
                     let signal = results.get().init_signal(1).get(0);
-                    self.init_signal(signal, message);
-                    Promise::ok(())
+                    self.init_signal(signal, message)
                 } else {
                     Promise::err(capnp::Error {
                         kind: capnp::ErrorKind::Overloaded,

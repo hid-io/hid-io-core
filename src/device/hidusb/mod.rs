@@ -285,7 +285,11 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
 
                         let (message_tx, message_rx) = channel::<HIDIOPacketBuffer>();
                         let (response_tx, response_rx) = channel::<HIDIOPacketBuffer>();
-                        device.send_sync();
+                        if let Err(e) = device.send_sync() {
+                            // Could not open device (likely removed, or in use)
+                            warn!("Processing - {}", e);
+                            break;
+                        }
 
                         let master =
                             HIDIOController::new(id.to_string(), device, message_tx, response_rx);

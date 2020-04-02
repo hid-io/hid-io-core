@@ -123,7 +123,7 @@ impl HIDIOEndpoint {
         Ok(())
     }
 
-    pub fn send_sync(&mut self) {
+    pub fn send_sync(&mut self) -> Result<(), std::io::Error> {
         self.send_packet(HIDIOPacketBuffer {
             ptype: HIDIOPacketType::Sync,
             id: 0,
@@ -131,7 +131,6 @@ impl HIDIOEndpoint {
             data: vec![],
             done: true,
         })
-        .unwrap();
     }
 
     pub fn send_ack(&mut self, _id: u32, data: Vec<u8>) {
@@ -224,7 +223,9 @@ impl HIDIOController {
         }
 
         if self.last_sync.elapsed().as_secs() >= 5 {
-            self.device.send_sync();
+            if let Err(_) = self.device.send_sync() {
+                return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
+            };
             self.received = self.device.create_buffer();
             self.last_sync = Instant::now();
             return Ok(());
@@ -395,6 +396,10 @@ impl HIDIOMailer {
         }
 
         for message in self.incoming.try_iter() {
+            // Make sure device still exists
+            if !self.devices.contains_key(&message.device) {
+                continue;
+            }
             let device = &self.devices[&message.device];
             let ret = device.send_packet(message.message);
             if ret.is_err() {
