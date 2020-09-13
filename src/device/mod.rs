@@ -94,6 +94,9 @@ impl HIDIOEndpoint {
                         HIDIOPacketType::ACK => {
                             // Don't ack an ack
                         }
+                        HIDIOPacketType::NAData | HIDIOPacketType::NAContinued => {
+                            // Don't ack no ack packets
+                        }
                         HIDIOPacketType::NAK => {
                             println!("NACK");
                             break;
@@ -196,6 +199,9 @@ impl HIDIOController {
                             self.received = self.device.create_buffer();
                         }
                         HIDIOPacketType::ACK => {
+                            // Don't ack an ack
+                        }
+                        HIDIOPacketType::NAData | HIDIOPacketType::NAContinued => {
                             // Don't ack an ack
                         }
                         HIDIOPacketType::NAK => {

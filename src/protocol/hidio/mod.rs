@@ -28,7 +28,7 @@ use serde::ser::{self, Serialize, SerializeSeq, Serializer};
 /// HID-IO Packet Types
 ///
 /// # Remarks
-/// Must not be larger than 0x7, 5-7 are reserved.
+/// Must not be larger than 0x7, 7 is reserved.
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum HIDIOPacketType {
     /// Data packet
@@ -41,6 +41,10 @@ pub enum HIDIOPacketType {
     Sync = 3,
     /// Continued packet
     Continued = 4,
+    /// No acknowledgement data packet
+    NAData = 5,
+    /// No acknowledgement continued packet
+    NAContinued = 6,
 }
 
 #[repr(u16)]
@@ -553,6 +557,8 @@ impl Serialize for HIDIOPacketBuffer {
             HIDIOPacketType::NAK => 2,
             HIDIOPacketType::Sync => 3,
             HIDIOPacketType::Continued => 4,
+            HIDIOPacketType::NAData => 5,
+            HIDIOPacketType::NAContinued => 6,
         };
 
         // Convert Id into bytes
@@ -705,6 +711,8 @@ impl fmt::Display for HIDIOPacketType {
             HIDIOPacketType::NAK => "HIDIOPacketBuffer::NAK",
             HIDIOPacketType::Sync => "HIDIOPacketBuffer::Sync",
             HIDIOPacketType::Continued => "HIDIOPacketBuffer::Continued",
+            HIDIOPacketType::NAData => "HIDIOPacketBuffer::NAData",
+            HIDIOPacketType::NAContinued => "HIDIOPacketBuffer::NAContinued",
         };
         write!(f, "{}", ptype_name)
     }

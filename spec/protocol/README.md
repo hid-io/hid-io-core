@@ -9,6 +9,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 * 2019-01-07 - Updated Proposed Implementation - v0.1.1 (HaaTa)
 * 2019-02-09 - Clarification of continued packet format - v0.1.2 (HaaTa)
 * 2019-02-15 - Adding pixel control HID-IO packets - v0.1.3 (HaaTa)
+* 2020-07-29 - Added No Acknowledgement Data and Continued packet types - v0.1.4 (HaaTa)
 
 ## Glossary
 
@@ -102,11 +103,12 @@ __Requirements of transmission__
 * Each side periodically (~1-5 seconds) sends Sync packets as a keep-alive. If more than one Sync is received while waiting for an Ack or Nak the previous data packet was not successfully processed. Sync packets should only be sent if the device/host has not sent a packet during a given time interval.
 * If a request is received while sending its own query, finish sending the query, then immediately process the request. Do not send a Sync between unless sending a packet using the max payload. In this case a Sync packet should be sent immediately after to tell the receiver that the packet will not be continued.
 * When receiving a Nak packet, any pending continued packets for that sequence must be dropped. Nak packet may, or may not contain a payload. No payload indicates that the request is not suported.
+* No acknowledement packets (Data and Continued) are used when no response is needed. This is to facilitate lower latency communication such as keypresses or debug message data.
 
 
 **Packet Types**
 
-HID-IO has a 5 different packet types: Data **b000**, Acknowledge **b001**, Negative Acknowledge **b002**, Sync **b003** and Continued **b004** packets. Packets labels 5 through 7 are reserved. These 3 bits are included in the Header byte of each packet.
+HID-IO has a 7 different packet types: Data **b000**, Acknowledge **b001**, Negative Acknowledge **b002**, Sync **b003**, Continued **b004** packets, No Acknowledgement Data **b005** and No Acknowledgement Continued **b006**. Packets label 7 is reserved. These 3 bits are included in the Header byte of each packet.
 
 ```
 VVVW XYZZ
@@ -124,7 +126,9 @@ b001 - Acknowledge
 b010 - Negative Acknowledge
 b011 - Sync
 b100 - Continued
-b101 to b111 are Reserved
+b101 - No Acknowledgement Data
+b110 - No Acknowledgement Continued
+b111 is Reserved
 
 |Continued|
 b0 - All data payload fits into one packet
@@ -186,6 +190,22 @@ __Sync Packet__
 
 Sync Packet
 0x60
+```
+
+__No Acknowledgement Data Packet__
+```
+<data> <length> <Id> [payload]
+
+No Acknowledgement Data Packet, 32 bit Id, Continued, 4 byte length (actual length 6), Id 15
+0xB8 0x04 0x0F 0x00 0x00 0x00
+```
+
+__Continued Packet__
+```
+<cont> <length> <Id> [payload]
+
+No Acknowledgement Continued packet, 16 bit id, 2 length (actual length 4), Id 10, Payload 0xFE
+0xA0 0x02 0x0A 0x00 0xFE
 ```
 
 
@@ -438,6 +458,22 @@ WARNING: Do not allow flash mode without some sort of physical interaction as th
  * 0x01 - Disabled
 ```
 
+#### Sleep Mode
+```
+0x1A
+
+Indicates to the device to enter deep sleep mode.
+In order to wake the device a physical must be pressed (in many cases).
+Not all devices fully support sleep mode as wake-up conditions may be difficult to satisfy.
+
+WARNING: Do not allow flash mode without some sort of physical interaction as this is a serious security hazard.
+
++> (No payload)
+-> Error code
+ * 0x00 - Not supported
+ * 0x01 - Disabled
+```
+
 #### Pixel Setting
 ```
 0x21 <command:16 bits> <argument:16 bits>
@@ -557,10 +593,13 @@ If there is no channel for a given pixel (pixel address is unassigned or using o
 * 0x17 - (Device)      [UTF-8 Character Stream](#utf-8-character-stream)
 * 0x18 - (Device)      [UTF-8 State](#utf-8-state)
 * 0x19 - (Device)      [Trigger Host Macro](trigger-host-macro)
+* 0x1A - (Host)        [Sleep Mode](#sleep-mode)
 * 0x20 - (Device)      [KLL Trigger State](#kll-trigger-state)
 * 0x21 - (Host)        [Pixel Setting](#pixel-setting)
 * 0x22 - (Host)        [Pixel Set (1 ch, 8 bit)](#pixel-set-1-ch-8-bit)
 * 0x23 - (Host)        [Pixel Set (3 ch, 8 bit)](#pixel-set-3-ch-8-bit)
 * 0x24 - (Host)        [Pixel Set (1 ch, 16 bit)](#pixel-set-1-ch-16-bit)
 * 0x25 - (Host)        [Pixel Set (3 ch, 16 bit)](#pixel-set-3-ch-16-bit)
-
+* 0x30 - (Host)        TODO - Open URL
+* 0x31 - (Host)        TODO - Terminal
+* 0x32 - (Host)        TODO - Input Layout
