@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 by Jacob Alexander
+/* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -20,19 +20,20 @@ extern crate tokio;
 use capnp;
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use futures::{AsyncReadExt, FutureExt};
+use hid_io_core::common_capnp;
+use hid_io_core::common_capnp::NodeType;
+use hid_io_core::hidio_capnp;
+use hid_io_core::hidio_capnp::h_i_d_i_o_server;
+use hid_io_core::keyboard_capnp;
+use hid_io_core::protocol::hidio::*;
 use rand::Rng;
 use std::fs;
 use std::io::Read;
 use std::io::Write;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
-use tokio::io::AsyncRead;
-use tokio::prelude::Future;
 use tokio_rustls::{rustls::ClientConfig, TlsConnector};
-
-use hid_io_core::common_capnp::NodeType;
-use hid_io_core::hidio_capnp::h_i_d_i_o_server;
-use hid_io_core::protocol::hidio::*;
 
 const LISTEN_ADDR: &str = "localhost:7185";
 
@@ -61,13 +62,26 @@ fn format_node(node: hid_io_core::common_capnp::destination::Reader<'_>) -> Stri
     )
 }
 
-pub fn main() -> Result<(), ::capnp::Error> {
-    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
-    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
+struct KeyboardSubscriberImpl;
 
-    let mut core = ::tokio_core::reactor::Core::new()?;
-    let handle = core.handle();
+impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
+    fn update(
+        &mut self,
+        params: keyboard_capnp::keyboard::subscriber::UpdateParams,
+        results: keyboard_capnp::keyboard::subscriber::UpdateResults,
+    ) -> Promise<(), ::capnp::Error> {
+        // TODO
+        println!("message from publisher: {}", pry!(params.get()).get_time());
+        Promise::ok(())
+    }
+}
 
+#[tokio::main]
+pub async fn main() -> Result<(), ::capnp::Error> {
+    tokio::task::LocalSet::new().run_until(try_main()).await
+}
+
+async fn try_main() -> Result<(), ::capnp::Error> {
     let addr = LISTEN_ADDR
         .to_socket_addrs()?
         .next()
@@ -78,18 +92,15 @@ pub fn main() -> Result<(), ::capnp::Error> {
     config
         .dangerous()
         .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
-    let config = TlsConnector::from(Arc::new(config));
+    let connector = TlsConnector::from(Arc::new(config));
 
     let domain = webpki::DNSNameRef::try_from_ascii_str("localhost").unwrap();
 
-    let socket = ::tokio_core::net::TcpStream::connect(&addr, &handle);
-    let tls_handshake = socket.and_then(|socket| {
-        socket.set_nodelay(true).unwrap();
-        config.connect(domain, socket)
-    });
+    let stream = tokio::net::TcpStream::connect(&addr).await?;
+    stream.set_nodelay(true)?;
+    let stream = connector.connect(domain, stream).await?;
 
-    let stream = core.run(tls_handshake).unwrap();
-    let (reader, writer) = stream.split();
+    let (reader, writer) = tokio_util::compat::Tokio02AsyncReadCompatExt::compat(stream).split();
 
     let network = Box::new(twoparty::VatNetwork::new(
         reader,
@@ -101,27 +112,24 @@ pub fn main() -> Result<(), ::capnp::Error> {
     let hidio_server: h_i_d_i_o_server::Client =
         rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
 
-    let _rpc_disconnector = rpc_system.get_disconnector();
-    handle.spawn(rpc_system.map_err(|e| println!("{}", e)));
+    let rpc_disconnector = rpc_system.get_disconnector();
+    tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
 
     // Display server version information
     let request = hidio_server.version_request();
-    core.run(request.send().promise.and_then(|response| {
-        let value = response.get().unwrap().get_version().unwrap();
-        println!("Version:    {}", value.get_version().unwrap());
-        println!("Buildtime:  {}", value.get_buildtime().unwrap());
-        println!("Serverarch: {}", value.get_serverarch().unwrap());
-        println!("Compiler:   {}", value.get_compilerversion().unwrap());
-        Promise::ok(())
-    }))?;
+    let response = request.send().promise.await?;
+    let value = response.get().unwrap().get_version().unwrap();
+    println!("Version:    {}", value.get_version().unwrap());
+    println!("Buildtime:  {}", value.get_buildtime().unwrap());
+    println!("Serverarch: {}", value.get_serverarch().unwrap());
+    println!("Compiler:   {}", value.get_compilerversion().unwrap());
 
     // Lookup key location
     let auth_key_file = {
         let request = hidio_server.key_request();
-        core.run(request.send().promise.and_then(|response| {
-            let value = response.get().unwrap().get_key().unwrap();
-            Promise::ok(value.get_auth_key_path().unwrap().to_string())
-        }))?
+        let response = request.send().promise.await?;
+        let value = response.get().unwrap().get_key().unwrap();
+        value.get_auth_key_path().unwrap().to_string()
     };
     println!("Key Path:   {}", auth_key_file);
 
@@ -132,10 +140,9 @@ pub fn main() -> Result<(), ::capnp::Error> {
     // Lookup uid
     let uid = {
         let request = hidio_server.id_request();
-        core.run(request.send().promise.and_then(|response| {
-            let value = response.get().unwrap().get_id();
-            Promise::ok(value)
-        }))?
+        let response = request.send().promise.await?;
+        let value = response.get().unwrap().get_id();
+        value
     };
     println!("Id:         {}", uid);
 
@@ -154,7 +161,7 @@ pub fn main() -> Result<(), ::capnp::Error> {
 
     let nodes_resp = {
         let request = hidio.nodes_request();
-        core.run(request.send().promise)?
+        request.send().promise.await.unwrap()
     };
     let nodes = nodes_resp.get()?.get_nodes()?;
 
@@ -194,16 +201,27 @@ pub fn main() -> Result<(), ::capnp::Error> {
     }
     let device = device.unwrap();
 
-    let register_resp = {
-        let node = device.get_node()?;
-        let request = node.register_request();
-        core.run(request.send().promise)?
+    // Build subscription callback
+    let subscription = capnp_rpc::new_client(KeyboardSubscriberImpl);
+
+    // Subscribe to cli messages
+    let subscribe_req = {
+        let node = match device.get_node().which().unwrap() {
+            hid_io_core::common_capnp::destination::node::Which::Keyboard(n) => n.unwrap(),
+            hid_io_core::common_capnp::destination::node::Which::Daemon(n) => {
+                std::process::exit(1);
+            }
+        };
+        let mut request = node.subscribe_request();
+        request.get().set_subscriber(subscription);
+        request
     };
-    let ok = register_resp.get()?.get_ok();
-    if !ok {
-        println!("Could not register to node");
-        std::process::exit(1);
-    }
+    //subscribe_req.send().promise.await?;
+    /* TODO
+    tokio::task::spawn_local(subscribe_req.send().promise)
+        .await
+        .unwrap();
+    */
 
     println!("READY");
     let (vt_tx, vt_rx) = std::sync::mpsc::channel::<u8>();
@@ -236,23 +254,27 @@ pub fn main() -> Result<(), ::capnp::Error> {
         }
 
         if !vt_buf.is_empty() {
-            use hid_io_core::common_capnp::destination::commands::Which::*;
-            if let Ok(commands) = device.get_commands().which() {
-                match commands {
-                    UsbKeyboard(node) => {
+            if let Ok(nodetype) = device.get_node().which() {
+                match nodetype {
+                    hid_io_core::common_capnp::destination::node::Which::Keyboard(node) => {
                         let node = node?;
                         let _command_resp = {
-                            let mut request = node.cli_command_request();
-                            request.get().set_foobar(&String::from_utf8(vt_buf)?);
-                            core.run(request.send().promise)?
+                            // Cast/transform keyboard node to a hidio node
+                            let mut request = hidio_capnp::node::Client {
+                                client: node.client,
+                            }
+                            .cli_command_request();
+                            request.get().set_command(&String::from_utf8(vt_buf)?);
+                            let response = request.send().promise.await?;
+                            response
                         };
                     }
-                    HostMacro(_node) => {}
-                    HidioPacket(_node) => {}
+                    hid_io_core::common_capnp::destination::node::Which::Daemon(_node) => {}
                 }
             }
         }
 
+        /* TODO Change to different kind of subscription... (standard type instead of hid-io type)
         use hid_io_core::hidio_capnp::h_i_d_i_o::signal::type_::{
             HidioPacket, HostMacro, UsbKeyboard,
         };
@@ -263,7 +285,8 @@ pub fn main() -> Result<(), ::capnp::Error> {
 
         let mut req = hidio.signal_request();
         req.get().set_time(27); // TODO: Timing
-        let result = core.run(req.send().promise.and_then(|response| {
+        let response = req.send().promise.await?;
+        let result = {
             let signals = pry!(pry!(response.get()).get_signal());
             for signal in signals.iter() {
                 let p = pry!(signal.get_type().which());
@@ -305,12 +328,12 @@ pub fn main() -> Result<(), ::capnp::Error> {
                 }
             }
             Promise::ok(())
-        }));
+        };
         if let Err(e) = result {
             match e.kind {
                 capnp::ErrorKind::Disconnected => {
                     // TODO: Reconnect
-                    std::process::exit(3);
+                    break;
                 }
                 capnp::ErrorKind::Overloaded => {}
                 _ => {
@@ -318,10 +341,11 @@ pub fn main() -> Result<(), ::capnp::Error> {
                 }
             }
         }
+        */
     }
-    /*
-    TODO This is how to cleanly disconnect
-    core.run(rpc_disconnector)?;
-    Ok(())
+
+    /* TODO Proper wait to disconnect
+    rpc_disconnector.await?;
     */
+    Ok(())
 }

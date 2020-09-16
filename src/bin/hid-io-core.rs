@@ -22,13 +22,12 @@ extern crate log;
 #[macro_use]
 extern crate windows_service;
 
-use crate::device::{HIDIOMailbox, HIDIOMailer, HIDIOMessage};
 use clap::App;
+use hid_io_core::mailbox;
 use hid_io_core::RUNNING;
 use hid_io_core::{api, built_info, device, module};
 use std::env;
 use std::sync::atomic::Ordering;
-use std::sync::mpsc::channel;
 use std::sync::{Arc, RwLock};
 
 /// Logging setup
@@ -74,7 +73,8 @@ fn main() -> Result<(), std::io::Error> {
 }
 
 /// Main entry point
-fn start() {
+#[tokio::main]
+async fn start() {
     // Setup signal handler
     let r = RUNNING.clone();
     ctrlc::set_handler(move || {
@@ -111,32 +111,19 @@ fn start() {
     // Start initialization
     info!("Initializing HID-IO daemon...");
 
-    let (mailer_writer, mailer_reader) = channel::<HIDIOMessage>();
-    let mut mailer = HIDIOMailer::new(mailer_reader);
-    let last_uid = Arc::new(RwLock::new(0));
+    let last_uid: Arc<RwLock<u64>> = Arc::new(RwLock::new(0));
+    let mailbox = mailbox::Mailbox::new(last_uid);
 
-    let nodes1 = mailer.devices();
-    let (sink1, mailbox1) =
-        HIDIOMailbox::from_sender(mailer_writer.clone(), nodes1, last_uid.clone());
-    mailer.register_listener(sink1);
+    // Wait until completion
+    let (_, _, _) = tokio::join!(
+        // Initialize Modules
+        module::initialize(mailbox.clone()),
+        // Initialize Device monitoring
+        device::initialize(mailbox.clone()),
+        // Initialize Cap'n'Proto API Server
+        api::initialize(mailbox),
+    );
 
-    let nodes2 = mailer.devices();
-    let (sink2, mailbox2) = HIDIOMailbox::from_sender(mailer_writer, nodes2, last_uid.clone());
-    mailer.register_listener(sink2);
-
-    // Initialize Modules
-    let thread = module::initialize(mailbox2);
-
-    // Initialize Devices
-    device::initialize(mailer, last_uid);
-
-    // Initialize Cap'n'Proto API Server
-    api::initialize(mailbox1);
-
-    // Cleanup
-    while RUNNING.load(Ordering::SeqCst) {}
-    println!("Waiting for threads to finish...");
-    thread.join().unwrap();
     info!("-------------------------- HID-IO Core exiting! --------------------------");
 }
 

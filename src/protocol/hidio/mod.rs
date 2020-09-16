@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2018 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,6 +66,7 @@ pub enum HIDIOCommandID {
     UnicodeText = 0x17,
     UnicodeKey = 0x18,
     HostMacro = 0x19,
+    SleepMode = 0x1A,
     KLLState = 0x20,
     PixelSetting = 0x21,
     PixelSet1c8b = 0x22,
@@ -168,6 +169,8 @@ pub fn packet_type(packet_data: &mut Vec<u8>) -> Result<HIDIOPacketType, HIDIOPa
         2 => Ok(HIDIOPacketType::NAK),
         3 => Ok(HIDIOPacketType::Sync),
         4 => Ok(HIDIOPacketType::Continued),
+        5 => Ok(HIDIOPacketType::NAData),
+        6 => Ok(HIDIOPacketType::NAContinued),
         _ => Err(HIDIOParseError {}),
     }
 }
@@ -415,7 +418,9 @@ impl HIDIOPacketBuffer {
 
         // Is this a new packet?
         // More information to set, if initializing buffer
-        if self.data.is_empty() && ptype != HIDIOPacketType::Continued {
+        if self.data.is_empty()
+            && (ptype != HIDIOPacketType::Continued && ptype != HIDIOPacketType::NAContinued)
+        {
             // Set packet type
             self.ptype = ptype;
 
@@ -429,9 +434,15 @@ impl HIDIOPacketBuffer {
                 warn!("Dropping. Invalid packet type when initializing buffer, HIDIOPacketType::Continued");
                 return Ok(packet_len);
             }
+            if self.data.is_empty() && ptype == HIDIOPacketType::NAContinued {
+                warn!("Dropping. Invalid packet type when initializing buffer, HIDIOPacketType::NAContinued");
+                return Ok(packet_len);
+            }
 
             // Check if not a continued packet, and we have a payload
-            if !self.data.is_empty() && ptype != HIDIOPacketType::Continued {
+            if !self.data.is_empty()
+                && !(ptype == HIDIOPacketType::Continued || ptype == HIDIOPacketType::NAContinued)
+            {
                 warn!("Dropping. Invalid packet type (non-HIDIOPacketType::Continued) on a already initialized buffer");
                 return Ok(packet_len);
             }
@@ -468,7 +479,12 @@ impl HIDIOPacketBuffer {
     /// Removes some of the header that Serialize from serde prepends.
     pub fn serialize_buffer(&mut self) -> Result<Vec<u8>, HIDIOParseError> {
         // Serialize
-        let serialized: Vec<u8> = serialize(&self).unwrap();
+        let serialized: Vec<u8> = match serialize(&self) {
+            Ok(v) => v,
+            Err(e) => {
+                return Err(HIDIOParseError {});
+            }
+        };
 
         // Make sure serialization worked
         if serialized.len() < 10 {
@@ -682,12 +698,6 @@ impl Serialize for HIDIOPacketBuffer {
                 data_len as usize
             };
             let slice = &self.data[last_slice_index..slice_end];
-            /*let slice = match cont {
-                // Full payload length
-                true => &self.data[last_slice_index..slice_end],
-                // Payload that's available
-                false => &self.data[last_slice_index..slice_end],
-            };*/
             for elem in slice {
                 state.serialize_element(elem)?;
             }

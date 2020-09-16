@@ -16,45 +16,33 @@
 
 // ----- Crates -----
 
-pub use crate::common_capnp::*;
-pub use crate::devicefunction_capnp::*;
-pub use crate::hidio_capnp::*;
-pub use crate::hidiowatcher_capnp::*;
-pub use crate::hostmacro_capnp::*;
-pub use crate::usbkeyboard_capnp::*;
-
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::env;
-use std::io::Write;
-use std::net::ToSocketAddrs;
-use std::rc::Rc;
-use std::sync::atomic::Ordering;
-use std::sync::mpsc::channel;
-use std::sync::{Arc, Mutex, RwLock};
-use std::time::Instant;
+pub use crate::common_capnp;
+pub use crate::daemon_capnp;
+pub use crate::hidio_capnp;
+pub use crate::keyboard_capnp;
 
 use crate::built_info;
-use crate::common_capnp::h_i_d_i_o_node::*;
-use crate::device::{HIDIOMailbox, HIDIOMessage};
-use crate::hidio_capnp::h_i_d_i_o::*;
-use crate::hidio_capnp::h_i_d_i_o_server::*;
+use crate::mailbox;
 use crate::protocol::hidio::HIDIOCommandID;
 use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use futures::{FutureExt, TryFutureExt};
 use glob::glob;
-use lazy_static::lazy_static;
 use rcgen::generate_simple_self_signed;
-use stream_cancel::{StreamExt, Tripwire};
-use tokio::io::AsyncRead;
-use tokio::prelude::*;
+use std::collections::HashMap;
+use std::env;
+use std::io::Write;
+use std::net::ToSocketAddrs;
+use std::sync::atomic::Ordering;
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
+use tokio::stream::StreamExt;
 use tokio_rustls::{
-    rustls::{NoClientAuth, ServerConfig},
+    rustls::{Certificate, NoClientAuth, PrivateKey, ServerConfig},
     TlsAcceptor,
 };
-use u_s_b_keyboard::commands::*;
 
 const LISTEN_ADDR: &str = "localhost:7185";
 
@@ -64,26 +52,19 @@ const AUTH_LEVEL: AuthLevel = AuthLevel::Debug;
 #[cfg(not(debug_assertions))]
 const AUTH_LEVEL: AuthLevel = AuthLevel::Secure;
 
-lazy_static! {
-    static ref WRITERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Sender<HIDIOMessage>>>> =
-        Arc::new(Mutex::new(vec![]));
-    static ref READERS_RC: Arc<Mutex<Vec<std::sync::mpsc::Receiver<HIDIOMessage>>>> =
-        Arc::new(Mutex::new(vec![]));
-}
-
 // ----- Functions -----
 
-impl std::fmt::Display for NodeType {
+impl std::fmt::Display for common_capnp::NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
-            NodeType::HidioDaemon => write!(f, "HidioDaemon"),
-            NodeType::HidioApi => write!(f, "HidioApi"),
-            NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
-            NodeType::BleKeyboard => write!(f, "BleKeyboard"),
+            common_capnp::NodeType::HidioDaemon => write!(f, "HidioDaemon"),
+            common_capnp::NodeType::HidioApi => write!(f, "HidioApi"),
+            common_capnp::NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
+            common_capnp::NodeType::BleKeyboard => write!(f, "BleKeyboard"),
         }
     }
 }
-impl std::fmt::Debug for NodeType {
+impl std::fmt::Debug for common_capnp::NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self)
     }
@@ -158,10 +139,10 @@ impl HIDAPIInfo {
 /// Information about a connected node
 #[derive(Debug, Clone)]
 pub struct Endpoint {
-    type_: NodeType,
+    type_: common_capnp::NodeType,
     name: String,   // Used for hidio (e.g. hidioDaemon, hidioApi) types
     serial: String, // Used for hidio (e.g. hidioDaemon, hidioApi) types
-    id: u64,
+    uid: u64,
     created: Instant,
     hidapi: HIDAPIInfo,
 }
@@ -171,9 +152,9 @@ impl std::fmt::Display for Endpoint {
         f.write_str(
             format!(
                 "id:{} {} {}",
-                self.id,
+                self.uid,
                 match self.type_ {
-                    NodeType::BleKeyboard => format!(
+                    common_capnp::NodeType::BleKeyboard => format!(
                         "BLE [{:04x}:{:04x}-{:x}:{:x}] {}",
                         self.hidapi.vendor_id,
                         self.hidapi.product_id,
@@ -181,7 +162,7 @@ impl std::fmt::Display for Endpoint {
                         self.hidapi.usage,
                         self.hidapi.product_string,
                     ),
-                    NodeType::UsbKeyboard => format!(
+                    common_capnp::NodeType::UsbKeyboard => format!(
                         "USB [{:04x}:{:04x}-{:x}:{:x}] [{}] {}",
                         self.hidapi.vendor_id,
                         self.hidapi.product_id,
@@ -193,7 +174,7 @@ impl std::fmt::Display for Endpoint {
                     _ => self.name.clone(),
                 },
                 match self.type_ {
-                    NodeType::BleKeyboard | NodeType::UsbKeyboard =>
+                    common_capnp::NodeType::BleKeyboard | common_capnp::NodeType::UsbKeyboard =>
                         self.hidapi.serial_number.clone(),
                     _ => self.serial.clone(),
                 },
@@ -204,12 +185,12 @@ impl std::fmt::Display for Endpoint {
 }
 
 impl Endpoint {
-    pub fn new(type_: NodeType, id: u64) -> Endpoint {
+    pub fn new(type_: common_capnp::NodeType, uid: u64) -> Endpoint {
         Endpoint {
             type_,
             name: "".to_string(),
             serial: "".to_string(),
-            id,
+            uid,
             created: Instant::now(),
             hidapi: HIDAPIInfo {
                 ..Default::default()
@@ -232,13 +213,13 @@ impl Endpoint {
         self.hidapi.path = path;
     }
 
-    pub fn type_(&mut self) -> NodeType {
+    pub fn type_(&mut self) -> common_capnp::NodeType {
         self.type_
     }
 
     pub fn name(&mut self) -> String {
         match self.type_ {
-            NodeType::BleKeyboard => format!(
+            common_capnp::NodeType::BleKeyboard => format!(
                 "[{:04x}:{:04x}-{:x}:{:x}] {}",
                 self.hidapi.vendor_id,
                 self.hidapi.product_id,
@@ -246,7 +227,7 @@ impl Endpoint {
                 self.hidapi.usage,
                 self.hidapi.product_string,
             ),
-            NodeType::UsbKeyboard => format!(
+            common_capnp::NodeType::UsbKeyboard => format!(
                 "[{:04x}:{:04x}-{:x}:{:x}] [{}] {}",
                 self.hidapi.vendor_id,
                 self.hidapi.product_id,
@@ -266,20 +247,24 @@ impl Endpoint {
     /// Does not include release number as this may be incrementing
     pub fn key(&mut self) -> String {
         match self.type_ {
-            NodeType::BleKeyboard | NodeType::UsbKeyboard => self.hidapi.build_hidapi_key(),
+            common_capnp::NodeType::BleKeyboard | common_capnp::NodeType::UsbKeyboard => {
+                self.hidapi.build_hidapi_key()
+            }
             _ => format!("name:{} serial:{}", self.name, self.serial,),
         }
     }
 
     pub fn serial(&mut self) -> String {
         match self.type_ {
-            NodeType::BleKeyboard | NodeType::UsbKeyboard => self.hidapi.serial_number.clone(),
+            common_capnp::NodeType::BleKeyboard | common_capnp::NodeType::UsbKeyboard => {
+                self.hidapi.serial_number.clone()
+            }
             _ => self.serial.clone(),
         }
     }
 
-    pub fn id(&mut self) -> u64 {
-        self.id
+    pub fn uid(&mut self) -> u64 {
+        self.uid
     }
 
     pub fn created(&mut self) -> Instant {
@@ -291,26 +276,37 @@ impl Endpoint {
     }
 }
 
-struct HIDIOMaster {
-    nodes: Vec<Endpoint>,
-    devices: Arc<RwLock<Vec<Endpoint>>>,
-    connections: HashMap<u64, Vec<u64>>,
+struct Subscriptions {
+    // Node list subscriptions
+    nodes_next_id: u64,
+    nodes: NodesSubscriberMap,
+
+    // HIDIO Keyboard node subscriptions
+    keyboard_node_next_id: u64,
+    keyboard_node: KeyboardSubscriberMap,
+
+    // HIDIO Daemon node subscriptions
+    daemon_node_next_id: u64,
+    daemon_node: DaemonSubscriberMap,
 }
 
-impl HIDIOMaster {
-    fn new(devices: Arc<RwLock<Vec<Endpoint>>>) -> HIDIOMaster {
-        HIDIOMaster {
-            nodes: Vec::new(),
-            devices,
-            connections: HashMap::new(),
+impl Subscriptions {
+    fn new() -> Subscriptions {
+        Subscriptions {
+            nodes_next_id: 0,
+            nodes: NodesSubscriberMap::new(),
+            keyboard_node_next_id: 0,
+            keyboard_node: KeyboardSubscriberMap::new(),
+            daemon_node_next_id: 0,
+            daemon_node: DaemonSubscriberMap::new(),
         }
     }
 }
 
 struct HIDIOServerImpl {
-    master: Rc<RefCell<HIDIOMaster>>,
+    mailbox: mailbox::Mailbox,
+    connections: Arc<RwLock<HashMap<u64, Vec<u64>>>>,
     uid: u64,
-    incoming: Rc<HIDIOMailbox>,
 
     basic_key: String,
     auth_key: String,
@@ -318,17 +314,15 @@ struct HIDIOServerImpl {
     basic_key_file: tempfile::NamedTempFile,
     auth_key_file: tempfile::NamedTempFile,
 
-    subscribers_next_id: Arc<RwLock<u64>>,
-    subscribers: Arc<RwLock<SubscriberMap>>,
+    subscriptions: Arc<RwLock<Subscriptions>>,
 }
 
 impl HIDIOServerImpl {
     fn new(
-        master: Rc<RefCell<HIDIOMaster>>,
+        mailbox: mailbox::Mailbox,
+        connections: Arc<RwLock<HashMap<u64, Vec<u64>>>>,
         uid: u64,
-        incoming: HIDIOMailbox,
-        subscribers_next_id: Arc<RwLock<u64>>,
-        subscribers: Arc<RwLock<SubscriberMap>>,
+        subscriptions: Arc<RwLock<Subscriptions>>,
     ) -> HIDIOServerImpl {
         // Create temp file for basic key
         let mut basic_key_file = tempfile::Builder::new()
@@ -357,17 +351,15 @@ impl HIDIOServerImpl {
             .write_all(auth_key.as_bytes())
             .expect("Unable to write file");
 
-        let incoming = Rc::new(incoming);
-
         // Generate basic and auth keys
         // XXX - Auth key must only be readable by this user
         //       Basic key is world readable
         //       These keys are purposefully not sent over RPC
         //       to enforce local-only connections.
         HIDIOServerImpl {
-            master,
+            mailbox,
+            connections,
             uid,
-            incoming,
 
             basic_key,
             auth_key,
@@ -375,38 +367,43 @@ impl HIDIOServerImpl {
             basic_key_file,
             auth_key_file,
 
-            subscribers_next_id,
-            subscribers,
+            subscriptions,
         }
     }
 
-    fn create_connection(&mut self, mut node: Endpoint, auth: AuthLevel) -> h_i_d_i_o::Client {
+    fn create_connection(
+        &mut self,
+        mut node: Endpoint,
+        auth: AuthLevel,
+    ) -> hidio_capnp::h_i_d_i_o::Client {
         {
-            let mut m = self.master.borrow_mut();
-            node.id = self.uid;
-            let conn = m.connections.get_mut(&self.uid).unwrap();
+            let mut connections = self.connections.write().unwrap();
+            node.uid = self.uid;
+            let conn = connections.get_mut(&self.uid).unwrap();
             // Check if a capnp node already exists (might just be re-authenticating the interface)
-            if !conn.contains(&node.id) {
+            if !conn.contains(&node.uid) {
                 info!("New capnp node: {:?}", node);
-                conn.push(node.id);
-                m.nodes.push(node);
+                conn.push(node.uid);
+                self.mailbox.nodes.write().unwrap().push(node.clone());
             }
         }
 
         info!("Connection authed! - {:?}", auth);
-        h_i_d_i_o::ToClient::new(HIDIOImpl::new(
-            Rc::clone(&self.master),
-            Rc::clone(&self.incoming),
+        capnp_rpc::new_client(HIDIOImpl::new(
+            self.mailbox.clone(),
+            node,
             auth,
-            self.subscribers_next_id.clone(),
-            self.subscribers.clone(),
+            self.subscriptions.clone(),
         ))
-        .into_client::<::capnp_rpc::Server>()
     }
 }
 
-impl h_i_d_i_o_server::Server for HIDIOServerImpl {
-    fn basic(&mut self, params: BasicParams, mut results: BasicResults) -> Promise<(), Error> {
+impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
+    fn basic(
+        &mut self,
+        params: hidio_capnp::h_i_d_i_o_server::BasicParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::BasicResults,
+    ) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
         let mut node = Endpoint::new(info.get_type().unwrap(), info.get_id());
@@ -430,7 +427,11 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
         Promise::ok(())
     }
 
-    fn auth(&mut self, params: AuthParams, mut results: AuthResults) -> Promise<(), Error> {
+    fn auth(
+        &mut self,
+        params: hidio_capnp::h_i_d_i_o_server::AuthParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::AuthResults,
+    ) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
         let mut node = Endpoint::new(info.get_type().unwrap(), info.get_id());
@@ -456,8 +457,8 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn version(
         &mut self,
-        _params: VersionParams,
-        mut results: VersionResults,
+        _params: hidio_capnp::h_i_d_i_o_server::VersionParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::VersionResults,
     ) -> Promise<(), Error> {
         // Get and set fields
         let mut version = results.get().init_version();
@@ -472,12 +473,20 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
         Promise::ok(())
     }
 
-    fn alive(&mut self, _params: AliveParams, mut results: AliveResults) -> Promise<(), Error> {
+    fn alive(
+        &mut self,
+        _params: hidio_capnp::h_i_d_i_o_server::AliveParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::AliveResults,
+    ) -> Promise<(), Error> {
         results.get().set_alive(true);
         Promise::ok(())
     }
 
-    fn key(&mut self, _params: KeyParams, mut results: KeyResults) -> Promise<(), Error> {
+    fn key(
+        &mut self,
+        _params: hidio_capnp::h_i_d_i_o_server::KeyParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::KeyResults,
+    ) -> Promise<(), Error> {
         // Get and set fields
         let mut key = results.get().init_key();
         key.set_basic_key_path(&self.basic_key_file.path().display().to_string());
@@ -485,20 +494,28 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
         Promise::ok(())
     }
 
-    fn id(&mut self, _params: IdParams, mut results: IdResults) -> Promise<(), Error> {
+    fn id(
+        &mut self,
+        _params: hidio_capnp::h_i_d_i_o_server::IdParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::IdResults,
+    ) -> Promise<(), Error> {
         results.get().set_id(self.uid);
         Promise::ok(())
     }
 
-    fn name(&mut self, _params: NameParams, mut results: NameResults) -> Promise<(), Error> {
+    fn name(
+        &mut self,
+        _params: hidio_capnp::h_i_d_i_o_server::NameParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::NameResults,
+    ) -> Promise<(), Error> {
         results.get().set_name("hid-io-core");
         Promise::ok(())
     }
 
     fn log_files(
         &mut self,
-        _params: LogFilesParams,
-        mut results: LogFilesResults,
+        _params: hidio_capnp::h_i_d_i_o_server::LogFilesParams,
+        mut results: hidio_capnp::h_i_d_i_o_server::LogFilesResults,
     ) -> Promise<(), Error> {
         // Get list of log files
         let path = env::temp_dir()
@@ -523,226 +540,204 @@ impl h_i_d_i_o_server::Server for HIDIOServerImpl {
 }
 
 struct HIDIOImpl {
-    master: Rc<RefCell<HIDIOMaster>>,
+    mailbox: mailbox::Mailbox,
+    node: Endpoint,
     auth: AuthLevel,
-    registered: Rc<RefCell<HashMap<u64, bool>>>,
-    incoming: Rc<HIDIOMailbox>,
-
-    nodes_subscribers_next_id: Arc<RwLock<u64>>,
-    nodes_subscribers: Arc<RwLock<SubscriberMap>>,
+    subscriptions: Arc<RwLock<Subscriptions>>,
 }
 
 impl HIDIOImpl {
     fn new(
-        master: Rc<RefCell<HIDIOMaster>>,
-        incoming: Rc<HIDIOMailbox>,
+        mailbox: mailbox::Mailbox,
+        node: Endpoint,
         auth: AuthLevel,
-        nodes_subscribers_next_id: Arc<RwLock<u64>>,
-        nodes_subscribers: Arc<RwLock<SubscriberMap>>,
+        subscriptions: Arc<RwLock<Subscriptions>>,
     ) -> HIDIOImpl {
         HIDIOImpl {
-            master,
+            mailbox,
+            node,
             auth,
-            registered: Rc::new(RefCell::new(HashMap::new())),
-            incoming,
-
-            nodes_subscribers_next_id,
-            nodes_subscribers,
+            subscriptions,
         }
-    }
-
-    fn init_signal(
-        &self,
-        mut signal: h_i_d_i_o::signal::Builder<'_>,
-        message: HIDIOMessage,
-    ) -> Promise<(), Error> {
-        signal.set_time(15);
-
-        {
-            let master = self.master.borrow();
-            let devices = &master.devices.read().unwrap();
-            let device = match devices.iter().find(|d| d.id.to_string() == message.device) {
-                None => {
-                    return Promise::err(capnp::Error {
-                        kind: capnp::ErrorKind::Failed,
-                        description: format!("Could not find id {} in device list", message.device),
-                    })
-                }
-                Some(v) => v,
-            };
-
-            let mut source = signal.reborrow().init_source();
-            source.set_type(device.type_);
-            source.set_name(&device.name);
-            source.set_serial(&device.serial);
-            source.set_id(device.id);
-        }
-
-        {
-            let typ = signal.init_type();
-
-            // TODO: Multiple packet types
-            let p = typ.init_hidio_packet();
-            let mut p = p.init_device_packet();
-            p.set_id(message.message.id as u16);
-            let mut d = p.init_data(message.message.data.len() as u32);
-            for i in 0..message.message.data.len() {
-                d.set(i as u32, message.message.data[i]);
-            }
-        }
-        Promise::ok(())
     }
 }
 
-impl h_i_d_i_o::Server for HIDIOImpl {
-    fn signal(&mut self, _params: SignalParams, mut results: SignalResults) -> Promise<(), Error> {
-        let incoming = &self.incoming;
-        match &self.auth {
-            AuthLevel::Debug => {
-                if let Some(message) = incoming.recv_psuedoblocking() {
-                    results.get().set_time(10);
-                    let signal = results.get().init_signal(1).get(0);
-                    self.init_signal(signal, message)
-                } else {
-                    Promise::err(capnp::Error {
-                        kind: capnp::ErrorKind::Overloaded,
-                        description: "No data".to_string(),
-                    })
-                }
-            }
-            _ => Promise::err(capnp::Error {
-                kind: capnp::ErrorKind::Failed,
-                description: "Insufficient authorization level".to_string(),
-            }),
-        }
-    }
-
-    fn nodes(&mut self, _params: NodesParams, mut results: NodesResults) -> Promise<(), Error> {
-        let master = self.master.borrow();
-        let nodes = &master.nodes;
-        let devices = &master.devices.read().unwrap();
-        let mut result = results
-            .get()
-            .init_nodes((nodes.len() + devices.len()) as u32);
-        for (i, n) in nodes.iter().chain(devices.iter()).enumerate() {
+impl hidio_capnp::h_i_d_i_o::Server for HIDIOImpl {
+    fn nodes(
+        &mut self,
+        _params: hidio_capnp::h_i_d_i_o::NodesParams,
+        mut results: hidio_capnp::h_i_d_i_o::NodesResults,
+    ) -> Promise<(), Error> {
+        let nodes = self.mailbox.nodes.read().unwrap();
+        let mut result = results.get().init_nodes((nodes.len()) as u32);
+        for (i, n) in nodes.iter().enumerate() {
             let mut node = result.reborrow().get(i as u32);
             node.set_type(n.type_);
             node.set_name(&n.name);
             node.set_serial(&n.serial);
-            node.set_id(n.id);
-            node.set_node(
-                h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::new(
-                    Rc::clone(&self.registered),
-                    n.id,
-                ))
-                .into_client::<::capnp_rpc::Server>(),
-            );
-            let mut commands = node.reborrow().init_commands();
-            commands.set_usb_keyboard(
-                u_s_b_keyboard::commands::ToClient::new(HIDIOKeyboardNodeImpl::new(
-                    n.id,
-                    self.auth,
-                    Rc::clone(&self.incoming),
-                ))
-                .into_client::<::capnp_rpc::Server>(),
-            );
+            node.set_id(n.uid);
+            let mut node = node.init_node();
+            match n.type_ {
+                common_capnp::NodeType::HidioDaemon => {
+                    node.set_daemon(capnp_rpc::new_client(DaemonNodeImpl::new(
+                        self.mailbox.clone(),
+                        self.node.clone(),
+                        n.uid,
+                        self.auth,
+                        self.subscriptions.clone(),
+                    )));
+                }
+                common_capnp::NodeType::UsbKeyboard | common_capnp::NodeType::BleKeyboard => {
+                    node.set_keyboard(capnp_rpc::new_client(KeyboardNodeImpl::new(
+                        self.mailbox.clone(),
+                        self.node.clone(),
+                        n.uid,
+                        self.auth,
+                        self.subscriptions.clone(),
+                    )));
+                }
+                _ => {}
+            }
         }
         Promise::ok(())
     }
 
     fn subscribe_nodes(
         &mut self,
-        params: SubscribeNodesParams,
-        mut results: SubscribeNodesResults,
+        params: hidio_capnp::h_i_d_i_o::SubscribeNodesParams,
+        mut results: hidio_capnp::h_i_d_i_o::SubscribeNodesResults,
     ) -> Promise<(), Error> {
-        info!(
-            "Adding subscribeNodes watcher id #{}",
-            self.nodes_subscribers_next_id.read().unwrap()
-        );
-        self.nodes_subscribers.write().unwrap().subscribers.insert(
-            *self.nodes_subscribers_next_id.read().unwrap(),
-            SubscriberHandle {
-                client: pry!(pry!(params.get()).get_subscriber()),
-                requests_in_flight: 0,
-            },
-        );
+        let id = self.subscriptions.read().unwrap().nodes_next_id;
+        info!("Adding subscribeNodes watcher id #{}", id,);
+        let client = pry!(pry!(params.get()).get_subscriber());
+        self.subscriptions
+            .write()
+            .unwrap()
+            .nodes
+            .subscribers
+            .insert(
+                id,
+                NodesSubscriberHandle {
+                    client: client,
+                    requests_in_flight: 0,
+                    auth: self.auth,
+                    node: self.node.clone(),
+                },
+            );
 
-        results.get().set_subscription(
-            nodes_subscription::ToClient::new(NodesSubscriptionImpl::new(
-                *self.nodes_subscribers_next_id.read().unwrap(),
-                self.nodes_subscribers.clone(),
-            ))
-            .into_client::<::capnp_rpc::Server>(),
-        );
+        results
+            .get()
+            .set_subscription(capnp_rpc::new_client(NodesSubscriptionImpl::new(
+                self.mailbox.clone(),
+                self.node.clone(),
+                self.node.uid,
+                self.subscriptions.clone(),
+            )));
 
-        *self.nodes_subscribers_next_id.write().unwrap() += 1;
+        self.subscriptions.write().unwrap().nodes_next_id += 1;
         Promise::ok(())
     }
 }
 
-struct SubscriberHandle {
-    client: nodes_subscriber::Client,
+struct NodesSubscriberHandle {
+    client: hidio_capnp::h_i_d_i_o::nodes_subscriber::Client,
     requests_in_flight: i32,
+    auth: AuthLevel,
+    node: Endpoint,
 }
 
-struct SubscriberMap {
-    subscribers: HashMap<u64, SubscriberHandle>,
+struct NodesSubscriberMap {
+    subscribers: HashMap<u64, NodesSubscriberHandle>,
 }
 
-impl SubscriberMap {
-    fn new() -> SubscriberMap {
-        SubscriberMap {
+impl NodesSubscriberMap {
+    fn new() -> NodesSubscriberMap {
+        NodesSubscriberMap {
             subscribers: HashMap::new(),
         }
     }
 }
 
 struct NodesSubscriptionImpl {
-    id: u64,
-    subscribers: Arc<RwLock<SubscriberMap>>,
+    _mailbox: mailbox::Mailbox,
+    _node: Endpoint, // API Node information
+    uid: u64,
+    subscriptions: Arc<RwLock<Subscriptions>>,
 }
 
 impl NodesSubscriptionImpl {
-    fn new(id: u64, subscribers: Arc<RwLock<SubscriberMap>>) -> NodesSubscriptionImpl {
-        NodesSubscriptionImpl { id, subscribers }
+    fn new(
+        mailbox: mailbox::Mailbox,
+        node: Endpoint,
+        uid: u64,
+        subscriptions: Arc<RwLock<Subscriptions>>,
+    ) -> NodesSubscriptionImpl {
+        NodesSubscriptionImpl {
+            _mailbox: mailbox,
+            _node: node,
+            uid,
+            subscriptions,
+        }
     }
 }
 
 impl Drop for NodesSubscriptionImpl {
     fn drop(&mut self) {
-        info!("Subscription dropped id: {}", self.id);
-        self.subscribers
+        info!("Subscription dropped id: {}", self.uid);
+        self.subscriptions
             .write()
             .unwrap()
+            .nodes
             .subscribers
-            .remove(&self.id);
+            .remove(&self.uid);
     }
 }
 
-impl nodes_subscription::Server for NodesSubscriptionImpl {}
+impl hidio_capnp::h_i_d_i_o::nodes_subscription::Server for NodesSubscriptionImpl {}
 
-struct HIDIOKeyboardNodeImpl {
-    id: u64,
+struct KeyboardNodeImpl {
+    mailbox: mailbox::Mailbox,
+    node: Endpoint, // API Node information
+    uid: u64,       // Device uid
     auth: AuthLevel,
-    incoming: Rc<HIDIOMailbox>,
+    subscriptions: Arc<RwLock<Subscriptions>>,
 }
-impl HIDIOKeyboardNodeImpl {
-    fn new(id: u64, auth: AuthLevel, incoming: Rc<HIDIOMailbox>) -> HIDIOKeyboardNodeImpl {
-        HIDIOKeyboardNodeImpl { id, auth, incoming }
+
+impl KeyboardNodeImpl {
+    fn new(
+        mailbox: mailbox::Mailbox,
+        node: Endpoint,
+        uid: u64,
+        auth: AuthLevel,
+        subscriptions: Arc<RwLock<Subscriptions>>,
+    ) -> KeyboardNodeImpl {
+        KeyboardNodeImpl {
+            mailbox,
+            node,
+            uid,
+            auth,
+            subscriptions,
+        }
     }
 }
-impl u_s_b_keyboard::commands::Server for HIDIOKeyboardNodeImpl {
+
+impl common_capnp::node::Server for KeyboardNodeImpl {}
+
+impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn cli_command(
         &mut self,
-        params: CliCommandParams,
-        _results: CliCommandResults,
+        params: hidio_capnp::node::CliCommandParams,
+        _results: hidio_capnp::node::CliCommandResults,
     ) -> Promise<(), Error> {
         match self.auth {
             AuthLevel::Secure | AuthLevel::Debug => {
                 let params = params.get().unwrap();
-                let cmd = params.get_foobar().unwrap();
-                self.incoming.send_command(
-                    self.id.to_string(),
+                let cmd = params.get_command().unwrap();
+                let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+                let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+                self.mailbox.send_command(
+                    src,
+                    dst,
                     HIDIOCommandID::Terminal,
                     cmd.as_bytes().to_vec(),
                 );
@@ -754,67 +749,380 @@ impl u_s_b_keyboard::commands::Server for HIDIOKeyboardNodeImpl {
             }),
         }
     }
-}
 
-struct HIDIONodeImpl {
-    registered_nodes: Rc<RefCell<HashMap<u64, bool>>>,
-    id: u64,
-}
+    fn sleep_mode(
+        &mut self,
+        _params: hidio_capnp::node::SleepModeParams,
+        mut results: hidio_capnp::node::SleepModeResults,
+    ) -> Promise<(), Error> {
+        match self.auth {
+            AuthLevel::Secure | AuthLevel::Debug => {
+                let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+                let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+                self.mailbox
+                    .send_command(src, dst, HIDIOCommandID::SleepMode, vec![]);
 
-impl HIDIONodeImpl {
-    fn new(registered_nodes: Rc<RefCell<HashMap<u64, bool>>>, id: u64) -> HIDIONodeImpl {
-        HIDIONodeImpl {
-            registered_nodes,
-            id,
+                // Wait for ACK/NAK
+                let res = tokio::runtime::Runtime::new()
+                    .unwrap()
+                    .block_on(self.mailbox.ack_wait(dst, HIDIOCommandID::FlashMode, 0));
+                match res {
+                    Ok(_msg) => Promise::ok(()),
+                    Err(mailbox::AckWaitError::TooManySyncs) => Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: "sleep_mode - Too many syncs...timeout".to_string(),
+                    }),
+                    Err(mailbox::AckWaitError::NAKReceived { msg }) => {
+                        match msg.data.data.first() {
+                            Some(0x0) => {
+                                let status = results.get().init_status();
+                                let mut error = status.init_error();
+                                error.set_reason(hidio_capnp::node::sleep_mode_status::error::ErrorReason::NotSupported);
+                                Promise::ok(())
+                            }
+                            Some(0x1) => {
+                                let status = results.get().init_status();
+                                let mut error = status.init_error();
+                                error.set_reason(
+                                    hidio_capnp::node::sleep_mode_status::error::ErrorReason::Disabled,
+                                );
+                                Promise::ok(())
+                            }
+                            Some(0x2) => {
+                                let status = results.get().init_status();
+                                let mut error = status.init_error();
+                                error.set_reason(
+                                    hidio_capnp::node::sleep_mode_status::error::ErrorReason::NotReady,
+                                );
+                                Promise::ok(())
+                            }
+                            Some(error_code) => Promise::err(capnp::Error {
+                                kind: capnp::ErrorKind::Failed,
+                                description: format!("sleep_mode - Unknown error {}", error_code),
+                            }),
+                            None => Promise::err(capnp::Error {
+                                kind: capnp::ErrorKind::Failed,
+                                description: "sleep_mode - Invalid NAK packet size".to_string(),
+                            }),
+                        }
+                    }
+                    Err(mailbox::AckWaitError::Invalid) => Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: "sleep_mode - Invalid response".to_string(),
+                    }),
+                }
+            }
+            _ => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
+        }
+    }
+
+    fn flash_mode(
+        &mut self,
+        _params: hidio_capnp::node::FlashModeParams,
+        mut results: hidio_capnp::node::FlashModeResults,
+    ) -> Promise<(), Error> {
+        match self.auth {
+            AuthLevel::Secure | AuthLevel::Debug => {
+                let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+                let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+                // Send command
+                self.mailbox
+                    .send_command(src, dst, HIDIOCommandID::FlashMode, vec![]);
+
+                // Wait for ACK/NAK
+                let res = tokio::runtime::Runtime::new()
+                    .unwrap()
+                    .block_on(self.mailbox.ack_wait(dst, HIDIOCommandID::FlashMode, 0));
+                match res {
+                    Ok(msg) => {
+                        // Convert byte stream to u16 TODO Should handle better
+                        let scancode = ((msg.data.data[0] as u16) << 8) | msg.data.data[1] as u16;
+                        let status = results.get().init_status();
+                        let mut success = status.init_success();
+                        success.set_scan_code(scancode);
+                        Promise::ok(())
+                    }
+                    Err(mailbox::AckWaitError::TooManySyncs) => Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: "flash_mode - Too many syncs...timeout".to_string(),
+                    }),
+                    Err(mailbox::AckWaitError::NAKReceived { msg }) => {
+                        match msg.data.data.first() {
+                            Some(0x0) => {
+                                let status = results.get().init_status();
+                                let mut error = status.init_error();
+                                error.set_reason(hidio_capnp::node::flash_mode_status::error::ErrorReason::NotSupported);
+                                Promise::ok(())
+                            }
+                            Some(0x1) => {
+                                let status = results.get().init_status();
+                                let mut error = status.init_error();
+                                error.set_reason(
+                                    hidio_capnp::node::flash_mode_status::error::ErrorReason::Disabled,
+                                );
+                                Promise::ok(())
+                            }
+                            Some(error_code) => Promise::err(capnp::Error {
+                                kind: capnp::ErrorKind::Failed,
+                                description: format!("flash_mode - Unknown error {}", error_code),
+                            }),
+                            None => Promise::err(capnp::Error {
+                                kind: capnp::ErrorKind::Failed,
+                                description: "flash_mode - Invalid NAK packet size".to_string(),
+                            }),
+                        }
+                    }
+                    Err(mailbox::AckWaitError::Invalid) => Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: "flash_mode - Invalid response".to_string(),
+                    }),
+                }
+            }
+            _ => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
         }
     }
 }
 
-impl h_i_d_i_o_node::Server for HIDIONodeImpl {
-    fn register(
+impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
+    fn subscribe(
         &mut self,
-        _params: RegisterParams,
-        mut results: RegisterResults,
+        params: keyboard_capnp::keyboard::SubscribeParams,
+        mut results: keyboard_capnp::keyboard::SubscribeResults,
     ) -> Promise<(), Error> {
-        info!("Registering node {}", self.id);
-        self.registered_nodes
-            .borrow_mut()
-            .entry(self.id)
-            .and_modify(|e| *e = true)
-            .or_insert(true);
-        results.get().set_ok(true);
-        Promise::ok(())
-    }
+        let sid = self.subscriptions.read().unwrap().keyboard_node_next_id;
+        info!("Adding KeyboardNode watcher id #{}", sid,);
+        let client = pry!(pry!(params.get()).get_subscriber());
+        self.subscriptions
+            .write()
+            .unwrap()
+            .keyboard_node
+            .subscribers
+            .insert(
+                sid,
+                KeyboardSubscriberHandle {
+                    client: client,
+                    requests_in_flight: 0,
+                    auth: self.auth,
+                    node: self.node.clone(),
+                    uid: self.uid,
+                },
+            );
 
-    fn is_registered(
-        &mut self,
-        _params: IsRegisteredParams,
-        mut results: IsRegisteredResults,
-    ) -> Promise<(), Error> {
-        let nodes = self.registered_nodes.borrow();
-        let registered = nodes.get(&self.id).unwrap_or(&false);
-        results.get().set_ok(*registered);
+        results
+            .get()
+            .set_subscription(capnp_rpc::new_client(KeyboardSubscriptionImpl::new(
+                self.mailbox.clone(),
+                self.node.clone(),
+                self.uid,
+                sid,
+                self.subscriptions.clone(),
+            )));
+
+        self.subscriptions.write().unwrap().keyboard_node_next_id += 1;
         Promise::ok(())
     }
 }
 
-/// Cap'n'Proto API Initialization
-/// Sets up a localhost socket to deal with localhost-only API usages
-/// Some API usages may require external authentication to validate trustworthiness
-pub fn initialize(mailbox: HIDIOMailbox) {
-    info!("Initializing api...");
+struct KeyboardSubscriberHandle {
+    client: keyboard_capnp::keyboard::subscriber::Client,
+    requests_in_flight: i32,
+    auth: AuthLevel,
+    node: Endpoint,
+    uid: u64,
+}
 
-    let mut core = ::tokio_core::reactor::Core::new().unwrap();
-    let handle = core.handle();
+struct KeyboardSubscriberMap {
+    subscribers: HashMap<u64, KeyboardSubscriberHandle>,
+}
 
+impl KeyboardSubscriberMap {
+    fn new() -> KeyboardSubscriberMap {
+        KeyboardSubscriberMap {
+            subscribers: HashMap::new(),
+        }
+    }
+}
+
+struct KeyboardSubscriptionImpl {
+    mailbox: mailbox::Mailbox,
+    _node: Endpoint, // API Node information
+    uid: u64, // Device endpoint uid
+    sid: u64, // Subscription id
+    subscriptions: Arc<RwLock<Subscriptions>>,
+}
+
+impl KeyboardSubscriptionImpl {
+    fn new(
+        mailbox: mailbox::Mailbox,
+        node: Endpoint,
+        uid: u64,
+        sid: u64,
+        subscriptions: Arc<RwLock<Subscriptions>>,
+    ) -> KeyboardSubscriptionImpl {
+        KeyboardSubscriptionImpl {
+            mailbox: mailbox,
+            _node: node,
+            uid,
+            sid,
+            subscriptions,
+        }
+    }
+}
+
+impl Drop for KeyboardSubscriptionImpl {
+    fn drop(&mut self) {
+        info!("KeyboardSubscription dropped id: {}", self.uid);
+        self.mailbox.drop_subscriber(self.uid, self.sid);
+        self.subscriptions
+            .write()
+            .unwrap()
+            .keyboard_node
+            .subscribers
+            .remove(&self.uid);
+    }
+}
+
+impl keyboard_capnp::keyboard::subscription::Server for KeyboardSubscriptionImpl {}
+
+struct DaemonNodeImpl {
+    mailbox: mailbox::Mailbox,
+    node: Endpoint, // API Node information
+    uid: u64,       // Device uid
+    auth: AuthLevel,
+    subscriptions: Arc<RwLock<Subscriptions>>,
+}
+
+impl DaemonNodeImpl {
+    fn new(
+        mailbox: mailbox::Mailbox,
+        node: Endpoint,
+        uid: u64,
+        auth: AuthLevel,
+        subscriptions: Arc<RwLock<Subscriptions>>,
+    ) -> DaemonNodeImpl {
+        DaemonNodeImpl {
+            mailbox,
+            node,
+            uid,
+            auth,
+            subscriptions,
+        }
+    }
+}
+
+impl common_capnp::node::Server for DaemonNodeImpl {}
+
+impl daemon_capnp::daemon::Server for DaemonNodeImpl {
+    fn subscribe(
+        &mut self,
+        params: daemon_capnp::daemon::SubscribeParams,
+        mut results: daemon_capnp::daemon::SubscribeResults,
+    ) -> Promise<(), Error> {
+        let id = self.subscriptions.read().unwrap().daemon_node_next_id;
+        info!("Adding DaemonNode watcher id #{}", id,);
+        let client = pry!(pry!(params.get()).get_subscriber());
+        self.subscriptions
+            .write()
+            .unwrap()
+            .daemon_node
+            .subscribers
+            .insert(
+                id,
+                DaemonSubscriberHandle {
+                    client: client,
+                    requests_in_flight: 0,
+                    auth: self.auth,
+                    node: self.node.clone(),
+                },
+            );
+
+        results
+            .get()
+            .set_subscription(capnp_rpc::new_client(DaemonSubscriptionImpl::new(
+                self.mailbox.clone(),
+                self.node.clone(),
+                self.uid,
+                self.subscriptions.clone(),
+            )));
+
+        self.subscriptions.write().unwrap().daemon_node_next_id += 1;
+        Promise::ok(())
+    }
+}
+
+struct DaemonSubscriberHandle {
+    client: daemon_capnp::daemon::subscriber::Client,
+    requests_in_flight: i32,
+    auth: AuthLevel,
+    node: Endpoint,
+}
+
+struct DaemonSubscriberMap {
+    subscribers: HashMap<u64, DaemonSubscriberHandle>,
+}
+
+impl DaemonSubscriberMap {
+    fn new() -> DaemonSubscriberMap {
+        DaemonSubscriberMap {
+            subscribers: HashMap::new(),
+        }
+    }
+}
+
+struct DaemonSubscriptionImpl {
+    _mailbox: mailbox::Mailbox,
+    _node: Endpoint, // API Node information
+    uid: u64,
+    subscriptions: Arc<RwLock<Subscriptions>>,
+}
+
+impl DaemonSubscriptionImpl {
+    fn new(
+        mailbox: mailbox::Mailbox,
+        node: Endpoint,
+        uid: u64,
+        subscriptions: Arc<RwLock<Subscriptions>>,
+    ) -> DaemonSubscriptionImpl {
+        DaemonSubscriptionImpl {
+            _mailbox: mailbox,
+            _node: node,
+            uid,
+            subscriptions,
+        }
+    }
+}
+
+impl Drop for DaemonSubscriptionImpl {
+    fn drop(&mut self) {
+        info!("Subscription dropped id: {}", self.uid);
+        self.subscriptions
+            .write()
+            .unwrap()
+            .daemon_node
+            .subscribers
+            .remove(&self.uid);
+    }
+}
+
+impl daemon_capnp::daemon::subscription::Server for DaemonSubscriptionImpl {}
+
+/// Capnproto Server
+async fn server_bind(
+    mailbox: mailbox::Mailbox,
+    subscriptions: Arc<RwLock<Subscriptions>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Open secured capnproto interface
     let addr = LISTEN_ADDR
-        .to_socket_addrs()
-        .unwrap()
+        .to_socket_addrs()?
         .next()
         .expect("could not parse address");
-    let socket =
-        ::tokio_core::net::TcpListener::bind(&addr, &handle).expect("Failed to open socket");
+    let mut listener = tokio::net::TcpListener::bind(&addr).await?;
     println!("API: Listening on {}", addr);
 
     // Generate new self-signed public/private key
@@ -822,267 +1130,356 @@ pub fn initialize(mailbox: HIDIOMailbox) {
     let subject_alt_names = vec!["localhost".to_string()];
     let pair = generate_simple_self_signed(subject_alt_names).unwrap();
 
-    let cert = rustls::Certificate(pair.serialize_der().unwrap());
-    let pkey = rustls::PrivateKey(pair.serialize_private_key_der());
+    let cert = Certificate(pair.serialize_der().unwrap());
+    let pkey = PrivateKey(pair.serialize_private_key_der());
     let mut config = ServerConfig::new(NoClientAuth::new());
     config.set_single_cert(vec![cert], pkey).unwrap();
-    let config = TlsAcceptor::from(Arc::new(config));
+    let acceptor = TlsAcceptor::from(Arc::new(config));
 
     let nodes = mailbox.nodes.clone();
-    let m = HIDIOMaster::new(nodes.clone());
     let last_uid = mailbox.last_uid.clone();
 
-    let master = Rc::new(RefCell::new(m));
+    let connections: Arc<RwLock<HashMap<u64, Vec<u64>>>> = Arc::new(RwLock::new(HashMap::new()));
 
-    let subscribers_next_id = Arc::new(RwLock::new(0));
-    let subscribers = Arc::new(RwLock::new(SubscriberMap::new()));
 
-    let (trigger, tripwire) = Tripwire::new();
-
-    trait Duplex: tokio::io::AsyncRead + tokio::io::AsyncWrite {};
-    impl<T> Duplex for T where T: tokio::io::AsyncRead + tokio::io::AsyncWrite {}
-
-    let connections = socket.incoming().take_until(tripwire.clone());
-    let tls_handshake = connections.map(|(socket, addr)| {
-        info!("New connection:7185 - {:?}", addr);
-        socket.set_nodelay(true).unwrap();
-        config.accept(socket)
-    });
-
-    let server =
-        tls_handshake.map(|acceptor| {
-            let rc = Rc::clone(&master);
-            let last_uid = last_uid.clone();
-            let (hidapi_writer, hidapi_reader) = channel::<HIDIOMessage>();
-            let (sink, mailbox) =
-                HIDIOMailbox::from_sender(hidapi_writer, nodes.clone(), last_uid.clone());
-            {
-                let mut writers = WRITERS_RC.lock().unwrap();
-                (*writers).push(sink);
-                let mut readers = READERS_RC.lock().unwrap();
-                (*readers).push(hidapi_reader);
-            }
-
-            let handle = handle.clone();
-            let subscribers_next_id = subscribers_next_id.clone();
-            let subscribers = subscribers.clone();
-            acceptor.and_then(move |stream| {
-                // Save connection address for later
-                let addr = stream.get_ref().0.peer_addr().ok().unwrap();
-
-                // Assign a uid to the connection
-                let uid = {
-                    let mut m = rc.borrow_mut();
-                    // Increment
-                    (*last_uid.write().unwrap()) += 1;
-                    let this_uid = *last_uid.read().unwrap();
-                    m.connections.insert(this_uid, vec![]);
-                    this_uid
-                };
-
-                // Initialize auth tokens
-                let hidio_server = HIDIOServerImpl::new(
-                    Rc::clone(&rc),
-                    uid,
-                    mailbox,
-                    subscribers_next_id,
-                    subscribers,
-                );
-
-                // Setup capnproto server
-                let hidio_server = h_i_d_i_o_server::ToClient::new(hidio_server)
-                    .into_client::<::capnp_rpc::Server>();
-
-                let (reader, writer) = stream.split();
-                let network = twoparty::VatNetwork::new(
-                    reader,
-                    writer,
-                    rpc_twoparty_capnp::Side::Server,
-                    Default::default(),
-                );
-
-                // Setup capnproto RPC
-                let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
-                handle.spawn(rpc_system.map_err(|e| info!("rpc_system: {}", e)).and_then(
-                    move |_| {
-                        info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);
-
-                        // Client disconnected, delete node
-                        let connected_nodes = &rc.borrow().connections[&uid].clone();
-                        rc.borrow_mut()
-                            .nodes
-                            .retain(|x| !connected_nodes.contains(&x.id));
-                        Ok(())
-                    },
-                ));
-                Ok(())
-            })
-        });
-
-    // Mailbox thread
-    std::thread::spawn(move || {
-        loop {
-            if !RUNNING.load(Ordering::SeqCst) {
-                break;
-            }
-            let message = mailbox.recv_psuedoblocking();
-            if let Some(message) = message {
-                let mut writers = WRITERS_RC.lock().unwrap();
-                *writers = (*writers)
-                    .drain_filter(|writer| writer.send(message.clone()).is_ok())
-                    .collect::<Vec<_>>();
-            }
-
-            let readers = READERS_RC.lock().unwrap();
-            for reader in (*readers).iter() {
-                let message = reader.try_recv();
-                if let Ok(message) = message {
-                    mailbox.send_packet(message.device, message.message);
-                }
-            }
+    loop {
+        if !RUNNING.load(Ordering::SeqCst) {
+            break Ok(());
         }
-        drop(trigger);
-    });
 
-    let infinite = ::futures::stream::iter_ok::<_, std::io::Error>(::std::iter::repeat(()));
-    let rc = Rc::clone(&master);
+        // Setup connection abort
+        // TODO - Test ongoing connections once they are working!
+        let (abort_handle, abort_registration) = futures::future::AbortHandle::new_pair();
+        tokio::spawn(async move {
+            loop {
+                if !RUNNING.load(Ordering::SeqCst) {
+                    println!("ABORTTTT");
+                    abort_handle.abort();
+                    break;
+                }
+                tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            }
+        });
+        // Setup TLS stream
+        let stream_abortable =
+            futures::future::Abortable::new(listener.accept(), abort_registration);
+        let (stream, _addr) = stream_abortable.await??;
+        stream.set_nodelay(true)?;
+        let acceptor = acceptor.clone();
+        let stream = acceptor.accept(stream).await?;
+
+        // Save connection address for later
+        let addr = stream.get_ref().0.peer_addr().ok().unwrap();
+
+        // Setup reader/writer stream pair
+        let (reader, writer) = futures_util::io::AsyncReadExt::split(
+            tokio_util::compat::Tokio02AsyncReadCompatExt::compat(stream),
+        );
+
+        // Assign a uid to the connection
+        let uid = {
+            // Increment
+            (*last_uid.write().unwrap()) += 1;
+            let this_uid = *last_uid.read().unwrap();
+            connections
+                .clone()
+                .write()
+                .unwrap()
+                .insert(this_uid, vec![]);
+            this_uid
+        };
+
+        // Initialize auth tokens
+        let hidio_server = HIDIOServerImpl::new(
+            mailbox.clone(),
+            connections.clone(),
+            uid,
+            subscriptions.clone(),
+        );
+
+        // Setup capnproto server
+        let hidio_server: hidio_capnp::h_i_d_i_o_server::Client =
+            capnp_rpc::new_client(hidio_server);
+        let network = twoparty::VatNetwork::new(
+            reader,
+            writer,
+            rpc_twoparty_capnp::Side::Server,
+            Default::default(),
+        );
+
+        // Setup capnproto RPC
+        let connections = connections.clone();
+        let nodes = nodes.clone();
+        let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
+        let disconnector = rpc_system.get_disconnector();
+                    disconnector.await.unwrap();
+        let rpc_task = tokio::task::spawn_local(Box::pin(
+            rpc_system
+                .map_err(|e| info!("rpc_system: {}", e))
+                .map(move |_| {
+                    info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);
+
+                    // Client disconnected, delete node
+                    let connected_nodes = connections.read().unwrap()[&uid].clone();
+                    nodes
+                        .write()
+                        .unwrap()
+                        .retain(|x| !connected_nodes.contains(&x.uid));
+                }),
+        ));
+        println!("TRY EXIT");
+                    /*
+        tokio::task::spawn_local(async {
+            loop {
+                if !RUNNING.load(Ordering::SeqCst) {
+                    println!("22222ABORTTTT");
+                    disconnector.await.unwrap();
+                    println!("22222ABORTTTT");
+                    break;
+                }
+                tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            }
+        });
+        */
+    }
+}
+
+/// Capnproto node subscriptions
+async fn server_subscriptions(
+    mailbox: mailbox::Mailbox,
+    subscriptions: Arc<RwLock<Subscriptions>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Setting up api subscriptions...");
+
     let mut last_node_refresh = Instant::now();
     let mut last_node_count = 0;
-    let send_to_subscribers = infinite.take_until(tripwire).fold(
-        (handle.clone(), subscribers.clone()),
-        move |(handle, subscribers),
-              ()|
-              -> Promise<
-            (::tokio_core::reactor::Handle, Arc<RwLock<SubscriberMap>>),
-            std::io::Error,
-        > {
-            {
-                let sub_count = subscribers.read().unwrap().subscribers.len();
-                let subs = &mut subscribers.write().unwrap().subscribers;
-                let subscribers1 = subscribers.clone();
 
-                let master = rc.borrow();
+    let mut last_keyboard_next_id = 0;
 
-                // Determine most recent device addition
-                let devices = master.devices.read().unwrap();
-                let nodes = master.nodes.clone();
-                let mut nodes_update = false;
-                let mut cur_node_count = 0;
-                nodes.iter().chain(devices.iter()).for_each(|endpoint| {
-                    if let Some(_duration) =
-                        endpoint.created.checked_duration_since(last_node_refresh)
-                    {
-                        nodes_update = true;
+    loop {
+        if !RUNNING.load(Ordering::SeqCst) {
+            break;
+        }
+
+        // Check for new keyboard node subscriptions
+        while subscriptions.read().unwrap().keyboard_node_next_id > last_keyboard_next_id {
+            // TODO
+            // Locate the subscription
+            let subscriptions = subscriptions.clone();
+            let mailbox = mailbox.clone();
+
+            // Spawn an task
+            tokio::task::spawn_local(async move {
+                // Subscribe to the mailbox to monitor for incoming messages
+                let receiver = mailbox.sender.subscribe();
+
+                // Wait on the appropriate message filter
+                // TODO Use the cli option to monitor cli
+                // TODO Stream or poll/await or both?
+                // Filter: device uid
+                debug!(
+                    "WATCH ID: {:?}",
+                    mailbox::Address::DeviceHidio {
+                        uid: subscriptions
+                            .read()
+                            .unwrap()
+                            .keyboard_node
+                            .subscribers
+                            .get(&last_keyboard_next_id)
+                            .unwrap()
+                            .uid
                     }
-                    // Count total nodes, if total count doesn't match the last loop
-                    // a nodes update should be sent (node removal case)
-                    cur_node_count += 1;
-                });
-                if cur_node_count != last_node_count {
-                    nodes_update = true;
-                }
-                last_node_count = cur_node_count;
-
-                if nodes_update {
-                    info!(
-                        "Node list update detected, pushing list to subscribers -> {}",
-                        sub_count
-                    );
-
-                    for (&idx, mut subscriber) in subs.iter_mut() {
-                        if subscriber.requests_in_flight < 5 {
-                            subscriber.requests_in_flight += 1;
-                            let mut request = subscriber.client.nodes_update_request();
-                            {
-                                let mut c_nodes = request.get().init_nodes(last_node_count as u32);
-                                for (i, n) in nodes.iter().chain(devices.iter()).enumerate() {
-                                    let mut node = c_nodes.reborrow().get(i as u32);
-                                    node.set_type(n.type_);
-                                    node.set_name(&n.name);
-                                    node.set_serial(&n.serial);
-                                    node.set_id(n.id);
-                                    /* TODO(HaaTa): This field may be tricky to get
-                                     *              Use nodes() rpc call for now
-                                    node.set_node(
-                                        h_i_d_i_o_node::ToClient::new(HIDIONodeImpl::new(
-                                            Rc::clone(&self.registered),
-                                            n.id,
-                                        ))
-                                        .into_client::<::capnp_rpc::Server>(),
-                                    );
-                                    */
-                                    /* TODO(HaaTa): This field may be tricky to get
-                                     *              Use nodes() rpc call for now
-                                    commands.set_usb_keyboard(
-                                        u_s_b_keyboard::commands::ToClient::new(HIDIOKeyboardNodeImpl::new(
-                                            n.id,
-                                            self.auth,
-                                            Rc::clone(&self.incoming),
-                                        ))
-                                        .into_client::<::capnp_rpc::Server>(),
-                                    );
-                                    */
-                                }
+                );
+                tokio::pin! {
+                    let stream = receiver
+                        .into_stream()
+                        .filter(Result::is_ok).map(Result::unwrap)
+                        .take_while(|msg|
+                            msg.src != mailbox::Address::DropSubscription &&
+                            msg.dst != mailbox::Address::CancelSubscription {
+                                uid: subscriptions.read().unwrap().keyboard_node.subscribers.get(&last_keyboard_next_id).unwrap().uid,
+                                sid: last_keyboard_next_id
                             }
+                        )
+                        .filter(|msg|
+                            msg.src == mailbox::Address::DeviceHidio {
+                                uid: subscriptions.read().unwrap().keyboard_node.subscribers.get(&last_keyboard_next_id).unwrap().uid
+                            }
+                        );
+                }
+                // Filter: cli command
+                let mut stream =
+                    stream.filter(|msg| msg.data.id == HIDIOCommandID::Terminal as u32);
+                // Filters: kll trigger
+                //let stream = stream.filter(|msg| msg.data.id == HIDIOCommandID::KLLState);
+                // Filters: layer
+                // TODO
+                // Filters: host macro
+                //let stream = stream.filter(|msg| msg.data.id == HIDIOCommandID::HostMacro);
 
-                            //request.get().set_nodes();
-                            //pry!(request.get().set_message(
-                            //    &format!("system time is: {:?}", ::std::time::SystemTime::now())[..]));
-                            //request.get().set_message(&format!("YARRR {}", sub_count));
+                while let Some(msg) = stream.next().await {
+                    debug!("{:?}", msg);
+                    // TODO
+                    //stream.await
 
-                            let subscribers2 = subscribers1.clone();
-                            handle.spawn(
-                                request
-                                    .send()
-                                    .promise
-                                    .then(move |r| {
-                                        match r {
-                                            Ok(_) => {
-                                                if let Some(ref mut s) = subscribers2
-                                                    .write()
-                                                    .unwrap()
-                                                    .subscribers
-                                                    .get_mut(&idx)
-                                                {
-                                                    s.requests_in_flight -= 1;
-                                                }
-                                            }
-                                            Err(e) => {
-                                                warn!("Got error: {:?}. Dropping subscriber.", e);
-                                                subscribers2
-                                                    .write()
-                                                    .unwrap()
-                                                    .subscribers
-                                                    .remove(&idx);
-                                            }
-                                        }
-                                        Ok::<(), std::io::Error>(())
-                                    })
-                                    .map_err(|_| unreachable!()),
-                            );
+                    // Forward message to api callback
+                    // TODO requests in flight
+                    let mut request = subscriptions
+                        .read()
+                        .unwrap()
+                        .keyboard_node
+                        .subscribers
+                        .get(&last_keyboard_next_id)
+                        .unwrap()
+                        .client
+                        .update_request();
+                    request.get().set_time(
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .expect("Time went backwards")
+                            .as_millis() as u64,
+                    );
+                    request.send().promise.await.unwrap(); // TODO requests in flight
+                                                           // End task if (a) Quitting (b) Subscription is dropped
+                }
+
+                debug!("NOOOOO");
+            });
+
+            // Increment to the next subscription
+            last_keyboard_next_id += 1;
+        }
+
+        // Check for new daemon node subscriptions
+        // TODO
+
+        let subscriptions1 = subscriptions.clone();
+
+        // Determine most recent device addition
+        let nodes = mailbox.nodes.clone();
+        let mut nodes_update = false;
+        let mut cur_node_count = 0;
+
+        nodes.read().unwrap().iter().for_each(|endpoint| {
+            if let Some(_duration) = endpoint.created.checked_duration_since(last_node_refresh) {
+                nodes_update = true;
+            }
+            // Count total nodes, if total count doesn't match the last loop
+            // a nodes update should be sent (node removal case)
+            cur_node_count += 1;
+        });
+        if cur_node_count != last_node_count {
+            nodes_update = true;
+        }
+        last_node_count = cur_node_count;
+
+        // Only send updates when node list has changed
+        if nodes_update {
+            let sub_count = subscriptions.read().unwrap().nodes.subscribers.len();
+            info!(
+                "Node list update detected, pushing list to subscribers -> {}",
+                sub_count
+            );
+
+            let subs = &mut subscriptions.write().unwrap().nodes.subscribers;
+            for (&idx, mut subscriber) in subs.iter_mut() {
+                if subscriber.requests_in_flight < 5 {
+                    subscriber.requests_in_flight += 1;
+                    let mut request = subscriber.client.nodes_update_request();
+                    {
+                        let mut c_nodes = request.get().init_nodes(last_node_count as u32);
+                        for (i, n) in nodes.read().unwrap().iter().enumerate() {
+                            let mut node = c_nodes.reborrow().get(i as u32);
+                            node.set_type(n.type_);
+                            node.set_name(&n.name);
+                            node.set_serial(&n.serial);
+                            node.set_id(n.uid);
+                            let mut node = node.init_node();
+                            match n.type_ {
+                                common_capnp::NodeType::HidioDaemon => {
+                                    node.set_daemon(capnp_rpc::new_client(DaemonNodeImpl::new(
+                                        mailbox.clone(),
+                                        subscriber.node.clone(),
+                                        n.uid,
+                                        subscriber.auth,
+                                        subscriptions.clone(),
+                                    )));
+                                }
+                                common_capnp::NodeType::UsbKeyboard
+                                | common_capnp::NodeType::BleKeyboard => {
+                                    node.set_keyboard(capnp_rpc::new_client(
+                                        KeyboardNodeImpl::new(
+                                            mailbox.clone(),
+                                            subscriber.node.clone(),
+                                            n.uid,
+                                            subscriber.auth,
+                                            subscriptions.clone(),
+                                        ),
+                                    ));
+                                }
+                                _ => {}
+                            }
                         }
                     }
-                    last_node_refresh = Instant::now();
+
+                    let subscriptions2 = subscriptions1.clone();
+                    tokio::task::spawn_local(
+                        request
+                            .send()
+                            .promise
+                            .map(move |r| {
+                                match r {
+                                    Ok(_) => {
+                                        if let Some(ref mut s) = subscriptions2
+                                            .write()
+                                            .unwrap()
+                                            .nodes
+                                            .subscribers
+                                            .get_mut(&idx)
+                                        {
+                                            s.requests_in_flight -= 1;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        warn!("Got error: {:?}. Dropping subscriber.", e);
+                                        subscriptions2
+                                            .write()
+                                            .unwrap()
+                                            .nodes
+                                            .subscribers
+                                            .remove(&idx);
+                                    }
+                                }
+                                Ok::<(), std::io::Error>(())
+                            })
+                            .map_err(|_| unreachable!()),
+                    );
                 }
             }
-            let timeout = pry!(::tokio_core::reactor::Timeout::new(
-                ::std::time::Duration::from_secs(1),
-                &handle
-            ));
-            let timeout = timeout
-                .and_then(move |()| Ok((handle, subscribers)))
-                .map_err(|_| unreachable!());
-            Promise::from_future(timeout)
-        },
-    );
+            last_node_refresh = Instant::now();
+        } else {
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+        }
+    }
 
-    core.run(
-        server
-            .for_each(|client| {
-                handle.spawn(client.map_err(|e| info!("core.run.server: {}", e)));
-                Ok(())
-            })
-            .join(send_to_subscribers),
-    )
-    .unwrap();
+    Ok(())
+}
+
+/// Cap'n'Proto API Initialization
+/// Sets up a localhost socket to deal with localhost-only API usages
+/// Some API usages may require external authentication to validate trustworthiness
+pub async fn initialize(mailbox: mailbox::Mailbox) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Initializing api...");
+    let subscriptions = Arc::new(RwLock::new(Subscriptions::new()));
+
+    let local = tokio::task::LocalSet::new();
+
+    // Start server
+    local.spawn_local(server_bind(mailbox.clone(), subscriptions.clone()));
+
+    // Start subscription thread
+    local.spawn_local(server_subscriptions(mailbox, subscriptions));
+    local.await;
+
+    Ok(())
 }

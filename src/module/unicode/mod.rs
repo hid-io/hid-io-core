@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 by Jacob Alexander
+/* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -49,23 +49,23 @@ impl StubOutput {
 
 impl UnicodeOutput for StubOutput {
     fn get_layout(&self) -> String {
-        warn!("Unimplimented");
+        warn!("Unimplemented");
         "".into()
     }
     fn set_layout(&self, _layout: &str) {
-        warn!("Unimplimented");
+        warn!("Unimplemented");
     }
     fn type_string(&mut self, _string: &str) {
-        warn!("Unimplimented");
+        warn!("Unimplemented");
     }
     fn press_symbol(&mut self, _c: char, _state: bool) {
-        warn!("Unimplimented");
+        warn!("Unimplemented");
     }
     fn get_held(&mut self) -> Vec<char> {
-        warn!("Unimplimented");
+        warn!("Unimplemented");
         vec![]
     }
     fn set_held(&mut self, _string: &str) {
-        warn!("Unimplimented");
+        warn!("Unimplemented");
     }
 }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2019 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 /// Platform specific character output and IME control
 pub mod unicode;
 
-use crate::device::*;
+use crate::mailbox;
 use crate::module::unicode::*;
 use crate::protocol::hidio::*;
 use crate::RUNNING;
@@ -32,10 +32,7 @@ use crate::module::unicode::winapi::*;
 use crate::module::unicode::osx::*;
 
 use std::sync::atomic::Ordering;
-use std::thread;
-use std::time::Duration;
-
-const PROCESS_DELAY: u64 = 1;
+use tokio::stream::StreamExt;
 
 // TODO: Use const fn to adjust based on cago features
 // TODO: Let capnp nodes add to this list
@@ -59,8 +56,7 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
 }
 
 /// Our "internal" node responsible for handling required commands
-struct HIDIOHandler {
-    mailbox: HIDIOMailbox,
+struct Module {
     display: Box<dyn UnicodeOutput>,
 }
 
@@ -84,51 +80,62 @@ fn get_display() -> Box<dyn UnicodeOutput> {
     Box::new(OSXConnection::new())
 }
 
-impl HIDIOHandler {
-    fn new(mailbox: HIDIOMailbox) -> HIDIOHandler {
+impl Module {
+    fn new() -> Module {
         let connection = get_display();
 
         let layout = connection.get_layout();
         info!("Current layout: {}", layout);
 
-        HIDIOHandler {
-            mailbox,
+        Module {
             display: connection,
         }
     }
+}
 
-    /// hidusb device processing
-    /// Will handle all messages we support.
-    /// The capnp api can be used to add extended message types by 3rd party programs
-    fn process(&mut self) {
-        let mailbox = &self.mailbox;
+/// Device initialization
+/// Sets up a scanning thread per Device type (using tokio).
+/// Each scanning thread will create a new thread per device found.
+/// The scanning thread is required in case devices are plugged/unplugged while running.
+/// If a device is unplugged, the Device thread will exit.
+pub async fn initialize(mailbox: mailbox::Mailbox) {
+    info!("Initializing modules...");
 
-        loop {
-            if !RUNNING.load(Ordering::SeqCst) {
-                break;
-            }
-            let message = mailbox.recv_psuedoblocking();
-            if message.is_none() {
+    // Setup local thread
+    // Due to some of the setup in the Module struct we need to run processing in the same local
+    // thread.
+    let local = tokio::task::LocalSet::new();
+    local.spawn_local(async move {
+
+        // Top-level module setup
+        let mut module = Module::new();
+
+        // Setup receiver stream
+        let sender = mailbox.clone().sender.clone();
+        let receiver = sender.clone().subscribe();
+        tokio::pin! {
+            let stream = receiver.into_stream().filter(Result::is_ok).map(Result::unwrap).filter(|msg| msg.src == mailbox::Address::Module);
+        }
+
+        // Process filtered message stream
+        while let Some(msg) = stream.next().await {
+            info!("My msg2: {} {:?} {:?}", msg.data, msg.src, msg.dst); // TODO REMOVEME
+
+            // Make sure this is a valid packet
+            if msg.data.ptype != HIDIOPacketType::Data {
                 continue;
             }
-            let message = message.unwrap();
 
-            let (device, received) = (message.device, message.message);
-
-            if received.ptype != HIDIOPacketType::Data {
-                continue;
-            }
-
-            let id: HIDIOCommandID = unsafe { std::mem::transmute(received.id as u16) };
-            let mydata = received.data.clone();
-            //info!("Processing command: {:?}", id);
+            let id: HIDIOCommandID = unsafe { std::mem::transmute(msg.data.id as u16) };
+            let mydata = msg.data.data.clone();
+            debug!("Processing command: {:?}", id);
             match id {
                 HIDIOCommandID::SupportedIDs => {
                     let ids = SUPPORTED_IDS
                         .iter()
                         .map(|x| unsafe { std::mem::transmute(*x) })
                         .collect::<Vec<u16>>();
-                    mailbox.send_ack(device, received.id, as_u8_slice(&ids).to_vec());
+                    msg.send_ack(sender.clone(), as_u8_slice(&ids).to_vec());
                 }
                 HIDIOCommandID::GetProperties => {
                     use crate::built_info;
@@ -137,15 +144,15 @@ impl HIDIOHandler {
                     match property {
                         HIDIOPropertyID::HIDIOMajor => {
                             let v = built_info::PKG_VERSION_MAJOR.parse::<u16>().unwrap();
-                            mailbox.send_ack(device, received.id, as_u8_slice(&[v]).to_vec());
+                            msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
                         }
                         HIDIOPropertyID::HIDIOMinor => {
                             let v = built_info::PKG_VERSION_MINOR.parse::<u16>().unwrap();
-                            mailbox.send_ack(device, received.id, as_u8_slice(&[v]).to_vec());
+                            msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
                         }
                         HIDIOPropertyID::HIDIOPatch => {
                             let v = built_info::PKG_VERSION_PATCH.parse::<u16>().unwrap();
-                            mailbox.send_ack(device, received.id, as_u8_slice(&[v]).to_vec());
+                            msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
                         }
                         HIDIOPropertyID::HostOS => {
                             let os = match built_info::CFG_OS {
@@ -157,49 +164,49 @@ impl HIDIOHandler {
                                 "freebsd" | "openbsd" | "netbsd" => HostOSID::Linux,
                                 _ => HostOSID::Unknown,
                             };
-                            mailbox.send_ack(device, received.id, vec![os as u8]);
+                            msg.send_ack(sender.clone(), vec![os as u8]);
                         }
                         HIDIOPropertyID::OSVersion => {
                             let version = "1.0"; // TODO: Retreive in cross platform way
-                            mailbox.send_ack(device, received.id, version.as_bytes().to_vec());
+                            msg.send_ack(sender.clone(), version.as_bytes().to_vec());
                         }
                         HIDIOPropertyID::HostName => {
                             let name = built_info::PKG_NAME;
-                            mailbox.send_ack(device, received.id, name.as_bytes().to_vec());
+                            msg.send_ack(sender.clone(), name.as_bytes().to_vec());
                         }
                         HIDIOPropertyID::InputLayout => {
-                            let layout = self.display.get_layout();
+                            let layout = module.display.get_layout();
                             println!("Current layout: {}", layout);
-                            mailbox.send_ack(device, received.id, layout.as_bytes().to_vec());
+                            msg.send_ack(sender.clone(), layout.as_bytes().to_vec());
                         }
                     };
                 }
                 HIDIOCommandID::UnicodeText => {
                     let s = String::from_utf8(mydata).unwrap();
-                    self.display.type_string(&s);
-                    mailbox.send_ack(device, received.id, vec![]);
+                    module.display.type_string(&s);
+                    msg.send_ack(sender.clone(), vec![]);
                 }
                 HIDIOCommandID::UnicodeKey => {
                     let s = String::from_utf8(mydata).unwrap();
-                    self.display.set_held(&s);
-                    mailbox.send_ack(device, received.id, vec![]);
+                    module.display.set_held(&s);
+                    msg.send_ack(sender.clone(), vec![]);
                 }
                 HIDIOCommandID::HostMacro => {
                     warn!("TODO");
-                    mailbox.send_ack(device, received.id, vec![]);
+                    msg.send_ack(sender.clone(), vec![]);
                 }
                 HIDIOCommandID::KLLState => {
                     warn!("TODO");
-                    mailbox.send_ack(device, received.id, vec![]);
+                    msg.send_ack(sender.clone(), vec![]);
                 }
                 HIDIOCommandID::OpenURL => {
                     let s = String::from_utf8(mydata).unwrap();
                     println!("Open url: {}", s);
                     open::that(s).unwrap();
-                    mailbox.send_ack(device, received.id, vec![]);
+                    msg.send_ack(sender.clone(), vec![]);
                 }
                 HIDIOCommandID::Terminal => {
-                    mailbox.send_ack(device, received.id, vec![]);
+                    msg.send_ack(sender.clone(), vec![]);
                     /*std::io::stdout().write_all(&mydata).unwrap();
                     std::io::stdout().flush().unwrap();*/
                 }
@@ -208,29 +215,22 @@ impl HIDIOHandler {
                     info!("Setting language to {}", s);
                 }
                 _ => {
-                    warn!("Unknown command ID: {:?}", &received.id);
-                    mailbox.send_nack(device, received.id, vec![]);
+                    warn!("Unknown command ID: {:?}", msg.data.id);
+                    msg.send_nak(sender.clone(), vec![]);
                 }
             }
-
-            thread::sleep(Duration::from_millis(PROCESS_DELAY));
         }
-    }
-}
+    });
 
-/// Device initialization
-/// Sets up a scanning thread per Device type.
-/// Each scanning thread will create a new thread per device found.
-/// The scanning thread is required in case devices are plugged/unplugged while running.
-/// If a device is unplugged, the Device thread will exit.
-pub fn initialize(mailbox: HIDIOMailbox) -> std::thread::JoinHandle<()> {
-    info!("Initializing modules...");
-
-    thread::Builder::new()
-        .name("Command Handler".to_string())
-        .spawn(move || {
-            let mut handler = HIDIOHandler::new(mailbox);
-            handler.process();
+    // Wait for exit signal before cleaning up
+    local
+        .run_until(async move {
+            loop {
+                if !RUNNING.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            }
         })
-        .unwrap()
+        .await;
 }

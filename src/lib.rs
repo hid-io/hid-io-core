@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2019 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +29,9 @@ pub mod api;
 /// communication with hidapi compatable devices
 pub mod device;
 
+/// mpmc mailbox implementation for hid-io-core (e.g. packet broadcast with filters)
+pub mod mailbox;
+
 /// built-in features and command handlers
 pub mod module;
 
@@ -48,15 +51,9 @@ pub mod common_capnp {
 }
 
 /// [AUTO GENERATED]
-pub mod devicefunction_capnp {
+pub mod daemon_capnp {
     #![allow(clippy::all)]
-    include!(concat!(env!("OUT_DIR"), "/devicefunction_capnp.rs"));
-}
-
-/// [AUTO GENERATED]
-pub mod hidiowatcher_capnp {
-    #![allow(clippy::all)]
-    include!(concat!(env!("OUT_DIR"), "/hidiowatcher_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/daemon_capnp.rs"));
 }
 
 /// [AUTO GENERATED]
@@ -66,15 +63,9 @@ pub mod hidio_capnp {
 }
 
 /// [AUTO GENERATED]
-pub mod hostmacro_capnp {
+pub mod keyboard_capnp {
     #![allow(clippy::all)]
-    include!(concat!(env!("OUT_DIR"), "/hostmacro_capnp.rs"));
-}
-
-/// [AUTO GENERATED]
-pub mod usbkeyboard_capnp {
-    #![allow(clippy::all)]
-    include!(concat!(env!("OUT_DIR"), "/usbkeyboard_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/keyboard_capnp.rs"));
 }
 
 // ----- Functions -----

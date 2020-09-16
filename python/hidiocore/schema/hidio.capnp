@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2019 by Jacob Alexander
+# Copyright (C) 2017-2020 by Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,10 +23,6 @@
 ## Imports ##
 
 using Common = import "common.capnp";
-
-using import "hidiowatcher.capnp".HIDIOWatcher;
-using import "hostmacro.capnp".HostMacro;
-using import "usbkeyboard.capnp".USBKeyboard;
 
 
 
@@ -58,6 +54,8 @@ interface HIDIOServer {
         # File path to authenticated key
         # Must have root/admin priviledges to read this key
     }
+
+    ## Functions ##
 
     basic @0 (info :Common.Source, key :Text) -> (port :HIDIO);
     # Allocates a basic interface, with no special priviledges
@@ -92,34 +90,41 @@ interface HIDIOServer {
 interface HIDIO {
     # Main HIDIO Interface
     # Requires authentication through HIDIOServer first
-    struct Signal {
-        time @0 :UInt64;
-        # Signal event timestamp
 
-        source @1 :Common.Source;
-        # Source of signal
-
-        type :union {
-            usbKeyboard @2 :USBKeyboard.Signal;
-            hostMacro @3 :HostMacro.Signal;
-            hidioPacket @4 :HIDIOWatcher.Signal;
+    struct Packet {
+        # This struct represents a modified HIDIO packet
+        # as used internally by hid-io-core.
+        # This is not the same as the "on-the-wire" HIDIO packets
+        # (Continued packets are joined together)
+        # TODO DOCUMENT MORE
+        enum Type {
+            data @0;
+            # Data packet
+            ack @1;
+            # Ack for a data packet
+            nak @2;
+            # Nak for a data packet (Error)
+            naData @3;
+            # Non-acknowledged data packet (no corresponding ack/nak packet)
         }
-        # Signal packet information
-        # Each module's signal struct further specializes the return value
+
+        src @0 :UInt64;
+        # Source uid of the packet (set to 0 if N/A)
+
+        dst @1 :UInt64;
+        # Destination uid of the packet (set to 0 if N/A)
+
+        type @2 :Type;
+        # Type of HIDIO packet
+
+        id @3 :UInt32;
+        # Id of the HIDIO packet
+
+        data @4 :List(UInt8);
+        # Payload data of packet (in bytes)
     }
 
-    signal @0 (time :UInt64) -> (time :UInt64, signal :List(Signal));
-    # Promise subscription
-    # After each return, call again
-    # Will return when there is information to send
-    # You will have to use the nodes() function to register with each of the possible signals
-    #
-    # Use 0 as the starting time
-    # Time is unix time
-    # The return time is the time the signal list starts
-    # This may be the same time, or earlier than the first signal, to signify nothing came before it
-
-    nodes @1 () -> (nodes :List(Common.Destination));
+    nodes @0 () -> (nodes :List(Common.Destination));
     # List of supported nodes
     # This may not contain all nodes due to authentication levels
     # The HIDIO daemon may revoke priviledges for certain modules during runtime
@@ -134,10 +139,88 @@ interface HIDIO {
 
         nodesUpdate @0 (nodes :List(Common.Destination));
         # Called whenever the list of nodes changes
+
+        hidioWatcher @1 (packets :List(Packet));
+        # Called on every internal HIDIO message
+        # This watcher will show most of the "on-the-wire" packets as well as some hid-io-core internal packets.
+        # Sync, Continued and NAContinued will not be triggered by the watcher.
+        # NOTE: This callback is only used when hid-io-core is in debug mode with a priviledged interface
     }
 
-    subscribeNodes @2 (subscriber :NodesSubscriber) -> (subscription :NodesSubscription);
+    subscribeNodes @1 (subscriber :NodesSubscriber) -> (subscription :NodesSubscription);
     # Subscribes a NodesSubscriber interface
     # Registers push notifications for node list changes
 }
 
+interface Node extends(Common.Node) {
+    # Common interface for all HIDIO nodes
+
+    struct FlashModeStatus {
+        # Result of a flash mode command
+
+        struct Success {
+            scanCode @0 :UInt16;
+            # In order to enter flash mode a specific (randomly) generated physical key must be pressed
+            # This scan code refers to that physical key.
+            # Use the key layout to determine the HID key label.
+        }
+        struct Error {
+            # Entering flash mode failed
+
+            reason @0 :ErrorReason;
+            # Reason for flash mode failure
+
+            enum ErrorReason {
+                notSupported @0;
+                # Flash mode is not supported on this device
+
+                disabled @1;
+                # Flash mode is disabled on this device (usually for security reasons)
+            }
+        }
+
+        union {
+            success @0 :Success;
+            error @1 :Error;
+        }
+    }
+
+    struct SleepModeStatus {
+        # Result of a sleep mode command
+
+        struct Success {}
+        struct Error {
+            # Entering sleep mode failed
+
+            reason @0 :ErrorReason;
+            # Reason for sleep mode failure
+
+            enum ErrorReason {
+                notSupported @0;
+                # Sleep mode is not supported on this device
+
+                disabled @1;
+                # Sleep mode is disabled on this device
+
+                notReady @2;
+                # Not ready to enter sleep mode
+                # This is usually due to some physical or USB state that is preventing the transition to sleep mode
+            }
+        }
+
+        union {
+            success @0 :Success;
+            error @1 :Error;
+        }
+    }
+
+
+    cliCommand @0 (command :Text) -> ();
+    # CLI command
+
+    sleepMode @1 () -> (status :SleepModeStatus);
+    # Attempt to have device go into a sleep state
+
+    flashMode @2 () -> (status :FlashModeStatus);
+    # Attempt to have the device enter flash mode
+}

@@ -1,4 +1,4 @@
-/* Copyright (C) 2017 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,21 +14,24 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//use std::string;
-use std::thread;
-//use std::thread::sleep;
-use std::time::Duration;
+use crate::mailbox;
+use crate::RUNNING;
+use std::sync::atomic::Ordering;
 
-const SLEEP_DURATION: u64 = 1000;
+const SLEEP_DURATION: u64 = 100;
 
 /// debug processing
-fn processing() {
+async fn processing() {
     info!("Spawning device/debug spawning thread...");
 
     // Loop infinitely, the watcher only exits if the daemon is quit
     loop {
+        if !RUNNING.load(Ordering::SeqCst) {
+            break;
+        }
+
         // Sleep so we don't starve the CPU
-        thread::sleep(Duration::from_millis(SLEEP_DURATION));
+        tokio::time::delay_for(std::time::Duration::from_millis(SLEEP_DURATION)).await;
     }
 }
 
@@ -40,12 +43,9 @@ fn processing() {
 ///
 /// Sets up a processing thread for the debug module.
 ///
-pub fn initialize() {
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
     info!("Initializing device/debug...");
 
     // Spawn watcher thread
-    thread::Builder::new()
-        .name("Debug module".to_string())
-        .spawn(processing)
-        .unwrap();
+    tokio::spawn(processing()).await.unwrap()
 }

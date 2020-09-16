@@ -35,11 +35,9 @@ fn main() {
     capnpc::CompilerCommand::new()
         .src_prefix("python/hidiocore/schema")
         .file("python/hidiocore/schema/common.capnp")
-        .file("python/hidiocore/schema/devicefunction.capnp")
+        .file("python/hidiocore/schema/daemon.capnp")
         .file("python/hidiocore/schema/hidio.capnp")
-        .file("python/hidiocore/schema/hidiowatcher.capnp")
-        .file("python/hidiocore/schema/hostmacro.capnp")
-        .file("python/hidiocore/schema/usbkeyboard.capnp")
+        .file("python/hidiocore/schema/keyboard.capnp")
         .run()
         .expect("schema compiler command");
 

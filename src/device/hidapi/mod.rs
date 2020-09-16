@@ -14,21 +14,15 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::api::Endpoint;
+use crate::api::HIDAPIInfo;
+use crate::common_capnp::NodeType;
 use crate::device::*;
-use crate::protocol::hidio::*;
 use crate::RUNNING;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::sync::atomic::Ordering;
-
-use std::sync::mpsc::channel;
-use std::thread;
-use std::time::Duration;
 use std::time::Instant;
-
-use crate::api::Endpoint;
-use crate::api::HIDAPIInfo;
-use crate::common_capnp::NodeType;
 
 pub const USAGE_PAGE: u16 = 0xFF1C;
 pub const USAGE: u16 = 0x1100;
@@ -37,18 +31,18 @@ const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
 const POLL_DELAY: u64 = 10;
 
-pub struct HIDUSBDevice {
-    device: hidapi::HidDevice,
+pub struct HIDAPIDevice {
+    device: ::hidapi::HidDevice,
 }
 
-impl HIDUSBDevice {
-    pub fn new(device: hidapi::HidDevice) -> HIDUSBDevice {
+impl HIDAPIDevice {
+    pub fn new(device: ::hidapi::HidDevice) -> HIDAPIDevice {
         device.set_blocking_mode(false).unwrap();
-        HIDUSBDevice { device }
+        HIDAPIDevice { device }
     }
 }
 
-impl std::io::Read for HIDUSBDevice {
+impl std::io::Read for HIDAPIDevice {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self.device.read(buf) {
             Ok(len) => {
@@ -68,7 +62,7 @@ impl std::io::Read for HIDUSBDevice {
         }
     }
 }
-impl std::io::Write for HIDUSBDevice {
+impl std::io::Write for HIDAPIDevice {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
         let buf = {
             #[allow(clippy::needless_bool)]
@@ -117,9 +111,9 @@ impl std::io::Write for HIDUSBDevice {
     }
 }
 
-impl HIDIOTransport for HIDUSBDevice {}
+impl HIDIOTransport for HIDAPIDevice {}
 
-fn device_name(device_info: &hidapi::DeviceInfo) -> String {
+fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
     let mut string = format!(
         "[{:04x}:{:04x}-{:x}:{:x}] I:{} ",
         device_info.vendor_id(),
@@ -141,35 +135,35 @@ fn device_name(device_info: &hidapi::DeviceInfo) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn match_device(device_info: &hidapi::DeviceInfo) -> bool {
+fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
     // NOTE: This requires some patches to hidapi (https://github.com/libusb/hidapi/pull/139)
     // interface number and usage are both queryable. Prefer usage
     device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
 }
 
 #[cfg(target_os = "macos")]
-fn match_device(device_info: &hidapi::DeviceInfo) -> bool {
+fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
     // interface_number is always -1 but usage is fine
     device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
 }
 
 #[cfg(target_os = "windows")]
-fn match_device(device_info: &hidapi::DeviceInfo) -> bool {
+fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
     // interface and usage are both queryable. Prefer usage
     device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
 }
 
-/// hidusb processing
+/// hidapi processing
 ///
 /// This thread periodically refreshes the USB device list to see if a new device needs to be attached
 /// The thread also handles reading/writing from connected interfaces
 ///
 /// XXX (HaaTa) hidapi is not thread-safe on all platforms, so don't try to create a thread per device
-fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
-    info!("Spawning hidusb spawning thread...");
+async fn processing(mut mailbox: mailbox::Mailbox) {
+    info!("Spawning hidapi spawning thread...");
 
     // Initialize HID interface
-    let mut api = hidapi::HidApi::new().expect("HID API object creation failed");
+    let mut api = ::hidapi::HidApi::new().expect("HID API object creation failed");
 
     let mut devices: Vec<HIDIOController> = vec![];
 
@@ -180,9 +174,8 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
     loop {
         while enumerate {
             if !RUNNING.load(Ordering::SeqCst) {
-                break;
+                return;
             }
-            last_scan = Instant::now();
 
             // Refresh devices list
             api.refresh_devices().unwrap();
@@ -212,25 +205,30 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
                 //    vid, pid, usage page, usage, manufacturer, product, serial, interface
                 // 2. Must not currently be in use (generally, use path to differentiate)
                 let key = info.build_hidapi_key();
-                let id = match mailer.get_id(key.clone(), format!("{:#?}", device_info.path())) {
+                let uid = match mailbox.get_uid(key.clone(), format!("{:#?}", device_info.path())) {
                     Some(0) => {
                         // Device has already been registered
                         continue;
                     }
-                    Some(id) => id,
+                    Some(uid) => uid,
                     None => {
                         // Get last created id and increment
-                        (*last_uid.write().unwrap()) += 1;
-                        let id = *last_uid.read().unwrap();
+                        (*mailbox.last_uid.write().unwrap()) += 1;
+                        let uid = *mailbox.last_uid.read().unwrap();
 
                         // Add id to lookup
-                        mailer.add_id(key, id);
-                        id
+                        mailbox.add_uid(key, uid);
+                        uid
                     }
                 };
 
+                // Check to see if already connected
+                if devices.iter().any(|dev| dev.uid == uid) {
+                    continue;
+                }
+
                 // Add device
-                info!("Connecting to id:{} {}", id, device_str);
+                info!("Connecting to uid:{} {}", uid, device_str);
 
                 // If serial number is a MAC address, this is a bluetooth device
                 lazy_static! {
@@ -250,7 +248,7 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
                     } else {
                         NodeType::UsbKeyboard
                     },
-                    id,
+                    uid,
                 );
                 node.set_hidapi_params(info);
 
@@ -259,48 +257,49 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
                 match api.open_path(device_info.path()) {
                     Ok(device) => {
                         println!("Connected to {}", node);
-                        let device = HIDUSBDevice::new(device);
+                        let device = HIDAPIDevice::new(device);
                         let mut device =
                             HIDIOEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
 
-                        let (message_tx, message_rx) = channel::<HIDIOPacketBuffer>();
-                        let (response_tx, response_rx) = channel::<HIDIOPacketBuffer>();
                         if let Err(e) = device.send_sync() {
                             // Could not open device (likely removed, or in use)
                             warn!("Processing - {}", e);
-                            break;
+                            continue;
                         }
 
-                        let master =
-                            HIDIOController::new(id.to_string(), device, message_tx, response_rx);
+                        // Setup device controller (handles communication and protocol conversion
+                        // for the HIDIO device)
+                        let master = HIDIOController::new(mailbox.clone(), uid, device);
                         devices.push(master);
 
-                        // Add to connected list
-                        let device = HIDIOQueue::new(node, message_rx, response_tx);
-                        mailer.register_device(id.to_string(), device);
+                        // Add device to node list
+                        mailbox.nodes.write().unwrap().push(node);
                     }
                     Err(e) => {
                         // Could not open device (likely removed, or in use)
                         warn!("Processing - {}", e);
-                        break;
+                        continue;
                     }
                 };
             }
 
+            // Update scan time
+            last_scan = Instant::now();
+
             if !devices.is_empty() {
                 debug!("Enumeration finished");
                 enumerate = false;
-                break;
+            } else {
+                // Sleep so we don't starve the CPU
+                // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
+                // XXX - Rewrite hidapi with rust and include async
+                tokio::time::delay_for(std::time::Duration::from_millis(ENUMERATE_DELAY)).await;
             }
-
-            // Sleep so we don't starve the CPU
-            // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
-            thread::sleep(Duration::from_millis(ENUMERATE_DELAY));
         }
 
         loop {
             if !RUNNING.load(Ordering::SeqCst) {
-                break;
+                return;
             }
 
             if devices.is_empty() {
@@ -310,41 +309,58 @@ fn processing(mut mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
             }
 
             // TODO (HaaTa): Make command-line argument/config option
-            if last_scan.elapsed().as_secs() >= 1 {
-                debug!("Been a while. Checking for new devices");
+            if last_scan.elapsed().as_millis() >= 1000 {
                 enumerate = true;
                 break;
             }
 
             // Process devices
+            let mut removed_devices = vec![];
+            let mut io_events: usize = 0;
             devices = devices
                 .drain_filter(|dev| {
+                    // Check if disconnected
                     let ret = dev.process();
+                    let result = ret.is_ok();
                     if ret.is_err() {
-                        info!("{} disconnected. No longer polling it", dev.id);
-                        mailer.unregister_device(&dev.id);
+                        removed_devices.push(dev.uid);
+                        info!("{} disconnected. No longer polling it", dev.uid);
+                    } else {
+                        // Record io events (used to schedule sleeps)
+                        io_events += ret.ok().unwrap();
                     }
-                    ret.is_ok()
+                    result
                 })
                 .collect::<Vec<_>>();
 
-            mailer.process();
+            // Modify nodes list to remove any uids that were disconnected
+            // uids are unique across both api and devices, so this is always safe to do
+            if !removed_devices.is_empty() {
+                let new_nodes = mailbox
+                    .nodes
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .drain_filter(|node| !removed_devices.contains(&node.uid()))
+                    .collect::<Vec<_>>();
+                *mailbox.nodes.write().unwrap() = new_nodes;
+            }
 
-            // TODO (HaaTa) - If there was any IO, on any of the devices, do not sleep, only sleep when all devices are idle
-            thread::sleep(Duration::from_millis(POLL_DELAY));
+            // If there was any IO, on any of the devices, do not sleep, only sleep when all devices are idle
+            if io_events == 0 {
+                tokio::time::delay_for(std::time::Duration::from_millis(POLL_DELAY)).await;
+            }
         }
     }
 }
 
-/// hidusb initialization
+/// hidapi initialization
 ///
-/// Sets up a processing thread for hidusb.
-pub fn initialize(mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
-    info!("Initializing device/hidusb...");
+/// Sets up a processing thread for hidapi.
+pub async fn initialize(mailbox: mailbox::Mailbox) {
+    info!("Initializing device/hidapi...");
 
-    // Spawn watcher thread
-    thread::Builder::new()
-        .name("hidusb".to_string())
-        .spawn(|| processing(mailer, last_uid))
-        .unwrap();
+    // Spawn watcher thread (tokio)
+    let local = tokio::task::LocalSet::new();
+    local.run_until(processing(mailbox)).await;
 }

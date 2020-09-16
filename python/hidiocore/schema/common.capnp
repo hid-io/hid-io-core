@@ -22,18 +22,12 @@
 
 ## Imports ##
 
-using import "hidiowatcher.capnp".HIDIOWatcher;
-using import "hostmacro.capnp".HostMacro;
-using import "usbkeyboard.capnp".USBKeyboard;
+using import "daemon.capnp".Daemon;
+using import "keyboard.capnp".Keyboard;
+
+
 
 ## Enumerations ##
-
-enum KeyEventState {
-    off @0;
-    press @1;
-    hold @2;
-    release @3;
-}
 
 enum NodeType {
     hidioDaemon @0;
@@ -88,15 +82,21 @@ struct Destination {
     # While daemon is running, ids are only reused once 2^64 Ids have been utilized.
     # This allows (for at least a brief period) a unique source (which may disappear before processing)
 
-    node @4 :HIDIONode;
-    # Interface node of destination
-    # A separate node is generated for each interface node
-    # (i.e. there may be multiple nodes per physical/virtual device)
+    node :union {
+        # Interface node of destination
+        # A separate node is generated for each interface node
+        # (i.e. there may be multiple nodes per physical/virtual device)
+        #
+        # May not be set depending on the type of node as there may not be any additional functionality available
+        # to the API
 
-    commands :union {
-        usbKeyboard @5 :USBKeyboard.Commands;
-	hostMacro @6 :HostMacro.Commands;
-	hidioPacket @7 :HIDIOWatcher.Commands;
+        keyboard @4 :Keyboard;
+        # HIDIO Keyboard Node
+        # Valid when the type is set to usbKeyboard or bleKeyboard
+
+        daemon @5 :Daemon;
+        # Daemon (hid-io-core) Command Node
+        # Valid when the type is set to hidioDaemon
     }
 }
 
@@ -104,14 +104,6 @@ struct Destination {
 
 ## Interfaces ##
 
-interface HIDIONode {
-    # Common interface for all module nodes for HIDIO
-
-    register @0 () -> (ok :Bool);
-    # Register signal with daemon
-
-    isRegistered @1 () -> (ok :Bool);
-    # Returns on whether the node is registered with your client for signalling
-    #
+interface Node {
+    # Common interface for all HIDIO api nodes
 }
-

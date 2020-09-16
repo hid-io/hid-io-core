@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2019 by Jacob Alexander
+/* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,17 +19,13 @@ pub mod debug;
 /// Handles hidapi devices (libusb/rawhid)
 ///
 /// May also work with bluetooth low energy in the future.
-pub mod hidusb;
+pub mod hidapi;
 
-use crate::api::Endpoint;
+use crate::mailbox;
 use crate::protocol::hidio::*;
-use std::collections::HashMap;
-use std::sync::mpsc;
-use std::sync::mpsc::channel;
-use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
-
 use std::io::{Read, Write};
+use std::time::Instant;
+use tokio::sync::broadcast;
 
 /// A duplex stream for HIDIO to communicate over
 pub trait HIDIOTransport: Read + Write {}
@@ -136,10 +132,10 @@ impl HIDIOEndpoint {
         })
     }
 
-    pub fn send_ack(&mut self, _id: u32, data: Vec<u8>) {
+    pub fn send_ack(&mut self, id: u32, data: Vec<u8>) {
         self.send_packet(HIDIOPacketBuffer {
             ptype: HIDIOPacketType::ACK,
-            id: 0,       // id,
+            id,
             max_len: 64, //..Defaults
             data,
             done: true,
@@ -155,38 +151,36 @@ impl HIDIOEndpoint {
 /// It is responsible for managing the underlying acks/nacks, etc.
 /// Process must be continually called.
 pub struct HIDIOController {
-    id: String,
+    mailbox: mailbox::Mailbox,
+    uid: u64,
     device: HIDIOEndpoint,
     received: HIDIOPacketBuffer,
+    receiver: broadcast::Receiver<mailbox::Message>,
     last_sync: Instant,
-    message_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
-    response_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
 }
 
 impl HIDIOController {
-    pub fn new(
-        id: String,
-        device: HIDIOEndpoint,
-        message_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
-        response_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
-    ) -> HIDIOController {
+    pub fn new(mailbox: mailbox::Mailbox, uid: u64, device: HIDIOEndpoint) -> HIDIOController {
         let received = device.create_buffer();
+        // Setup receiver so that it can queue up messages between processing loops
+        let receiver = mailbox.sender.subscribe();
         let last_sync = Instant::now();
-        //let mut prev_len = 0;
         HIDIOController {
+            mailbox,
             device,
-            id,
+            uid,
             received,
+            receiver,
             last_sync,
-            message_queue,
-            response_queue,
         }
     }
 
-    pub fn process(&mut self) -> Result<(), std::io::Error> {
+    pub fn process(&mut self) -> Result<usize, std::io::Error> {
+        let mut io_events = 0;
         match self.device.recv_chunk(&mut self.received) {
             Ok(recv) => {
                 if recv > 0 {
+                    io_events += 1;
                     self.last_sync = Instant::now();
 
                     /*let len = received.data.len();
@@ -201,14 +195,12 @@ impl HIDIOController {
                         HIDIOPacketType::ACK => {
                             // Don't ack an ack
                         }
-                        HIDIOPacketType::NAData | HIDIOPacketType::NAContinued => {
-                            // Don't ack an ack
-                        }
                         HIDIOPacketType::NAK => {
                             println!("NACK. Resetting buffer");
                             self.received = self.device.create_buffer();
                         }
                         HIDIOPacketType::Continued | HIDIOPacketType::Data => {}
+                        HIDIOPacketType::NAData | HIDIOPacketType::NAContinued => {}
                     }
 
                     if !self.received.done {
@@ -223,314 +215,46 @@ impl HIDIOController {
         };
 
         if self.received.done {
-            self.message_queue.send(self.received.clone()).unwrap();
+            // Send message to mailbox
+            let src = mailbox::Address::DeviceHidio { uid: self.uid };
+            let dst = mailbox::Address::All;
+            let msg = mailbox::Message::new(src, dst, self.received.clone());
+            self.mailbox.sender.send(msg).unwrap();
             self.received = self.device.create_buffer();
             //prev_len = 0;
         }
 
         if self.last_sync.elapsed().as_secs() >= 5 {
+            io_events += 1;
             if self.device.send_sync().is_err() {
                 return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
             };
             self.received = self.device.create_buffer();
             self.last_sync = Instant::now();
-            return Ok(());
+            return Ok(io_events);
         }
 
-        match self.response_queue.try_recv() {
-            Ok(mut p) => {
-                p.max_len = self.device.max_packet_len;
-                self.device.send_packet(p.clone())?;
+        loop { match self.receiver.try_recv() {
+            Ok(mut msg) => {
+                // Only look at packets addressed to this endpoint
+                if msg.dst == (mailbox::Address::DeviceHidio { uid: self.uid }) {
+                    msg.data.max_len = self.device.max_packet_len;
+                    self.device.send_packet(msg.data.clone())?;
 
-                if p.ptype == HIDIOPacketType::Sync {
-                    self.received = self.device.create_buffer();
+                    if msg.data.ptype == HIDIOPacketType::Sync {
+                        self.received = self.device.create_buffer();
+                    }
                 }
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            Err(broadcast::TryRecvError::Empty) => { break; }
+            Err(broadcast::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
+            Err(broadcast::TryRecvError::Closed) => {
                 return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
                 //::std::process::exit(1);
             }
         }
-
-        Ok(())
-    }
-}
-
-/// The userspace end of a HIDIOController
-///
-/// Can be cloned and passed around freely, even between threads
-pub struct HIDIOQueue {
-    pub node: Endpoint,
-    message_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
-    response_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
-}
-
-impl HIDIOQueue {
-    pub fn new(
-        node: Endpoint,
-        message_queue: std::sync::mpsc::Receiver<HIDIOPacketBuffer>,
-        response_queue: std::sync::mpsc::Sender<HIDIOPacketBuffer>,
-    ) -> HIDIOQueue {
-        HIDIOQueue {
-            node,
-            message_queue,
-            response_queue,
         }
-    }
-
-    pub fn send_packet(
-        &self,
-        packet: HIDIOPacketBuffer,
-    ) -> Result<(), mpsc::SendError<HIDIOPacketBuffer>> {
-        self.response_queue.send(packet)
-    }
-
-    pub fn recv_packet(&mut self) -> HIDIOPacketBuffer {
-        self.message_queue.recv().unwrap()
-    }
-
-    pub fn messages(&mut self) -> mpsc::TryIter<HIDIOPacketBuffer> {
-        // TODO: Detect error (other side disconnected)
-        self.message_queue.try_iter()
-    }
-}
-
-/// A single message and its recipient or source
-#[derive(Debug, Clone)]
-pub struct HIDIOMessage {
-    pub device: String,
-    pub message: HIDIOPacketBuffer,
-}
-
-/// The main HIDIOMessage passer
-///
-/// Will grab messages from every "mailbox" and pass the message to the correct outgoing queue.
-/// Will monitor each incoming queue and leave a copy of the message in every mailbox.
-/// Process must be continually called.
-pub struct HIDIOMailer {
-    devices: HashMap<String, HIDIOQueue>,
-    connected: Arc<RwLock<Vec<Endpoint>>>,
-    incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
-    outgoing: Vec<std::sync::mpsc::Sender<HIDIOMessage>>,
-    lookup: HashMap<String, Vec<u64>>, // Used to re-use ids, a vector is used in case there are duplicates
-}
-
-impl HIDIOMailer {
-    pub fn new(incoming: std::sync::mpsc::Receiver<HIDIOMessage>) -> HIDIOMailer {
-        let devices = HashMap::new();
-        let outgoing = vec![];
-        let connected = Arc::new(RwLock::new(vec![]));
-        let lookup = HashMap::new();
-
-        HIDIOMailer {
-            devices,
-            connected,
-            incoming,
-            outgoing,
-            lookup,
-        }
-    }
-
-    /// Attempt to locate an unused id for the device key
-    pub fn get_id(&mut self, key: String, path: String) -> Option<u64> {
-        let lookup_entry = self.lookup.entry(key).or_insert_with(|| vec![]);
-
-        // Locate an id
-        'outer: for id in (*lookup_entry).iter() {
-            for mut node in (*self.connected.read().unwrap()).clone() {
-                if node.id() == *id {
-                    // Id is being used, and has the same path (i.e. this device)
-                    if node.path() == path {
-                        // Return an invalid Id (0)
-                        return Some(0);
-                    }
-
-                    // Id is being used, and is not available
-                    continue 'outer;
-                }
-            }
-            // Id is not being used
-            return Some(*id);
-        }
-
-        // Could not locate an id
-        None
-    }
-
-    /// Add id to lookup
-    pub fn add_id(&mut self, key: String, id: u64) {
-        let lookup_entry = self.lookup.entry(key).or_insert_with(|| vec![]);
-        (*lookup_entry).push(id);
-    }
-
-    pub fn register_device(&mut self, id: String, device: HIDIOQueue) {
-        info!("Registering device: {}", id);
-        let mut connected = self.connected.write().unwrap();
-        (*connected).push(device.node.clone());
-        self.devices.insert(id, device);
-    }
-
-    pub fn unregister_device(&mut self, id: &str) {
-        info!("Unregistering device: {}", id);
-        let mut connected = self.connected.write().unwrap();
-        *connected = connected
-            .drain_filter(|dev| dev.id().to_string() != id)
-            .collect::<Vec<_>>();
-        self.devices.remove(id);
-    }
-
-    pub fn devices(&self) -> Arc<RwLock<Vec<Endpoint>>> {
-        self.connected.clone()
-    }
-
-    pub fn register_listener(&mut self, sink: std::sync::mpsc::Sender<HIDIOMessage>) {
-        self.outgoing.push(sink);
-    }
-
-    pub fn process(&mut self) {
-        for (device, queue) in self.devices.iter_mut() {
-            for message in queue.messages() {
-                let m = HIDIOMessage {
-                    device: device.to_string(),
-                    message,
-                };
-                for sink in self.outgoing.iter() {
-                    sink.send(m.clone()).unwrap();
-                }
-            }
-        }
-
-        for message in self.incoming.try_iter() {
-            // Make sure device still exists
-            if !self.devices.contains_key(&message.device) {
-                continue;
-            }
-            let device = &self.devices[&message.device];
-            let ret = device.send_packet(message.message);
-            if ret.is_err() {
-                info!("Device queue disconnected. Unregistering.");
-                self.devices.remove(&message.device);
-            }
-        }
-    }
-}
-
-/// The userspace end of the HIDIO message system
-///
-/// Can receive all incoming messages, or send a new message to a device by id.
-/// Provides utility functions to construct common messages.
-pub struct HIDIOMailbox {
-    pub nodes: Arc<RwLock<Vec<Endpoint>>>,
-    pub last_uid: Arc<RwLock<u64>>,
-    incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
-    outgoing: std::sync::mpsc::Sender<HIDIOMessage>,
-}
-
-impl HIDIOMailbox {
-    pub fn new(
-        nodes: Arc<RwLock<Vec<Endpoint>>>,
-        last_uid: Arc<RwLock<u64>>,
-        incoming: std::sync::mpsc::Receiver<HIDIOMessage>,
-        outgoing: std::sync::mpsc::Sender<HIDIOMessage>,
-    ) -> HIDIOMailbox {
-        HIDIOMailbox {
-            nodes,
-            last_uid,
-            incoming,
-            outgoing,
-        }
-    }
-
-    pub fn from_sender(
-        dest: mpsc::Sender<HIDIOMessage>,
-        nodes: Arc<RwLock<Vec<Endpoint>>>,
-        last_uid: Arc<RwLock<u64>>,
-    ) -> (mpsc::Sender<HIDIOMessage>, HIDIOMailbox) {
-        let (writer, reader) = channel::<HIDIOMessage>();
-        let mailbox = HIDIOMailbox::new(nodes, last_uid, reader, dest);
-        (writer, mailbox)
-    }
-
-    pub fn send_packet(&self, device: String, packet: HIDIOPacketBuffer) {
-        let result = self.outgoing.send(HIDIOMessage {
-            device,
-            message: packet,
-        });
-        if let Err(e) = result {
-            error!("send_packet {}", e);
-        }
-    }
-
-    pub fn recv(&self) -> HIDIOMessage {
-        self.incoming.recv().unwrap()
-    }
-
-    pub fn recv_psuedoblocking(&self) -> Option<HIDIOMessage> {
-        match self.incoming.recv_timeout(Duration::from_millis(1)) {
-            Ok(m) => Some(m),
-            Err(mpsc::RecvTimeoutError::Timeout) => None,
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                warn!("Lost socket"); // TODO: pass warning down
-                std::process::exit(1);
-            }
-        }
-    }
-
-    pub fn iter(&self) -> mpsc::Iter<HIDIOMessage> {
-        self.incoming.iter()
-    }
-
-    pub fn send_sync(&self, device: String) {
-        self.send_packet(
-            device,
-            HIDIOPacketBuffer {
-                ptype: HIDIOPacketType::Sync,
-                id: 0,
-                max_len: 64, //..Defaults
-                data: vec![],
-                done: true,
-            },
-        );
-    }
-
-    pub fn send_ack(&self, device: String, _id: u32, data: Vec<u8>) {
-        self.send_packet(
-            device,
-            HIDIOPacketBuffer {
-                ptype: HIDIOPacketType::ACK,
-                id: 0,       // id,
-                max_len: 64, //..Defaults
-                data,
-                done: true,
-            },
-        );
-    }
-
-    pub fn send_nack(&self, device: String, id: u32, data: Vec<u8>) {
-        self.send_packet(
-            device,
-            HIDIOPacketBuffer {
-                ptype: HIDIOPacketType::NAK,
-                id,
-                max_len: 64, //..Defaults
-                data,
-                done: true,
-            },
-        );
-    }
-
-    pub fn send_command(&self, device: String, id: HIDIOCommandID, data: Vec<u8>) {
-        self.send_packet(
-            device,
-            HIDIOPacketBuffer {
-                ptype: HIDIOPacketType::Data,
-                id: id as u32,
-                max_len: 64, //..Defaults
-                data,
-                done: true,
-            },
-        );
+        Ok(io_events)
     }
 }
 
@@ -538,15 +262,17 @@ impl HIDIOMailbox {
 ///
 /// # Remarks
 ///
-/// Sets up at least one thread per Device.
+/// Sets up at least one thread per Device (using tokio).
 /// Each device is repsonsible for accepting and responding to packet requests.
 /// It is also possible to send requests asynchronously back to any Modules.
 /// Each device may have it's own RPC API.
-pub fn initialize(mailer: HIDIOMailer, last_uid: Arc<RwLock<u64>>) {
+pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing devices...");
 
-    // Initialize device watcher threads
-    hidusb::initialize(mailer, last_uid);
-
-    debug::initialize();
+    tokio::join!(
+        // Initialize hidapi watcher
+        hidapi::initialize(mailbox.clone()),
+        // Initialize debug thread
+        debug::initialize(mailbox),
+    );
 }

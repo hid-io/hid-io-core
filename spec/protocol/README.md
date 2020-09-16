@@ -472,6 +472,7 @@ WARNING: Do not allow flash mode without some sort of physical interaction as th
 -> Error code
  * 0x00 - Not supported
  * 0x01 - Disabled
+ * 0x02 - Not ready (Some internal error condition preventing the transition to a sleep state)
 ```
 
 #### Pixel Setting
