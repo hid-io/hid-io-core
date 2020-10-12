@@ -15,12 +15,12 @@
  */
 
 pub mod debug;
-
-/// Handles hidapi devices (libusb/rawhid)
-///
-/// May also work with bluetooth low energy in the future.
+pub mod evdev;
 pub mod hidapi;
 
+/// Handles hidapi devices
+///
+/// Works with both USB and BLE HID devices
 use crate::mailbox;
 use crate::protocol::hidio::*;
 use std::io::{Read, Write};
@@ -234,25 +234,28 @@ impl HIDIOController {
             return Ok(io_events);
         }
 
-        loop { match self.receiver.try_recv() {
-            Ok(mut msg) => {
-                // Only look at packets addressed to this endpoint
-                if msg.dst == (mailbox::Address::DeviceHidio { uid: self.uid }) {
-                    msg.data.max_len = self.device.max_packet_len;
-                    self.device.send_packet(msg.data.clone())?;
+        loop {
+            match self.receiver.try_recv() {
+                Ok(mut msg) => {
+                    // Only look at packets addressed to this endpoint
+                    if msg.dst == (mailbox::Address::DeviceHidio { uid: self.uid }) {
+                        msg.data.max_len = self.device.max_packet_len;
+                        self.device.send_packet(msg.data.clone())?;
 
-                    if msg.data.ptype == HIDIOPacketType::Sync {
-                        self.received = self.device.create_buffer();
+                        if msg.data.ptype == HIDIOPacketType::Sync {
+                            self.received = self.device.create_buffer();
+                        }
                     }
                 }
+                Err(broadcast::TryRecvError::Empty) => {
+                    break;
+                }
+                Err(broadcast::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
+                Err(broadcast::TryRecvError::Closed) => {
+                    return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
+                    //::std::process::exit(1);
+                }
             }
-            Err(broadcast::TryRecvError::Empty) => { break; }
-            Err(broadcast::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
-            Err(broadcast::TryRecvError::Closed) => {
-                return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
-                //::std::process::exit(1);
-            }
-        }
         }
         Ok(io_events)
     }
@@ -272,6 +275,8 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
     tokio::join!(
         // Initialize hidapi watcher
         hidapi::initialize(mailbox.clone()),
+        // Initialize evdev watcher
+        evdev::initialize(mailbox.clone()),
         // Initialize debug thread
         debug::initialize(mailbox),
     );

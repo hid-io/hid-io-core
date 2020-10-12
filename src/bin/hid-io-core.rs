@@ -23,31 +23,13 @@ extern crate log;
 extern crate windows_service;
 
 use clap::App;
+use hid_io_core::logging;
 use hid_io_core::mailbox;
 use hid_io_core::RUNNING;
 use hid_io_core::{api, built_info, device, module};
 use std::env;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
-
-/// Logging setup
-fn setup_logging() {
-    flexi_logger::Logger::with_env_or_str("")
-        .log_to_file()
-        .format(flexi_logger::colored_default_format)
-        .format_for_files(flexi_logger::colored_detailed_format)
-        .directory(env::temp_dir())
-        .rotate(
-            flexi_logger::Criterion::Size(1_000_000),
-            flexi_logger::Naming::Numbers,
-            flexi_logger::Cleanup::KeepLogFiles(5),
-        )
-        .duplicate_to_stderr(flexi_logger::Duplicate::All)
-        .start()
-        .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
-    info!("-------------------------- HID-IO Core starting! --------------------------");
-    info!("Log location -> {:?}", env::temp_dir());
-}
 
 #[cfg(windows)]
 fn main() -> Result<(), std::io::Error> {
@@ -59,7 +41,7 @@ fn main() -> Result<(), std::io::Error> {
             Err(_e) => panic!("Service failed"),
         }
     } else {
-        setup_logging();
+        logging::setup_logging();
         start();
     }
     Ok(())
@@ -67,7 +49,7 @@ fn main() -> Result<(), std::io::Error> {
 
 #[cfg(not(windows))]
 fn main() -> Result<(), std::io::Error> {
-    setup_logging();
+    logging::setup_logging();
     start();
     Ok(())
 }
@@ -111,8 +93,8 @@ async fn start() {
     // Start initialization
     info!("Initializing HID-IO daemon...");
 
-    let last_uid: Arc<RwLock<u64>> = Arc::new(RwLock::new(0));
-    let mailbox = mailbox::Mailbox::new(last_uid);
+    // Setup mailbox
+    let mailbox = mailbox::Mailbox::new();
 
     // Wait until completion
     let (_, _, _) = tokio::join!(

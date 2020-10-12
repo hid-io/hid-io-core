@@ -16,6 +16,7 @@
 
 /// Platform specific character output and IME control
 pub mod unicode;
+pub mod vhid;
 
 use crate::mailbox;
 use crate::module::unicode::*;
@@ -100,6 +101,9 @@ impl Module {
 /// If a device is unplugged, the Device thread will exit.
 pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing modules...");
+    let mailbox = mailbox.clone();
+
+    tokio::spawn(vhid::initialize(mailbox.clone()));
 
     // Setup local thread
     // Due to some of the setup in the Module struct we need to run processing in the same local

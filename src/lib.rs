@@ -15,6 +15,7 @@
  */
 
 #![feature(drain_filter)]
+#![feature(allow_fail)]
 
 // ----- Crates -----
 
@@ -28,6 +29,9 @@ pub mod api;
 
 /// communication with hidapi compatable devices
 pub mod device;
+
+/// logging functions
+pub mod logging;
 
 /// mpmc mailbox implementation for hid-io-core (e.g. packet broadcast with filters)
 pub mod mailbox;

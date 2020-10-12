@@ -61,6 +61,9 @@ impl std::fmt::Display for common_capnp::NodeType {
             common_capnp::NodeType::HidioApi => write!(f, "HidioApi"),
             common_capnp::NodeType::UsbKeyboard => write!(f, "UsbKeyboard"),
             common_capnp::NodeType::BleKeyboard => write!(f, "BleKeyboard"),
+            common_capnp::NodeType::HidKeyboard => write!(f, "HidKeyboard"),
+            common_capnp::NodeType::HidMouse => write!(f, "HidMouse"),
+            common_capnp::NodeType::HidJoystick => write!(f, "HidJoystick"),
         }
     }
 }
@@ -81,6 +84,96 @@ pub enum AuthLevel {
     Debug,
 }
 
+/// Uhid Information
+/// This is only used on Linux
+#[derive(Debug, Clone, Default)]
+pub struct UhidInfo {
+    // These fields are from uhid_virt::CreateParams
+    pub name: String,
+    pub phys: String,
+    pub uniq: String,
+    pub bus: u16,
+    pub vendor: u32,
+    pub product: u32,
+    pub version: u32,
+    pub country: u32,
+}
+
+impl UhidInfo {
+    /// Generate a unique string based off of evdev information (excluding path/physical location)
+    pub fn key(&mut self) -> String {
+        format!(
+            "vendor:{:04x} product:{:04x} name:{} phys:{} uniq:{} bus:{} version:{} country:{}",
+            self.vendor,
+            self.product,
+            self.name,
+            self.phys,
+            self.uniq,
+            self.bus,
+            self.version,
+            self.country,
+        )
+    }
+
+    pub fn new(params: uhid_virt::CreateParams) -> UhidInfo {
+        UhidInfo {
+            name: params.name,
+            phys: params.phys,
+            uniq: params.uniq,
+            bus: params.bus as u16,
+            vendor: params.vendor,
+            product: params.product,
+            version: params.version,
+            country: params.country,
+        }
+    }
+}
+
+/// Evdev Information
+/// This is only used on Linux
+#[derive(Debug, Clone, Default)]
+pub struct EvdevInfo {
+    // These fields are from evdev_rs::Device
+    pub name: String,
+    pub phys: String,
+    pub uniq: String,
+    pub product_id: u16,
+    pub vendor_id: u16,
+    pub bustype: u16,
+    pub version: u16,
+    pub driver_version: i32,
+}
+
+impl EvdevInfo {
+    /// Generate a unique string based off of evdev information (excluding path/physical location)
+    pub fn key(&mut self) -> String {
+        format!(
+            "vid:{:04x} pid:{:04x} name:{} phys:{} uniq:{} bus:{} version:{} driver_version:{}",
+            self.vendor_id,
+            self.product_id,
+            self.name,
+            self.phys,
+            self.uniq,
+            self.bustype,
+            self.version,
+            self.driver_version,
+        )
+    }
+
+    pub fn new(device: evdev_rs::Device) -> EvdevInfo {
+        EvdevInfo {
+            name: device.name().unwrap_or("").to_string(),
+            phys: device.phys().unwrap_or("").to_string(),
+            uniq: device.uniq().unwrap_or("").to_string(),
+            product_id: device.product_id(),
+            vendor_id: device.vendor_id(),
+            bustype: device.bustype(),
+            version: device.version(),
+            driver_version: device.driver_version(),
+        }
+    }
+}
+
 /// HIDAPI Information
 #[derive(Debug, Clone, Default)]
 pub struct HIDAPIInfo {
@@ -97,7 +190,8 @@ pub struct HIDAPIInfo {
 }
 
 impl HIDAPIInfo {
-    pub fn build_hidapi_key(&mut self) -> String {
+    /// Generate a unique string based off of hidapi information (excluding path/physical location)
+    pub fn key(&mut self) -> String {
         format!(
             "vid:{:04x} pid:{:04x} serial:{} manufacturer:{} product:{} usage_page:{:x} usage:{:x} interface:{}",
             self.vendor_id,
@@ -145,6 +239,8 @@ pub struct Endpoint {
     uid: u64,
     created: Instant,
     hidapi: HIDAPIInfo,
+    evdev: EvdevInfo,
+    uhid: UhidInfo,
 }
 
 impl std::fmt::Display for Endpoint {
@@ -171,6 +267,7 @@ impl std::fmt::Display for Endpoint {
                         self.hidapi.manufacturer_string,
                         self.hidapi.product_string,
                     ),
+                    // TODO Display Hid devices, but handle in a cross-platform way
                     _ => self.name.clone(),
                 },
                 match self.type_ {
@@ -195,6 +292,12 @@ impl Endpoint {
             hidapi: HIDAPIInfo {
                 ..Default::default()
             },
+            evdev: EvdevInfo {
+                ..Default::default()
+            },
+            uhid: UhidInfo {
+                ..Default::default()
+            },
         }
     }
 
@@ -205,6 +308,18 @@ impl Endpoint {
 
     pub fn set_hidapi_params(&mut self, info: HIDAPIInfo) {
         self.hidapi = info;
+        self.name = self.name();
+        self.serial = self.serial();
+    }
+
+    pub fn set_evdev_params(&mut self, info: EvdevInfo) {
+        self.evdev = info;
+        self.name = self.name();
+        self.serial = self.serial();
+    }
+
+    pub fn set_uhid_params(&mut self, info: UhidInfo) {
+        self.uhid = info;
         self.name = self.name();
         self.serial = self.serial();
     }
@@ -248,7 +363,7 @@ impl Endpoint {
     pub fn key(&mut self) -> String {
         match self.type_ {
             common_capnp::NodeType::BleKeyboard | common_capnp::NodeType::UsbKeyboard => {
-                self.hidapi.build_hidapi_key()
+                self.hidapi.key()
             }
             _ => format!("name:{} serial:{}", self.name, self.serial,),
         }
@@ -952,8 +1067,8 @@ impl KeyboardSubscriberMap {
 struct KeyboardSubscriptionImpl {
     mailbox: mailbox::Mailbox,
     _node: Endpoint, // API Node information
-    uid: u64, // Device endpoint uid
-    sid: u64, // Subscription id
+    uid: u64,        // Device endpoint uid
+    sid: u64,        // Subscription id
     subscriptions: Arc<RwLock<Subscriptions>>,
 }
 
@@ -1141,7 +1256,6 @@ async fn server_bind(
 
     let connections: Arc<RwLock<HashMap<u64, Vec<u64>>>> = Arc::new(RwLock::new(HashMap::new()));
 
-
     loop {
         if !RUNNING.load(Ordering::SeqCst) {
             break Ok(());
@@ -1212,7 +1326,7 @@ async fn server_bind(
         let nodes = nodes.clone();
         let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
         let disconnector = rpc_system.get_disconnector();
-                    disconnector.await.unwrap();
+        disconnector.await.unwrap();
         let rpc_task = tokio::task::spawn_local(Box::pin(
             rpc_system
                 .map_err(|e| info!("rpc_system: {}", e))
@@ -1228,7 +1342,7 @@ async fn server_bind(
                 }),
         ));
         println!("TRY EXIT");
-                    /*
+        /*
         tokio::task::spawn_local(async {
             loop {
                 if !RUNNING.load(Ordering::SeqCst) {

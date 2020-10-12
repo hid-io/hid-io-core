@@ -74,10 +74,14 @@ pub enum HIDIOCommandID {
     PixelSet1c16b = 0x24,
     PixelSet3c16b = 0x25,
 
-    // Unnoficial
     OpenURL = 0x30,
     Terminal = 0x31,
     InputLayout = 0x32,
+
+    HIDKeyboard = 0x40,
+    HIDKeyboardLED = 0x41,
+    HIDMouse = 0x42,
+    HIDJoystick = 0x43,
 }
 
 #[repr(u8)]

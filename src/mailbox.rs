@@ -29,20 +29,12 @@ use tokio::sync::broadcast;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Address {
+    // All/any addressed (used as a broadcast destination, not as a source)
+    All,
     // Capnproto API address, with node uid
     ApiCapnp {
         uid: u64,
     },
-    // HIDIO address, with node uid
-    DeviceHidio {
-        uid: u64,
-    },
-    // Module address
-    Module,
-    // All/any addressed (used as a broadcast destination, not as a source)
-    All,
-    // Drop subscription
-    DropSubscription,
     // Cancel subscription
     // Used to gracefully end message streams
     CancelSubscription {
@@ -51,6 +43,18 @@ pub enum Address {
         // Subscription id
         sid: u64,
     },
+    // HIDIO address, with node uid
+    DeviceHidio {
+        uid: u64,
+    },
+    // Generic HID address, with nod uid
+    DeviceHid {
+        uid: u64,
+    },
+    // Drop subscription
+    DropSubscription,
+    // Module address
+    Module,
 }
 
 // ----- Consts -----
@@ -81,11 +85,15 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn new(last_uid: Arc<RwLock<u64>>) -> Mailbox {
+    pub fn new() -> Mailbox {
         // Create broadcast channel
         let (sender, _) = broadcast::channel::<Message>(CHANNEL_SLOTS);
+        // Setup nodes list
         let nodes = Arc::new(RwLock::new(vec![]));
+        // Setup nodes lookup table
         let lookup = Arc::new(RwLock::new(HashMap::new()));
+        // Setup last uid assigned (uids are reused when possible for devices)
+        let last_uid: Arc<RwLock<u64>> = Arc::new(RwLock::new(0));
         Mailbox {
             nodes,
             last_uid,
@@ -128,19 +136,42 @@ impl Mailbox {
         lookup_entry.push(uid);
     }
 
+    /// Assign uid
+    /// This function will attempt to lookup an existing id first
+    /// And generate a new uid if necessary
+    /// An error is returned if this lookup already has a uid (string+path)
+    pub fn assign_uid(&mut self, key: String, path: String) -> Result<u64, std::io::Error> {
+        match self.get_uid(key.clone(), path) {
+            Some(0) => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("uid has already been registered!"),
+            )),
+            Some(uid) => Ok(uid),
+            None => {
+                // Get last created id and increment
+                (*self.last_uid.write().unwrap()) += 1;
+                let uid = *self.last_uid.read().unwrap();
+
+                // Add id to lookup
+                self.add_uid(key, uid);
+                Ok(uid)
+            }
+        }
+    }
+
     /// Register node as an endpoint (device or api)
-    pub fn register_node(&mut self, uid: String, endpoint: Endpoint) {
-        info!("Registering endpoint: {}", uid);
+    pub fn register_node(&mut self, mut endpoint: Endpoint) {
+        info!("Registering endpoint: {}", endpoint.uid());
         let mut nodes = self.nodes.write().unwrap();
         (*nodes).push(endpoint);
     }
 
     /// Unregister node as an endpoint (device or api)
-    pub fn unregister_node(&mut self, uid: &str) {
+    pub fn unregister_node(&mut self, uid: u64) {
         info!("Unregistering endpoint: {}", uid);
         let mut nodes = self.nodes.write().unwrap();
         *nodes = nodes
-            .drain_filter(|dev| dev.uid().to_string() != uid)
+            .drain_filter(|dev| dev.uid() != uid)
             .collect::<Vec<_>>();
     }
 
@@ -165,7 +196,7 @@ impl Mailbox {
         let result = self.sender.send(Message { src, dst, data });
 
         if let Err(e) = result {
-            error!("send_command {:?}", e);
+            error!("send_command (no active receivers) {:?}", e);
         }
     }
 
@@ -216,14 +247,10 @@ impl Mailbox {
         let data = hidio::HIDIOPacketBuffer::default();
 
         // Construct command message and broadcast
-        let result = self.sender.send(
-            Message {
-                src: Address::DropSubscription,
-                dst: Address::CancelSubscription {
-                    uid,
-                    sid
-                },
-                data
+        let result = self.sender.send(Message {
+            src: Address::DropSubscription,
+            dst: Address::CancelSubscription { uid, sid },
+            data,
         });
 
         if let Err(e) = result {

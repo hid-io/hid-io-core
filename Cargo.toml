@@ -39,6 +39,7 @@ flexi_logger    = "^0.16"
 futures         = "^0.3"
 futures-util    = "^0.3"
 glob            = "^0.3"
+libc            = "^0.2"
 log             = "^0.4"
 nanoid          = "0.2.0"
 open            = "^1.4"
@@ -70,8 +71,11 @@ features=["linux-static-hidraw"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
+evdev-rs  = "^0.4"
+udev      = "^0.5"
+uhid-virt = "0.0.5"
 xkbcommon = { version = "0.4.0", features = ["x11"] }
-x11 = "2.18.2"
+x11       = "2.18.2"
 
 
 [target.'cfg(windows)'.dependencies]

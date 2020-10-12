@@ -31,9 +31,26 @@ using import "keyboard.capnp".Keyboard;
 
 enum NodeType {
     hidioDaemon @0;
+    # HIDIO Daemon node (hid-io-core functionality)
+    # There should always be a single daemon node active
+
     hidioApi @1;
+    # Generic HIDIO API node
+
     usbKeyboard @2;
+    # HIDIO USB Keyboard
+
     bleKeyboard @3;
+    # HIDIO BLE Keyboard
+
+    hidKeyboard @4;
+    # Generic HID Keyboard
+
+    hidMouse @5;
+    # Generic HID Mouse
+
+    hidJoystick @6;
+    # Generic HID Joystick
 }
 # Node types, please extend this enum as necessary
 # Should be generic types, nothing specific, use the text field for that

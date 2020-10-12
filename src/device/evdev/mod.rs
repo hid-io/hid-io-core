@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,143 +15,116 @@
  */
 
 use crate::api::Endpoint;
-use crate::api::HIDAPIInfo;
+use crate::api::EvdevInfo;
 use crate::common_capnp::NodeType;
 use crate::device::*;
 use crate::RUNNING;
+use evdev_rs;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 
-pub const USAGE_PAGE: u16 = 0xFF1C;
-pub const USAGE: u16 = 0x1100;
-
-const USB_FULLSPEED_PACKET_SIZE: usize = 64;
-const ENUMERATE_DELAY: u64 = 1000;
-const POLL_DELAY: u64 = 10;
-
-pub struct HIDAPIDevice {
-    device: ::hidapi::HidDevice,
+/// Device state container for evdev devices
+pub struct EvdevDevice {
+    fd_path: String,
 }
 
-impl HIDAPIDevice {
-    pub fn new(device: ::hidapi::HidDevice) -> HIDAPIDevice {
-        device.set_blocking_mode(false).unwrap();
-        HIDAPIDevice { device }
+impl EvdevDevice {
+    pub fn new(fd_path: String) -> EvdevDevice {
+        EvdevDevice { fd_path }
     }
-}
 
-impl std::io::Read for HIDAPIDevice {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        match self.device.read(buf) {
-            Ok(len) => {
-                if len > 0 {
-                    trace!("Received {} bytes", len);
-                    trace!("{:x?}", &buf[0..len]);
+    // Process evdev events
+    pub async fn process(&mut self) -> Result<(), std::io::Error> {
+        let fd_path = self.fd_path.clone();
+
+        tokio::task::spawn_blocking(move || {
+            // Initialize new evdev handle
+            let mut device = evdev_rs::Device::new().unwrap();
+
+            // Apply file descriptor to evdev handle
+            let file = std::fs::File::open(fd_path).unwrap();
+            device.set_fd(file).unwrap();
+
+            // TODO Read all the necessary device fields for Endpoint (or perhaps inside new?)
+
+            // Take all event information (block events from other processes)
+            device.grab(evdev_rs::GrabMode::Grab).unwrap();
+
+            let mut event: std::io::Result<(evdev_rs::ReadStatus, evdev_rs::InputEvent)>;
+            // Continuously scan for new events
+            // This loop will block at next_event()
+            loop {
+                event =
+                    device.next_event(evdev_rs::ReadFlag::NORMAL | evdev_rs::ReadFlag::BLOCKING);
+                if event.is_ok() {
+                    let mut result = event.ok().unwrap();
+                    match result.0 {
+                        evdev_rs::ReadStatus::Sync => {
+                            // Dropped packet (this shouldn't happen)
+                            // We should warn about it though
+                            warn!("Dropped evdev event! - Attempting to resync...");
+                            while result.0 == evdev_rs::ReadStatus::Sync {
+                                // TODO show dropped event
+                                //print_sync_dropped_event(&result.1);
+                                event = device.next_event(evdev_rs::ReadFlag::SYNC);
+                                if event.is_ok() {
+                                    result = event.ok().unwrap();
+                                } else {
+                                    break;
+                                }
+                            }
+                            warn!("Resyncing successful.");
+                        }
+                        evdev_rs::ReadStatus::Success => {
+                            // TODO send event message through mailbox
+                            //print_event(&result.1),
+                        }
+                    }
+                } else {
+                    // Disconnection event, shutdown processing loop
+                    // This object should be deallocated as well
+                    let err = event.err().unwrap();
+                    match err.raw_os_error() {
+                        Some(libc::EAGAIN) => continue,
+                        _ => {
+                            info!("Disconnection event {}", device_name(device));
+                            break;
+                        }
+                    }
                 }
-                Ok(len)
             }
-            Err(e) => {
-                warn!("Read - {:?}", e);
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("{:?}", e),
-                ))
-            }
-        }
-    }
-}
-impl std::io::Write for HIDAPIDevice {
-    fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-        let buf = {
-            #[allow(clippy::needless_bool)]
-            let prepend = if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
-                // If the first byte is a 0 its not tranmitted
-                // https://github.com/node-hid/node-hid/issues/187#issuecomment-282863702
-                _buf[0] == 0x00
-            } else if cfg!(target_os = "windows") {
-                // The first byte always seems to be stripped and not tranmitted
-                // https://github.com/node-hid/node-hid/issues/187#issuecomment-285688178
-                true
-            } else {
-                // TODO: Test other platforms
-                false
-            };
-
-            // Add a report id (unused) if needed so our actual first byte
-            // of the packet is sent correctly
-            if prepend {
-                let mut new_buf = vec![0x00];
-                new_buf.extend(_buf);
-                new_buf
-            } else {
-                _buf.to_vec()
-            }
-        };
-
-        match self.device.write(&buf) {
-            Ok(len) => {
-                trace!("Sent {} bytes", len);
-                trace!("{:x?}", &buf[0..len]);
-                Ok(len)
-            }
-            Err(e) => {
-                warn!("Write - {:?}", e);
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("{:?}", e),
-                ))
-            }
-        }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
+        })
+        .await?;
         Ok(())
     }
 }
 
-impl HIDIOTransport for HIDAPIDevice {}
-
-fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
+/// Build a unique device name string
+fn device_name(device: evdev_rs::Device) -> String {
     let mut string = format!(
-        "[{:04x}:{:04x}-{:x}:{:x}] I:{} ",
-        device_info.vendor_id(),
-        device_info.product_id(),
-        device_info.usage_page(),
-        device_info.usage(),
-        device_info.interface_number(),
+        "[{:04x}:{:04x}-{:?}] {} {} {}",
+        device.vendor_id(),
+        device.product_id(),
+        evdev_rs::enums::int_to_bus_type(device.bustype() as u32),
+        device.name().unwrap_or(""),
+        device.phys().unwrap_or(""),
+        device.uniq().unwrap_or(""),
     );
-    if let Some(m) = &device_info.manufacturer_string() {
-        string += &m;
-    }
-    if let Some(p) = &device_info.product_string() {
-        string += &format!(" {}", p);
-    }
-    if let Some(s) = &device_info.serial_number() {
-        string += &format!(" ({})", s);
-    }
     string
 }
 
-#[cfg(target_os = "linux")]
-fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
-    // NOTE: This requires some patches to hidapi (https://github.com/libusb/hidapi/pull/139)
-    // interface number and usage are both queryable. Prefer usage
-    device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
-}
-
-#[cfg(target_os = "macos")]
-fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
-    // interface_number is always -1 but usage is fine
-    device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
-}
-
-#[cfg(target_os = "windows")]
-fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
-    // interface and usage are both queryable. Prefer usage
-    device_info.usage_page() == USAGE_PAGE && device_info.usage() == USAGE
-}
+/// evdev processing
+///
+/// TODO
+/// udev to wait on new evdev devices
+/// udev to scan for already attached devices
+/// Allocate uid per unique device
+/// Have list of evdev devices to query
+/// Handle removal and re-insertion with same uid
+/// Use async to wait for evdev events (block on next event, using spawn_blocking)
+/// Send mailbox message with necessary info (API will handle re-routing message)
 
 /// hidapi processing
 ///
@@ -159,6 +132,7 @@ fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
 /// The thread also handles reading/writing from connected interfaces
 ///
 /// XXX (HaaTa) hidapi is not thread-safe on all platforms, so don't try to create a thread per device
+/*
 async fn processing(mut mailbox: mailbox::Mailbox) {
     info!("Spawning hidapi spawning thread...");
 
@@ -204,15 +178,23 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
                 // 1. Must match (even if field isn't valid)
                 //    vid, pid, usage page, usage, manufacturer, product, serial, interface
                 // 2. Must not currently be in use (generally, use path to differentiate)
-                let key = info.key();
-                let uid =
-                    match mailbox.assign_uid(key.clone(), format!("{:#?}", device_info.path())) {
-                        Ok(uid) => uid,
-                        Err(_) => {
-                            // Device has already been registered, or is invalid
-                            continue;
-                        }
-                    };
+                let key = info.build_hidapi_key();
+                let uid = match mailbox.get_uid(key.clone(), format!("{:#?}", device_info.path())) {
+                    Some(0) => {
+                        // Device has already been registered
+                        continue;
+                    }
+                    Some(uid) => uid,
+                    None => {
+                        // Get last created id and increment
+                        (*mailbox.last_uid.write().unwrap()) += 1;
+                        let uid = *mailbox.last_uid.read().unwrap();
+
+                        // Add id to lookup
+                        mailbox.add_uid(key, uid);
+                        uid
+                    }
+                };
 
                 // Check to see if already connected
                 if devices.iter().any(|dev| dev.uid == uid) {
@@ -345,14 +327,23 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
         }
     }
 }
+*/
 
-/// hidapi initialization
+/// evdev initialization
 ///
-/// Sets up a processing thread for hidapi.
+/// Sets up processing threads for udev and evdev.
 pub async fn initialize(mailbox: mailbox::Mailbox) {
-    info!("Initializing device/hidapi...");
+    info!("Initializing device/evdev...");
 
     // Spawn watcher thread (tokio)
+    /*
     let local = tokio::task::LocalSet::new();
     local.run_until(processing(mailbox)).await;
+    */
+}
+
+#[test]
+fn uhid_evdev_keyboard_test() {
+    // Create uhid keyboard interface
+    //println!("YAY");
 }
