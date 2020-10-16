@@ -262,7 +262,7 @@ impl Mailbox {
 /// Container for HIDIOPacketBuffer
 /// Used to indicate the source and destinations inside of hid-io-core.
 /// Also contains a variety of convenience functions using the src and dst information.
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Message {
     pub src: Address,
     pub dst: Address,

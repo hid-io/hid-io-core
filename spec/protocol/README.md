@@ -10,6 +10,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 * 2019-02-09 - Clarification of continued packet format - v0.1.2 (HaaTa)
 * 2019-02-15 - Adding pixel control HID-IO packets - v0.1.3 (HaaTa)
 * 2020-07-29 - Added No Acknowledgement Data and Continued packet types - v0.1.4 (HaaTa)
+* 2020-10-13 - Added generic HID keyboard packet - v0.1.5 (HaaTa)
 
 ## Glossary
 
@@ -575,8 +576,39 @@ If there is no channel for a given pixel (pixel address is unassigned or using o
 -> (No payload)
 ```
 
+#### HID Keyboard State
+```
+0x40 <keyboard hid code bitmask 32 bytes long, 0-255>
+0x40 <LSB>...<MSB>
 
-### Test, with
+This message, while longer than needed for a 6KRO keyboard message, does not lose any information when passing around NKRO keyboard messages.
+For example, to encode A + B (which is 0x04 and 0x05):
+
+0x04 + 0x05 == b0011_0000 (count right to left)
+       0x06 == b0100_0000 ...
+       0x09 == b0000_0000 b0000_0010 ...
+
++> (No payload)
+-> (No payload)
+```
+
+#### HID Keyboard LED State
+```
+0x40 <keyboard led hid code bitmask 1 byte>
+
+This is the standard HID keyboard LED bitmask.
+
+0x1 == b0000_0001 == NumLock
+0x2 == b0000_0010 == CapsLock
+0x3 == b0000_0100 == ScrollLock
+0x4 == b0000_1000 == Compose
+0x5 == b0001_0000 == Kana
+
++> (No payload)
+-> (No payload)
+```
+
+
 ## ID List
 
 * 0x00 - (Host/Device) [Supported Ids](#supported-ids)
@@ -601,6 +633,10 @@ If there is no channel for a given pixel (pixel address is unassigned or using o
 * 0x23 - (Host)        [Pixel Set (3 ch, 8 bit)](#pixel-set-3-ch-8-bit)
 * 0x24 - (Host)        [Pixel Set (1 ch, 16 bit)](#pixel-set-1-ch-16-bit)
 * 0x25 - (Host)        [Pixel Set (3 ch, 16 bit)](#pixel-set-3-ch-16-bit)
-* 0x30 - (Host)        TODO - Open URL
-* 0x31 - (Host)        TODO - Terminal
-* 0x32 - (Host)        TODO - Input Layout
+* 0x30 - (Host)        Reserved - Open URL
+* 0x31 - (Host)        Reserved - Terminal
+* 0x32 - (Host)        Reserved - Input Layout
+* 0x40 - (Host/Device) [HID Keyboard State](#hid-keyboard-state)
+* 0x41 - (Host/Device) [HID Keyboard LED State](#hid-keyboard-led-state)
+* 0x41 - (Host/Device) Reserved - HID Mouse State
+* 0x42 - (Host/Device) Reserved - HID Joystick State

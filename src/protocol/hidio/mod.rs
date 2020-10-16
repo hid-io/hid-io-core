@@ -82,6 +82,10 @@ pub enum HIDIOCommandID {
     HIDKeyboardLED = 0x41,
     HIDMouse = 0x42,
     HIDJoystick = 0x43,
+    HIDSystemCtrl = 0x44,
+    HIDConsumerCtrl = 0x45,
+
+    Unused = 0xFFFF,
 }
 
 #[repr(u8)]
@@ -337,6 +341,55 @@ pub fn payload_start(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseError
 
     // Determine starting position
     Ok(2 + id_width as usize)
+}
+
+// ----- Command Utility Functions -----
+
+/// Converts a HID bitmask into an array of byte codes
+///
+/// # Arguments
+/// * `bitmask` - Vector of bytes (each byte is an 8 bit bitmask)
+///
+/// # Remarks
+/// The very first byte in the bitmask represents 0->7 and the final byte ends at 255
+/// Opposite of keyboard_vec2bitmask.
+pub fn hid_bitmask2vec(bitmask: &Vec<u8>) -> Vec<u8> {
+    let mut data = vec![];
+
+    // Iterate over each byte of the bitmask adding a code for each found bit
+    let mut byte_pos = 0;
+    for byte in bitmask {
+        // Iterate over each of the bits
+        for b in 0..=7 {
+            // Check if bit is active, if so use the b position, then add byte_pos
+            let active = ((byte >> b) & 0x01) == 0x01;
+            if active {
+                let code = b + byte_pos * 8;
+                data.push(code);
+            }
+        }
+        byte_pos += 1; // Increment bitmask byte position
+    }
+    data
+}
+
+/// Converts a HID byte code array into a bitmask
+///
+/// # Arguments
+/// * `codes` - Vector of bytes (e.g. each byte is a HID keyboard code)
+///
+/// # Remarks
+/// Opposite of keyboard_bitmask2vec.
+pub fn hid_vec2bitmask(codes: &Vec<u8>) -> Vec<u8> {
+    let mut data = vec![0; 32]; // Maximum of 32 bytes when dealing with 8 bit codes
+
+    // Iterate through codes and set each bit accordingly
+    for code in codes {
+        let byte_pos = code / 8; // Determine which byte
+        let bit_mask = 1 << (code - 8 * byte_pos); // Determine which bit
+        data[byte_pos as usize] |= bit_mask;
+    }
+    data
 }
 
 // ----- Implementations -----
@@ -747,6 +800,7 @@ impl fmt::Display for HIDIOPacketBuffer {
 
 #[cfg(test)]
 mod test {
+    use super::{hid_bitmask2vec, hid_vec2bitmask};
     use super::{HIDIOPacketBuffer, HIDIOPacketType};
 
     /// Loopback helper
@@ -888,5 +942,22 @@ mod test {
 
         // Run loopback serializer, handles all test validation
         loopback_serializer(buffer);
+    }
+
+    /// Tests hid_bitmask2vec and hid_vec2bitmask
+    #[test]
+    fn hid_vec2bitmask2vec_test() {
+        let mut inputvec = vec![1, 2, 3, 4, 5, 100, 255];
+
+        // Convert, then convert back
+        let bitmask = hid_vec2bitmask(&inputvec);
+        let new_vec = hid_bitmask2vec(&bitmask);
+
+        // Compare with original
+        assert_eq!(
+            inputvec, new_vec,
+            "Bitmask test failed! Input: {:?}\nOutput: {:?}",
+            inputvec, new_vec,
+        );
     }
 }

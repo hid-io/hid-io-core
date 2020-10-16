@@ -26,20 +26,6 @@ use std::io::{Error, ErrorKind};
 use std::os::unix::io::AsRawFd;
 use uhid_virt;
 
-/// Default uhid device creation
-/// Takes care of error scenarios when using ::new() (i.e. panics)
-fn create_device(params: uhid_virt::CreateParams) -> uhid_virt::UHIDDevice<std::fs::File> {
-    match uhid_virt::UHIDDevice::create(params.clone()) {
-        Ok(device) => device,
-        Err(msg) => {
-            panic!(
-                "Could not create {} uhid device (check permissions of /dev/uhid): {}",
-                params.name, msg
-            );
-        }
-    }
-}
-
 /// Default OutputEvent handler
 /// Prints useful debug information when even when the events aren't normally used
 fn default_output_event(
@@ -123,7 +109,7 @@ fn default_output_event(
 /// uhid NKRO Keyboard
 /// To create multiple unique devices, make sure to set uniq to a unique value so to differentiate
 /// betweent devices
-struct KeyboardNKRO {
+pub struct KeyboardNKRO {
     mailbox: mailbox::Mailbox,
     uid: u64,
     endpoint: Endpoint,
@@ -142,7 +128,7 @@ impl KeyboardNKRO {
         product: u32,
         version: u32,
         country: u32,
-    ) -> KeyboardNKRO {
+    ) -> std::io::Result<KeyboardNKRO> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
             name: name.clone(),
@@ -157,7 +143,7 @@ impl KeyboardNKRO {
         };
 
         // Initialize uhid device
-        let device = create_device(params.clone());
+        let device = uhid_virt::UHIDDevice::create(params.clone())?;
 
         // Assign uid to newly created device (need path location for uniqueness)
         let path = "/dev/uhid".to_string();
@@ -171,13 +157,13 @@ impl KeyboardNKRO {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        KeyboardNKRO {
+        Ok(KeyboardNKRO {
             mailbox,
             uid,
             endpoint,
             params,
             device,
-        }
+        })
     }
 
     /// Sends a keyboard HID message
@@ -249,7 +235,7 @@ impl Drop for KeyboardNKRO {
 /// uhid 6KRO Keyboard
 /// To create multiple unique devices, make sure to set uniq to a unique value so to differentiate
 /// betweent devices
-struct Keyboard6KRO {
+pub struct Keyboard6KRO {
     mailbox: mailbox::Mailbox,
     uid: u64,
     endpoint: Endpoint,
@@ -268,7 +254,7 @@ impl Keyboard6KRO {
         product: u32,
         version: u32,
         country: u32,
-    ) -> Keyboard6KRO {
+    ) -> std::io::Result<Keyboard6KRO> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
             name,
@@ -283,7 +269,7 @@ impl Keyboard6KRO {
         };
 
         // Initialize uhid device
-        let device = create_device(params.clone());
+        let device = uhid_virt::UHIDDevice::create(params.clone())?;
 
         // Assign uid to newly created device (need path location for uniqueness)
         let path = "/dev/uhid".to_string();
@@ -297,13 +283,13 @@ impl Keyboard6KRO {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        Keyboard6KRO {
+        Ok(Keyboard6KRO {
             mailbox,
             uid,
             endpoint,
             params,
             device,
-        }
+        })
     }
 
     /// Sends a keyboard HID message
@@ -378,7 +364,7 @@ impl Drop for Keyboard6KRO {
 }
 
 /*
-struct Mouse {
+pub struct Mouse {
     mailbox: mailbox::Mailbox,
     uid: u64,
     endpoint: Endpoint,
@@ -397,7 +383,7 @@ impl Mouse {
         product: u32,
         version: u32,
         country: u32,
-    ) -> Mouse {
+    ) -> std::io::Result<Mouse> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
             name,
@@ -412,7 +398,7 @@ impl Mouse {
         };
 
         // Initialize uhid device
-        let device = create_device(params.clone());
+        let device = uhid_virt::UHIDDevice::create(params.clone())?;
 
         // Assign uid to newly created device (need path location for uniqueness)
         let path = "/dev/uhid".to_string();
@@ -426,7 +412,7 @@ impl Mouse {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        Mouse { mailbox, uid, endpoint, params, device }
+        Ok(Mouse { mailbox, uid, endpoint, params, device })
     }
 }
 
@@ -437,7 +423,7 @@ impl Drop for Mouse {
     }
 }
 
-struct Xbox360Controller {
+pub struct Xbox360Controller {
     mailbox: mailbox::Mailbox,
     uid: u64,
     endpoint: Endpoint,
@@ -445,7 +431,7 @@ struct Xbox360Controller {
     device: uhid_virt::UHIDDevice<std::fs::File>,
 }
 
-impl Xbox360Controller {
+impl std::io::Result<Xbox360Controller> {
     pub fn new(
         mailbox: mailbox::Mailbox,
         name: String,
@@ -471,7 +457,7 @@ impl Xbox360Controller {
         };
 
         // Initialize uhid device
-        let device = create_device(params.clone());
+        let device = uhid_virt::UHIDDevice::create(params.clone())?;
 
         // Assign uid to newly created device (need path location for uniqueness)
         let path = "/dev/uhid".to_string();
@@ -485,7 +471,7 @@ impl Xbox360Controller {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        Xbox360Controller { mailbox, uid, endpoint, params, device }
+        Ok(Xbox360Controller { mailbox, uid, endpoint, params, device })
     }
 }
 
@@ -496,7 +482,7 @@ impl Drop for Xbox360Controller {
     }
 }
 
-struct SysCtrlConsControl {
+pub struct SysCtrlConsControl {
     mailbox: mailbox::Mailbox,
     uid: u64,
     endpoint: Endpoint,
@@ -515,7 +501,7 @@ impl SysCtrlConsControl {
         product: u32,
         version: u32,
         country: u32,
-    ) -> SysCtrlConsControl {
+    ) -> std::io::Result<SysCtrlConsControl> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
             name,
@@ -530,7 +516,7 @@ impl SysCtrlConsControl {
         };
 
         // Initialize uhid device
-        let device = create_device(params.clone());
+        let device = uhid_virt::UHIDDevice::create(params.clone())?;
 
         // Assign uid to newly created device (need path location for uniqueness)
         let path = "/dev/uhid".to_string();
@@ -544,7 +530,7 @@ impl SysCtrlConsControl {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        SysCtrlConsControl { mailbox, uid, endpoint, params, device }
+        Ok(SysCtrlConsControl { mailbox, uid, endpoint, params, device })
     }
 
     /// Process a single event
@@ -597,17 +583,14 @@ struct pollfd {
     revents: c_short,
 }
 
-#[allow(dead_code)]
 #[repr(C)]
 struct sigset_t {
     __private: c_void,
 }
 
-#[allow(dead_code)]
 #[allow(non_camel_case_types)]
 type nfds_t = c_ulong;
 
-#[allow(dead_code)]
 const POLLIN: c_short = 0x0001;
 
 extern "C" {
@@ -621,8 +604,7 @@ extern "C" {
 
 /// Use parameters to find a uhid device using udev
 /// If we don't find the device right away, start to poll
-#[allow(dead_code)]
-fn udev_find_device(
+pub fn udev_find_device(
     vid: u16,
     pid: u16,
     subsystem: String,
@@ -752,7 +734,8 @@ fn uhid_keyboard_nkro_test() {
         vhid::IC_PID_KEYBOARD as u32,
         0,
         0,
-    );
+    )
+    .unwrap();
 
     // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
     if let Err(msg) = udev_find_device(
@@ -790,7 +773,8 @@ fn uhid_keyboard_6kro_test() {
         vhid::IC_PID_KEYBOARD as u32,
         0,
         0,
-    );
+    )
+    .unwrap();
 
     // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
     if let Err(msg) = udev_find_device(
