@@ -144,7 +144,7 @@ impl Mailbox {
         match self.get_uid(key.clone(), path) {
             Some(0) => Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                format!("uid has already been registered!"),
+                "uid has already been registered!",
             )),
             Some(uid) => Ok(uid),
             None => {
@@ -256,6 +256,12 @@ impl Mailbox {
         if let Err(e) = result {
             error!("drop_subscriber {:?}", e);
         }
+    }
+}
+
+impl Default for Mailbox {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

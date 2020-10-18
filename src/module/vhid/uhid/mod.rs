@@ -17,14 +17,12 @@
 use crate::api::Endpoint;
 use crate::api::UhidInfo;
 use crate::common_capnp;
-use crate::logging::setup_logging_lite;
 use crate::mailbox;
 use crate::module::vhid;
 use crate::protocol::hidio;
 use libc::{c_int, c_short, c_ulong, c_void};
 use std::io::{Error, ErrorKind};
 use std::os::unix::io::AsRawFd;
-use uhid_virt;
 
 /// Default OutputEvent handler
 /// Prints useful debug information when even when the events aren't normally used
@@ -112,12 +110,13 @@ fn default_output_event(
 pub struct KeyboardNKRO {
     mailbox: mailbox::Mailbox,
     uid: u64,
-    endpoint: Endpoint,
+    _endpoint: Endpoint,
     params: uhid_virt::CreateParams,
     device: uhid_virt::UHIDDevice<std::fs::File>,
 }
 
 impl KeyboardNKRO {
+    #![allow(clippy::too_many_arguments)]
     pub fn new(
         mailbox: mailbox::Mailbox,
         name: String,
@@ -131,7 +130,7 @@ impl KeyboardNKRO {
     ) -> std::io::Result<KeyboardNKRO> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
-            name: name.clone(),
+            name,
             phys,
             uniq,
             bus,
@@ -160,7 +159,7 @@ impl KeyboardNKRO {
         Ok(KeyboardNKRO {
             mailbox,
             uid,
-            endpoint,
+            _endpoint: endpoint,
             params,
             device,
         })
@@ -189,6 +188,7 @@ impl KeyboardNKRO {
                 _ => {}
             };
         }
+        debug!("NKRO: {:?}", data);
 
         // Write message
         match self.device.write(&data) {
@@ -205,18 +205,15 @@ impl KeyboardNKRO {
 
         // Handle LED events
         if let Ok(event) = &output_event {
-            match event {
-                uhid_virt::OutputEvent::Output { data } => {
-                    // NOTE: data is not processed and is sent as a bitfield
-                    // Send message containing LED events
-                    self.mailbox.send_command(
-                        mailbox::Address::DeviceHid { uid: self.uid },
-                        mailbox::Address::All,
-                        hidio::HIDIOCommandID::HIDKeyboardLED,
-                        data.to_vec(),
-                    );
-                }
-                _ => {}
+            if let uhid_virt::OutputEvent::Output { data } = event {
+                // NOTE: data is not processed and is sent as a bitfield
+                // Send message containing LED events
+                self.mailbox.send_command(
+                    mailbox::Address::DeviceHid { uid: self.uid },
+                    mailbox::Address::All,
+                    hidio::HIDIOCommandID::HIDKeyboardLED,
+                    data.to_vec(),
+                );
             }
         }
 
@@ -238,12 +235,13 @@ impl Drop for KeyboardNKRO {
 pub struct Keyboard6KRO {
     mailbox: mailbox::Mailbox,
     uid: u64,
-    endpoint: Endpoint,
+    _endpoint: Endpoint,
     params: uhid_virt::CreateParams,
     device: uhid_virt::UHIDDevice<std::fs::File>,
 }
 
 impl Keyboard6KRO {
+    #![allow(clippy::too_many_arguments)]
     pub fn new(
         mailbox: mailbox::Mailbox,
         name: String,
@@ -286,7 +284,7 @@ impl Keyboard6KRO {
         Ok(Keyboard6KRO {
             mailbox,
             uid,
-            endpoint,
+            _endpoint: endpoint,
             params,
             device,
         })
@@ -311,15 +309,17 @@ impl Keyboard6KRO {
                 }
                 // 4-164, 176-221 (Bytes 2-7)
                 4..=164 | 176..=221 => {
-                    data[key_pos] = *key;
-                    key_pos += 1;
-                    if key_pos > 7 {
-                        break;
+                    // Only add the first 6 keys, ignore the rest in this range
+                    // (first byte is for modifiers, second byte is reserved)
+                    if key_pos < 8 {
+                        data[key_pos] = *key;
+                        key_pos += 1;
                     }
                 }
                 _ => {}
             };
         }
+        debug!("6KRO: {:?}", data);
 
         // Write message
         match self.device.write(&data) {
@@ -336,18 +336,15 @@ impl Keyboard6KRO {
 
         // Handle LED events
         if let Ok(event) = &output_event {
-            match event {
-                uhid_virt::OutputEvent::Output { data } => {
-                    // NOTE: data is not processed and is sent as a bitfield
-                    // Send message containing LED events
-                    self.mailbox.send_command(
-                        mailbox::Address::DeviceHid { uid: self.uid },
-                        mailbox::Address::All,
-                        hidio::HIDIOCommandID::HIDKeyboardLED,
-                        data.to_vec(),
-                    );
-                }
-                _ => {}
+            if let uhid_virt::OutputEvent::Output { data } = event {
+                // NOTE: data is not processed and is sent as a bitfield
+                // Send message containing LED events
+                self.mailbox.send_command(
+                    mailbox::Address::DeviceHid { uid: self.uid },
+                    mailbox::Address::All,
+                    hidio::HIDIOCommandID::HIDKeyboardLED,
+                    data.to_vec(),
+                );
             }
         }
 
@@ -569,11 +566,19 @@ impl Drop for SysCtrlConsControl {
 }
 */
 
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+/// uhid initialization
+///
+/// Sets up processing threads for uhid
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
     info!("Initializing vhid/uhid...");
-}
 
-// ------- Test Cases -------
+    // Spawn watcher thread (tokio)
+    // TODO - api monitoring
+    //        * Create new virtual hid device, return uid
+    //        * Destroy hid device by uid
+    //        * Lookup hid device information using uid
+    // TODO - Can this functionality be moved up to vhid instead of uhid?
+}
 
 #[allow(dead_code)]
 #[repr(C)]
@@ -623,7 +628,8 @@ pub fn udev_find_device(
     enumerator.match_attribute("uniq", uniq.clone()).unwrap();
 
     // Validate parameters
-    for device in enumerator.scan_devices().unwrap() {
+    let mut devices = enumerator.scan_devices().unwrap();
+    if let Some(device) = devices.next() {
         return Ok(device);
     }
 
@@ -684,17 +690,17 @@ pub fn udev_find_device(
                 // Match VID:PID
                 let found_vid = parent
                     .attribute_value("id/vendor")
-                    .unwrap_or(std::ffi::OsStr::new(""))
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
                     .to_str()
                     .unwrap();
                 let found_pid = parent
                     .attribute_value("id/product")
-                    .unwrap_or(std::ffi::OsStr::new(""))
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
                     .to_str()
                     .unwrap();
                 let found_uniq = parent
                     .attribute_value("uniq")
-                    .unwrap_or(std::ffi::OsStr::new(""))
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
                     .to_str()
                     .unwrap();
                 if found_vid == format!("{:04x}", vid)
@@ -712,80 +718,280 @@ pub fn udev_find_device(
     ))
 }
 
-// This test will fail unless your user has permission to read/write to /dev/uhid
-#[test]
-#[allow_fail]
-fn uhid_keyboard_nkro_test() {
-    setup_logging_lite();
-    let name = "uhid-keyboard-nkro-test".to_string();
-    let mailbox = mailbox::Mailbox::new();
+// ------- Test Cases -------
 
-    // Generate a unique key (to handle parallel tests)
-    let uniq = nanoid::simple();
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::device::evdev;
+    use crate::logging::setup_logging_lite;
+    use std::sync::{Arc, RwLock};
 
-    // Instantiate hid device
-    let mut keyboard = KeyboardNKRO::new(
-        mailbox,
-        name.clone(),
-        "".to_string(),
-        uniq.clone(),
-        uhid_virt::Bus::USB,
-        vhid::IC_VID as u32,
-        vhid::IC_PID_KEYBOARD as u32,
-        0,
-        0,
-    )
-    .unwrap();
+    // This test will fail unless your user has permission to read/write to /dev/uhid
+    #[test]
+    fn uhid_keyboard_nkro_test() {
+        setup_logging_lite().ok();
+        let name = "uhid-keyboard-nkro-test".to_string();
+        let mailbox = mailbox::Mailbox::new();
 
-    // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
-    if let Err(msg) = udev_find_device(
-        vhid::IC_VID as u16,
-        vhid::IC_PID_KEYBOARD as u16,
-        "input".to_string(),
-        uniq,
-        std::time::Duration::new(10, 0),
-    ) {
-        assert!(false, "Could not find uhid device...");
+        // Adjust next uid to make it easier to debug parallel tests
+        *mailbox.last_uid.write().unwrap() = 20;
+
+        // Generate a unique key (to handle parallel tests)
+        let uniq = nanoid::simple();
+
+        // Instantiate hid device
+        let mut keyboard = KeyboardNKRO::new(
+            mailbox.clone(),
+            name.clone(),
+            "".to_string(),
+            uniq.clone(),
+            uhid_virt::Bus::USB,
+            vhid::IC_VID as u32,
+            vhid::IC_PID_KEYBOARD as u32,
+            0,
+            0,
+        )
+        .unwrap();
+
+        // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
+        let device = match evdev::udev_find_input_event_device(
+            vhid::IC_VID as u16,
+            vhid::IC_PID_KEYBOARD as u16,
+            "input".to_string(),
+            uniq,
+            std::time::Duration::new(10, 0),
+        ) {
+            Ok(device) => device,
+            Err(err) => {
+                panic!("Could not find udev device... {}", err);
+            }
+        };
+
+        // Find evdev mapping to uhid device
+        while !device.is_initialized() {} // Wait for udev to finish setting up device
+        let fd_path = format!(
+            "/dev/input/{}",
+            device.sysname().to_str().unwrap().to_string()
+        );
+
+        // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
+        // validate that evdev is working correctly
+        // However, before we can send any keypresses, a mailbox receiver is setup to watch for the incoming
+        // messages
+        let mut receiver = mailbox.clone().sender.subscribe(); // Subscribe to mailbox messages
+
+        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        let status: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
+        let status2 = status.clone();
+
+        // Start listening for mailbox messages
+        rt.spawn(async move {
+            // Looking for this sequence of active event codes
+            // All modifiers, plus 11 keys (minimum for nkro)
+            let expected_codes = vec![
+                225, 226, 227, 228, 229, 230, 231, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+            ];
+
+            loop {
+                match receiver.recv().await {
+                    Ok(msg) => {
+                        // Check to see if the key events were sent in the correct order
+                        // We're looking for the full message in order to evaluate true
+                        if !*status.clone().read().unwrap() {
+                            let mut code_pos = 0;
+                            for code in msg.data.data {
+                                if code != expected_codes[code_pos] {
+                                    error!("{} != {}", code, expected_codes[code_pos]);
+                                    break;
+                                }
+                                code_pos += 1;
+                                if code_pos >= expected_codes.len() {
+                                    *(status.clone().write().unwrap()) = true;
+                                }
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::RecvError::Closed) => {
+                        assert!(false, "Mailbox has been closed unexpectedly!");
+                    }
+                    Err(tokio::sync::broadcast::RecvError::Lagged(skipped)) => {
+                        assert!(
+                            false,
+                            "Mailbox has received too many messages, lagging by: {}",
+                            skipped
+                        );
+                    }
+                };
+            }
+        });
+
+        // Start listening for evdev events
+        rt.spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                evdev::EvdevDevice::new(mailbox.clone(), fd_path)
+                    .unwrap()
+                    .process()
+                    .unwrap();
+            });
+        });
+
+        rt.block_on(async {
+            // Make sure everything is initialized and monitoring
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+
+            // Send A;A,B;B key using uhid device
+            // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
+            // Testing nkro (11 keys + modifiers)
+            keyboard
+                .send(vec![
+                    4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6,
+                    0xE7,
+                ])
+                .unwrap();
+            // XXX (HaaTa): Need to give uhid (and evdev) some time to process the event
+            //              Otherwise evdev may decide to just drop the event entirely
+            tokio::time::delay_for(std::time::Duration::from_millis(10)).await;
+            keyboard.send(vec![]).unwrap();
+
+            // Give some time for the events to propagate
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+        });
+
+        // Force the runtime to shutdown
+        rt.shutdown_timeout(std::time::Duration::from_millis(100));
+        let status: bool = *status2.clone().read().unwrap();
+        assert!(status, "Test failed");
     }
 
-    // TODO Add evdev support to test keypresses are valid
-}
+    // This test will fail unless your user has permission to read/write to /dev/uhid
+    #[test]
+    fn uhid_keyboard_6kro_test() {
+        setup_logging_lite().ok();
+        let name = "uhid-keyboard-6kro-test".to_string();
+        let mailbox = mailbox::Mailbox::new();
 
-// This test will fail unless your user has permission to read/write to /dev/uhid
-#[test]
-#[allow_fail]
-fn uhid_keyboard_6kro_test() {
-    setup_logging_lite();
-    let name = "uhid-keyboard-6kro-test".to_string();
-    let mailbox = mailbox::Mailbox::new();
+        // Adjust next uid to make it easier to debug parallel tests
+        *mailbox.last_uid.write().unwrap() = 30;
 
-    // Generate a unique key (to handle parallel tests)
-    let uniq = nanoid::simple();
+        // Generate a unique key (to handle parallel tests)
+        let uniq = nanoid::simple();
 
-    // Instantiate hid device
-    let mut keyboard = Keyboard6KRO::new(
-        mailbox,
-        name.clone(),
-        "".to_string(),
-        uniq.clone(),
-        uhid_virt::Bus::USB,
-        vhid::IC_VID as u32,
-        vhid::IC_PID_KEYBOARD as u32,
-        0,
-        0,
-    )
-    .unwrap();
+        // Instantiate hid device
+        let mut keyboard = Keyboard6KRO::new(
+            mailbox.clone(),
+            name.clone(),
+            "".to_string(),
+            uniq.clone(),
+            uhid_virt::Bus::USB,
+            vhid::IC_VID as u32,
+            vhid::IC_PID_KEYBOARD as u32,
+            0,
+            0,
+        )
+        .unwrap();
 
-    // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
-    if let Err(msg) = udev_find_device(
-        vhid::IC_VID as u16,
-        vhid::IC_PID_KEYBOARD as u16,
-        "input".to_string(),
-        uniq,
-        std::time::Duration::new(10, 0),
-    ) {
-        assert!(false, "Could not find uhid device...");
+        // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
+        let device = match evdev::udev_find_input_event_device(
+            vhid::IC_VID as u16,
+            vhid::IC_PID_KEYBOARD as u16,
+            "input".to_string(),
+            uniq,
+            std::time::Duration::new(10, 0),
+        ) {
+            Ok(device) => device,
+            Err(err) => {
+                panic!("Could not find udev device... {}", err);
+            }
+        };
+
+        // Find evdev mapping to uhid device
+        while !device.is_initialized() {} // Wait for udev to finish setting up device
+        let fd_path = format!(
+            "/dev/input/{}",
+            device.sysname().to_str().unwrap().to_string()
+        );
+
+        // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
+        // validate that evdev is working correctly
+        // However, before we can send any keypresses, a mailbox receiver is setup to watch for the incoming
+        // messages
+        let mut receiver = mailbox.clone().sender.subscribe(); // Subscribe to mailbox messages
+
+        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        let status: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
+        let status2 = status.clone();
+
+        // Start listening for mailbox messages
+        rt.spawn(async move {
+            // Looking for this sequence of active event codes
+            // All modifiers, plus only the first 6 sent key events
+            let expected_codes = vec![225, 226, 227, 228, 229, 230, 231, 4, 5, 6, 7, 8, 9];
+
+            loop {
+                match receiver.recv().await {
+                    Ok(msg) => {
+                        // Check to see if the key events were sent in the correct order
+                        // We're looking for the full message in order to evaluate true
+                        if !*status.clone().read().unwrap() {
+                            let mut code_pos = 0;
+                            for code in msg.data.data {
+                                if code != expected_codes[code_pos] {
+                                    error!("{} != {}", code, expected_codes[code_pos]);
+                                    break;
+                                }
+                                code_pos += 1;
+                                if code_pos >= expected_codes.len() {
+                                    *(status.clone().write().unwrap()) = true;
+                                }
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::RecvError::Closed) => {
+                        assert!(false, "Mailbox has been closed unexpectedly!");
+                    }
+                    Err(tokio::sync::broadcast::RecvError::Lagged(skipped)) => {
+                        assert!(
+                            false,
+                            "Mailbox has received too many messages, lagging by: {}",
+                            skipped
+                        );
+                    }
+                };
+            }
+        });
+
+        // Start listening for evdev events
+        rt.spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                evdev::EvdevDevice::new(mailbox.clone(), fd_path)
+                    .unwrap()
+                    .process()
+                    .unwrap();
+            });
+        });
+
+        rt.block_on(async {
+            // Make sure everything is initialized and monitoring
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+
+            // Send A;A,B;B key using uhid device
+            // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
+            // Testing 6kro limit handling
+            keyboard
+                .send(vec![
+                    4, 5, 6, 7, 8, 9, 10, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
+                ])
+                .unwrap();
+            keyboard.send(vec![]).unwrap();
+
+            // Give some time for the events to propagate
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+        });
+
+        // Force the runtime to shutdown
+        rt.shutdown_timeout(std::time::Duration::from_millis(100));
+        let status: bool = *status2.clone().read().unwrap();
+        assert!(status, "Test failed");
     }
-
-    // TODO Add evdev support to test keypresses are valid
 }

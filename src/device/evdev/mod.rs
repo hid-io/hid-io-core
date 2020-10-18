@@ -17,163 +17,157 @@
 use crate::api::Endpoint;
 use crate::api::EvdevInfo;
 use crate::common_capnp;
-use crate::logging::setup_logging_lite;
 use crate::mailbox;
 use crate::module::vhid;
 use crate::protocol::hidio;
-use crate::RUNNING;
-use evdev_rs;
-use lazy_static::lazy_static;
-use regex::Regex;
-use std::sync::atomic::Ordering;
-use std::time::Instant;
 
 // TODO This should be converted to use hid-io/layouts (may need a rust package to handle
 // conversion)
-const EVDEV2HIDKEY: [(hidio::HIDIOCommandID, u16); 547] = [
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x00), // Reserved
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x29), // Esc
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x1E), // 1
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x1F), // 2
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x20), // 3
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x21), // 4
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x22), // 5
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x23), // 6
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x24), // 7
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x25), // 8
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x26), // 9
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x27), // 0
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x2D), // Minus
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x2E), // Equal
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x2A), // Backspace
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x2B), // Tab
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x14), // Q
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x1A), // W
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x08), // E
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x15), // R
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x17), // T
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x1C), // Y
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x18), // U
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x0C), // I
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x12), // O
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x13), // P
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x2F), // Left Bracket
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x30), // Right Bracket
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x28), // Enter
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE0), // Left Control
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x04), // A
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x16), // S
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x07), // D
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x09), // F
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x0A), // G
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x0B), // H
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x0D), // J
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x0E), // K
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x0F), // L
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x33), // Semicolon
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x34), // Quote
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x35), // Backtick
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE1), // Left Shift
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x31), // Backslash
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x1D), // Z
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x1B), // X
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x06), // C
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x19), // V
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x05), // B
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x11), // N
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x10), // M
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x36), // Comma
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x37), // Period
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x38), // Slash
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE5), // Right Shift
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x55), // Keypad Asterisk
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE2), // Left Alt
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x2C), // Space
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x39), // Caps Lock
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x3A), // F1
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x3B), // F2
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x3C), // F3
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x3D), // F4
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x3E), // F5
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x3F), // F6
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x40), // F7
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x41), // F8
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x42), // F9
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x43), // F10
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x53), // Num Lock
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x47), // Scroll Lock
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x5F), // Keypad 7
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x60), // Keypad 8
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x61), // Keypad 9
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x56), // Keypad Minus
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x5C), // Keypad 4
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x5D), // Keypad 5
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x5E), // Keypad 6
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x57), // Keypad Plus
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x59), // Keypad 1
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x5A), // Keypad 2
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x5B), // Keypad 3
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x62), // Keypad 0
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x63), // Keypad Period
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x94), // LANG5 (Zenkakuhanku)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x64), // ISO Slash
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x44), // F11
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x45), // F12
+const EVDEV2HIDKEY: [(hidio::HIDIOCommandID, u16); 548] = [
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x00), // 0   Reserved
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x29), // 1   Esc
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x1E), // 2   1
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x1F), // 3   2
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x20), // 4   3
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x21), // 5   4
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x22), // 6   5
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x23), // 7   6
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x24), // 8   7
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x25), // 9   8
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x26), // 10  9
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x27), // 11  0
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x2D), // 12  Minus
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x2E), // 13  Equal
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x2A), // 14  Backspace
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x2B), // 15  Tab
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x14), // 16  Q
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x1A), // 17  W
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x08), // 18  E
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x15), // 19  R
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x17), // 20  T
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x1C), // 21  Y
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x18), // 22  U
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x0C), // 23  I
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x12), // 24  O
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x13), // 25  P
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x2F), // 26  Left Bracket
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x30), // 27  Right Bracket
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x28), // 28  Enter
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE0), // 29  Left Control
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x04), // 30  A
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x16), // 31  S
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x07), // 32  D
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x09), // 33  F
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x0A), // 34  G
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x0B), // 35  H
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x0D), // 36  J
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x0E), // 37  K
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x0F), // 38  L
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x33), // 39  Semicolon
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x34), // 40  Quote
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x35), // 41  Backtick
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE1), // 42  Left Shift
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x31), // 43  Backslash
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x1D), // 44  Z
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x1B), // 45  X
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x06), // 46 C
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x19), // 47  V
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x05), // 48  B
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x11), // 49  N
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x10), // 50  M
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x36), // 51  Comma
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x37), // 52  Period
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x38), // 53  Slash
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE5), // 54  Right Shift
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x55), // 55  Keypad Asterisk
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE2), // 56  Left Alt
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x2C), // 57  Space
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x39), // 58  Caps Lock
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x3A), // 59  F1
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x3B), // 60  F2
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x3C), // 61  F3
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x3D), // 62  F4
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x3E), // 63  F5
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x3F), // 64  F6
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x40), // 65  F7
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x41), // 66  F8
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x42), // 67  F9
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x43), // 68  F10
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x53), // 69  Num Lock
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x47), // 70  Scroll Lock
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x5F), // 71  Keypad 7
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x60), // 72  Keypad 8
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x61), // 73  Keypad 9
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x56), // 74  Keypad Minus
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x5C), // 75  Keypad 4
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x5D), // 76  Keypad 5
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x5E), // 77  Keypad 6
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x57), // 78  Keypad Plus
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x59), // 79  Keypad 1
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x5A), // 80  Keypad 2
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x5B), // 81  Keypad 3
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x62), // 82  Keypad 0
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x63), // 83  Keypad Period
+    (hidio::HIDIOCommandID::Unused, 0),         // TODO ??? - 84
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x94), // 85  LANG5 (Zenkakuhanku)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x64), // 86  ISO Slash
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x44), // 87  F11
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x45), // 88  F12
     (hidio::HIDIOCommandID::Unused, 0),         // TODO RO - 89
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x92), // LANG3 (Katakana)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x93), // LANG4 (Hiragana)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x8A), // International4 (Henkan)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x88), // International2 (Katakana/Hiragana or Kana)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x8B), // International5 (Muhenkan)
-    (hidio::HIDIOCommandID::Unused, 0),         // TODO KPJP Comma
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x58), // Keypad Enter
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE4), // Right Control
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x54), // Keypad Slash
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x9A), // SysReq
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE6), // Right Alt
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x92), // 90  LANG3 (Katakana)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x93), // 91  LANG4 (Hiragana)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x8A), // 92  International4 (Henkan)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x88), // 93  International2 (Katakana/Hiragana or Kana)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x8B), // 94  International5 (Muhenkan)
+    (hidio::HIDIOCommandID::Unused, 0),         // TODO KPJP Comma 95
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x58), // 96  Keypad Enter
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE4), // 97  Right Control
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x54), // 98  Keypad Slash
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x9A), // 99  SysReq
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE6), // 100 Right Alt
     (hidio::HIDIOCommandID::Unused, 0),         // TODO Linefeed - 101
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x4A), // Home
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x52), // Up
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x4B), // Page Up
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x50), // Left
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x4F), // Right
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x4D), // End
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x51), // Down
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x4E), // Page Down
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x49), // Insert
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x4C), // Delete
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x4A), // 102 Home
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x52), // 103 Up
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x4B), // 104 Page Up
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x50), // 105 Left
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x4F), // 106 Right
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x4D), // 107 End
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x51), // 108 Down
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x4E), // 109 Page Down
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x49), // 110 Insert
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x4C), // 111 Delete
     (hidio::HIDIOCommandID::Unused, 0),         // TODO Macro - 112
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x7F), // Mute
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x81), // Volume Down
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x80), // Volume Up
-    (hidio::HIDIOCommandID::HIDConsumerCtrl, 0x030), // Power
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x67), // Keypad Equal
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xD7), // Keypad Plus Minus
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x48), // Pause
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x7F), // 113 Mute
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x81), // 114 Volume Down
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x80), // 115 Volume Up
+    (hidio::HIDIOCommandID::HIDConsumerCtrl, 0x030), // 116 Power
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x67), // 117 Keypad Equal
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xD7), // 118 Keypad Plus Minus
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x48), // 119 Pause
     (hidio::HIDIOCommandID::Unused, 0),         // TODO Scale - 120
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x85), // Keypad Comma
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x90), // LANG1 (Hangeul)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x91), // LANG2 (Hanja)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x89), // International3 (Yen)
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE3), // Left GUI
-    (hidio::HIDIOCommandID::HIDKeyboard, 0xE7), // Right GUI
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x85), // 121 Keypad Comma
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x90), // 122 LANG1 (Hangeul)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x91), // 123 LANG2 (Hanja)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x89), // 124 International3 (Yen)
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE3), // 125 Left GUI
+    (hidio::HIDIOCommandID::HIDKeyboard, 0xE7), // 126 Right GUI
     (hidio::HIDIOCommandID::Unused, 0),         // TODO Compose - 127
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x78), // Stop
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x79), // Again
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x78), // 128 Stop
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x79), // 129 Again
     (hidio::HIDIOCommandID::Unused, 0),         // TODO Props - 130
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x7A), // Undo
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x7A), // 131 Undo
     (hidio::HIDIOCommandID::Unused, 0),         // TODO Front - 132
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x7C), // Copy
-    (hidio::HIDIOCommandID::HIDConsumerCtrl, 0x202), // Open
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x7D), // Paste
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x7E), // Find
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x7B), // Cut
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x75), // Help
-    (hidio::HIDIOCommandID::HIDKeyboard, 0x76), // Menu
-    (hidio::HIDIOCommandID::HIDConsumerCtrl, 0x192), // Calc
-    (hidio::HIDIOCommandID::HIDSystemCtrl, 0xA2), // Setup
-    (hidio::HIDIOCommandID::HIDSystemCtrl, 0x82), // Sleep
-    (hidio::HIDIOCommandID::HIDSystemCtrl, 0x83), // Wakeup
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x7C), // 133 Copy
+    (hidio::HIDIOCommandID::HIDConsumerCtrl, 0x202), // 134 Open
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x7D), // 135 Paste
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x7E), // 136 Find
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x7B), // 137 Cut
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x75), // 138 Help
+    (hidio::HIDIOCommandID::HIDKeyboard, 0x76), // 139 Menu
+    (hidio::HIDIOCommandID::HIDConsumerCtrl, 0x192), // 140 Calc
+    (hidio::HIDIOCommandID::HIDSystemCtrl, 0xA2), // 141 Setup
+    (hidio::HIDIOCommandID::HIDSystemCtrl, 0x82), // 142 Sleep
+    (hidio::HIDIOCommandID::HIDSystemCtrl, 0x83), // 143 Wakeup
     (hidio::HIDIOCommandID::Unused, 0),         // TODO File - 144
     (hidio::HIDIOCommandID::Unused, 0),         // TODO SendFile - 145
     (hidio::HIDIOCommandID::Unused, 0),         // TODO DeleteFile - 146
@@ -667,11 +661,15 @@ fn evdev2basehid(
         EventCode::EV_KEY(key) => {
             // Do an ev code to hid code lookup
             // Will error if no lookup is available
-            let lookup = EVDEV2HIDKEY[key as usize];
+            let key = key as usize;
+            let lookup = EVDEV2HIDKEY[key];
             if lookup.0 == hidio::HIDIOCommandID::Unused {
                 Err(std::io::Error::new(
                     std::io::ErrorKind::NotFound,
-                    format!("No key hid code lookup for ev code: {}", code),
+                    format!(
+                        "No key hid code lookup for ev code: {} {:?} {}",
+                        code, key, lookup.1
+                    ),
                 ))
             } else {
                 Ok(lookup)
@@ -735,7 +733,12 @@ impl EvdevDevice {
         })
     }
 
-    // Process evdev events
+    /// Process evdev events
+    /// NOTE: evdev doesn't necessarily group all event codes from a single HID message into a
+    /// single EV_SYN scan report. While annoying (and makes it hard to perfectly emulate hid) this
+    /// is how normal NKRO keyboards are also handled on Linux so users won't notice a difference.
+    /// On each scan report additional keys will be added to the HIDIO packet so you'll eventually
+    /// get the full set (just communication more "chatty"). This also complicates unit testing :/
     pub fn process(&mut self) -> std::io::Result<()> {
         let fd_path = self.fd_path.clone();
 
@@ -753,6 +756,7 @@ impl EvdevDevice {
         // Apply file descriptor to evdev handle
         let file = std::fs::File::open(fd_path)?;
         device.set_fd(file)?;
+        info!("Connection event uid:{} {}", self.uid, device_name(&device));
 
         // Take all event information (block events from other processes)
         device.grab(evdev_rs::GrabMode::Grab).unwrap();
@@ -778,8 +782,8 @@ impl EvdevDevice {
                 let mut result = event.ok().unwrap();
                 // TODO send event message through mailbox
                 debug!(
-                    "{:?} {:?} {}",
-                    &result.1.event_type, &result.1.event_code, &result.1.value
+                    "uid:{} {:?} {:?} {}",
+                    self.uid, &result.1.event_type, &result.1.event_code, &result.1.value
                 );
 
                 match result.0 {
@@ -789,8 +793,11 @@ impl EvdevDevice {
                         warn!("Dropped evdev event! - Attempting to resync...");
                         while result.0 == evdev_rs::ReadStatus::Sync {
                             warn!(
-                                "Dropped: {:?} {:?} {}",
-                                &result.1.event_type, &result.1.event_code, &result.1.value
+                                "Dropped: uid:{} {:?} {:?} {}",
+                                self.uid,
+                                &result.1.event_type,
+                                &result.1.event_code,
+                                &result.1.value
                             );
                             event = device.next_event(evdev_rs::ReadFlag::SYNC);
                             if event.is_ok() {
@@ -850,7 +857,10 @@ impl EvdevDevice {
                                         }
                                         // TODO Currently ignoring other send events
                                         _ => {
-                                            debug!("Ignoring send: {:?}", event_queue);
+                                            debug!(
+                                                "Ignoring send: uid:{} {:?}",
+                                                self.uid, event_queue
+                                            );
                                             continue;
                                         }
                                     };
@@ -877,13 +887,12 @@ impl EvdevDevice {
                         }
 
                         // Select the type of HIDIO Packet being sent based off of the device type
-                        let command = match self.endpoint.type_() {
+                        event_queue_command = match self.endpoint.type_() {
                             common_capnp::NodeType::HidKeyboard => {
                                 // Filter for keyboard events
                                 if !&result.1.is_type(&evdev_rs::enums::EventType::EV_KEY) {
                                     continue;
                                 }
-
                                 hidio::HIDIOCommandID::HIDKeyboard
                             }
                             common_capnp::NodeType::HidMouse => {
@@ -917,7 +926,11 @@ impl EvdevDevice {
                 match err.raw_os_error() {
                     Some(libc::EAGAIN) => continue,
                     _ => {
-                        info!("Disconnection event {}", device_name(device));
+                        info!(
+                            "Disconnection event uid:{} {}",
+                            self.uid,
+                            device_name(&device)
+                        );
                         return Ok(());
                     }
                 }
@@ -925,7 +938,6 @@ impl EvdevDevice {
 
             // TODO Check if there are more events, if yes, keep trying to enqueue
         }
-        Ok(())
     }
 }
 
@@ -937,8 +949,8 @@ impl Drop for EvdevDevice {
 }
 
 /// Build a unique device name string
-fn device_name(device: evdev_rs::Device) -> String {
-    let mut string = format!(
+fn device_name(device: &evdev_rs::Device) -> String {
+    let string = format!(
         "[{:04x}:{:04x}-{:?}] {} {} {}",
         device.vendor_id(),
         device.product_id(),
@@ -1199,10 +1211,12 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
 /// evdev initialization
 ///
 /// Sets up processing threads for udev and evdev.
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
     info!("Initializing device/evdev...");
 
     // Spawn watcher thread (tokio)
+    // TODO - udev monitoring (waiting for devices to reconnect)
+    // TODO - evev monitoring (monitoring is done by api request, grabbing is an option)
     /*
     let local = tokio::task::LocalSet::new();
     local.run_until(processing(mailbox)).await;
@@ -1222,8 +1236,6 @@ pub fn udev_find_input_event_device(
             let mut enumerator = udev::Enumerator::new().unwrap();
             enumerator.match_parent(&device).unwrap();
             enumerator.match_subsystem("input").unwrap();
-            let mut evdevice: EvdevDevice;
-            let mut found = false;
 
             // Validate parameters
             for device in enumerator.scan_devices().unwrap() {
@@ -1244,123 +1256,136 @@ pub fn udev_find_input_event_device(
     }
 }
 
-#[test]
-fn uhid_evdev_keyboard_test() {
-    setup_logging_lite();
-    // Create uhid keyboard interface
-    let name = "evdev-keyboard-nkro-test".to_string();
-    let mailbox = mailbox::Mailbox::new();
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::logging::setup_logging_lite;
+    use std::sync::{Arc, RwLock};
 
-    // Generate a unique key (to handle parallel tests)
-    let uniq = nanoid::simple();
+    #[test]
+    fn uhid_evdev_keyboard_test() {
+        setup_logging_lite().ok();
+        // Create uhid keyboard interface
+        let name = "evdev-keyboard-nkro-test".to_string();
+        let mailbox = mailbox::Mailbox::new();
 
-    // Instantiate hid device
-    let mut keyboard = vhid::uhid::KeyboardNKRO::new(
-        mailbox.clone(),
-        name.clone(),
-        "".to_string(),
-        uniq.clone(),
-        uhid_virt::Bus::USB,
-        vhid::IC_VID as u32,
-        vhid::IC_PID_KEYBOARD as u32,
-        0,
-        0,
-    )
-    .unwrap();
+        // Adjust next uid to make it easier to debug parallel tests
+        *mailbox.last_uid.write().unwrap() = 10;
 
-    // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
-    let device = match udev_find_input_event_device(
-        vhid::IC_VID as u16,
-        vhid::IC_PID_KEYBOARD as u16,
-        "input".to_string(),
-        uniq,
-        std::time::Duration::new(10, 0),
-    ) {
-        Ok(device) => device,
-        Err(err) => {
-            panic!("Could not find udev device... {}", err);
-        }
-    };
+        // Generate a unique key (to handle parallel tests)
+        let uniq = nanoid::simple();
 
-    // Find evdev mapping to uhid device
-    while !device.is_initialized() {} // Wait for udev to finish setting up device
-    let fd_path = format!(
-        "/dev/input/{}",
-        device.sysname().to_str().unwrap().to_string()
-    );
+        // Instantiate hid device
+        let mut keyboard = vhid::uhid::KeyboardNKRO::new(
+            mailbox.clone(),
+            name.clone(),
+            "".to_string(),
+            uniq.clone(),
+            uhid_virt::Bus::USB,
+            vhid::IC_VID as u32,
+            vhid::IC_PID_KEYBOARD as u32,
+            0,
+            0,
+        )
+        .unwrap();
 
-    // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
-    // validate that evdev is working correctly
-    // However, before we can send any keypresses, a mailbox receiver is setup to watch for the incoming
-    // messages
-    let mut receiver = mailbox.sender.subscribe(); // Subscribe to mailbox messages
+        // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
+        let device = match udev_find_input_event_device(
+            vhid::IC_VID as u16,
+            vhid::IC_PID_KEYBOARD as u16,
+            "input".to_string(),
+            uniq,
+            std::time::Duration::new(10, 0),
+        ) {
+            Ok(device) => device,
+            Err(err) => {
+                panic!("Could not find udev device... {}", err);
+            }
+        };
 
-    let mut rt = tokio::runtime::Runtime::new().unwrap();
+        // Find evdev mapping to uhid device
+        while !device.is_initialized() {} // Wait for udev to finish setting up device
+        let fd_path = format!(
+            "/dev/input/{}",
+            device.sysname().to_str().unwrap().to_string()
+        );
 
-    // Start listening for mailbox messages
-    rt.spawn(async move {
-        // These are the expected messages
-        // Due to how evdev works, it's possible that at least one additional empty packet will be
-        // sent. Just ignore any extra packets.
-        let expected_msgs = vec![vec![4], vec![4, 5], vec![5], vec![]];
-        let mut msg_pos = 0;
+        // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
+        // validate that evdev is working correctly
+        // However, before we can send any keypresses, a mailbox receiver is setup to watch for the incoming
+        // messages
+        let mut receiver = mailbox.sender.subscribe(); // Subscribe to mailbox messages
 
-        loop {
-            match receiver.recv().await {
-                Ok(msg) => {
-                    // Keep listening for extra messages after completing the verification
-                    if msg_pos + 1 == expected_msgs.len() {
-                        continue;
+        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        let status: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
+        let status2 = status.clone();
+
+        // Start listening for mailbox messages
+        rt.spawn(async move {
+            // These are the expected messages
+            // Due to how evdev works, it's possible that at least one additional empty packet will be
+            // sent. Just ignore any extra packets.
+            let expected_msgs = vec![vec![4], vec![4, 5], vec![5], vec![]];
+            let mut msg_pos = 0;
+
+            loop {
+                match receiver.recv().await {
+                    Ok(msg) => {
+                        // Keep listening for extra messages after completing the verification
+                        if msg_pos + 1 == expected_msgs.len() {
+                            *(status.clone().write().unwrap()) = true;
+                            continue;
+                        }
+
+                        // Verify the incoming keypresses
+                        if msg.data.data == expected_msgs[msg_pos] {
+                            msg_pos += 1;
+                        } else {
+                            assert!(msg.data.data == vec![], "Unexpected message: {:?}", msg);
+                        }
                     }
-
-                    // Verify the incoming keypresses
-                    if msg.data.data == expected_msgs[msg_pos] {
-                        msg_pos += 1;
-                    } else {
-                        assert!(msg.data.data == vec![], "Unexpected message: {:?}", msg);
+                    Err(tokio::sync::broadcast::RecvError::Closed) => {
+                        assert!(false, "Mailbox has been closed unexpectedly!");
                     }
-                }
-                Err(tokio::sync::broadcast::RecvError::Closed) => {
-                    assert!(false, "Mailbox has been closed unexpectedly!");
-                }
-                Err(tokio::sync::broadcast::RecvError::Lagged(skipped)) => {
-                    assert!(
-                        false,
-                        "Mailbox has received too many messages, lagging by: {}",
-                        skipped
-                    );
-                }
-            };
-        }
-    });
-
-    // Start listening for evdev events
-    rt.spawn(async move {
-        tokio::task::spawn_blocking(move || {
-            EvdevDevice::new(mailbox.clone(), fd_path)
-                .unwrap()
-                .process()
-                .unwrap();
+                    Err(tokio::sync::broadcast::RecvError::Lagged(skipped)) => {
+                        assert!(
+                            false,
+                            "Mailbox has received too many messages, lagging by: {}",
+                            skipped
+                        );
+                    }
+                };
+            }
         });
-    });
 
-    //std::thread::sleep(std::time::Duration::from_millis(100));
+        // Start listening for evdev events
+        rt.spawn(async move {
+            tokio::task::spawn_blocking(move || {
+                EvdevDevice::new(mailbox.clone(), fd_path)
+                    .unwrap()
+                    .process()
+                    .unwrap();
+            });
+        });
 
-    rt.block_on(async {
-        // Make sure everything is initialized and monitoring
-        tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+        rt.block_on(async {
+            // Make sure everything is initialized and monitoring
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
 
-        // Send A;A,B;B key using uhid device
-        // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
-        keyboard.send(vec![4]);
-        keyboard.send(vec![4, 5]);
-        keyboard.send(vec![5]);
-        keyboard.send(vec![0]);
+            // Send A;A,B;B key using uhid device
+            // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
+            keyboard.send(vec![4]).unwrap();
+            keyboard.send(vec![4, 5]).unwrap();
+            keyboard.send(vec![5]).unwrap();
+            keyboard.send(vec![]).unwrap();
 
-        // Give some time for the events to propagate
-        tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
-    });
+            // Give some time for the events to propagate
+            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+        });
 
-    // Force the runtime to shutdown
-    rt.shutdown_timeout(std::time::Duration::from_millis(100));
+        // Force the runtime to shutdown
+        rt.shutdown_timeout(std::time::Duration::from_millis(100));
+        let status: bool = *status2.clone().read().unwrap();
+        assert!(status, "Test failed");
+    }
 }

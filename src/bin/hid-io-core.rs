@@ -27,9 +27,7 @@ use hid_io_core::logging;
 use hid_io_core::mailbox;
 use hid_io_core::RUNNING;
 use hid_io_core::{api, built_info, device, module};
-use std::env;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, RwLock};
 
 #[cfg(windows)]
 fn main() -> Result<(), std::io::Error> {

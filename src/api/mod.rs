@@ -733,7 +733,7 @@ impl hidio_capnp::h_i_d_i_o::Server for HIDIOImpl {
             .insert(
                 id,
                 NodesSubscriberHandle {
-                    client: client,
+                    client,
                     requests_in_flight: 0,
                     auth: self.auth,
                     node: self.node.clone(),
@@ -1021,10 +1021,10 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
             .insert(
                 sid,
                 KeyboardSubscriberHandle {
-                    client: client,
-                    requests_in_flight: 0,
-                    auth: self.auth,
-                    node: self.node.clone(),
+                    client,
+                    _requests_in_flight: 0,
+                    _auth: self.auth,
+                    _node: self.node.clone(),
                     uid: self.uid,
                 },
             );
@@ -1046,9 +1046,9 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
 
 struct KeyboardSubscriberHandle {
     client: keyboard_capnp::keyboard::subscriber::Client,
-    requests_in_flight: i32,
-    auth: AuthLevel,
-    node: Endpoint,
+    _requests_in_flight: i32,
+    _auth: AuthLevel,
+    _node: Endpoint,
     uid: u64,
 }
 
@@ -1081,7 +1081,7 @@ impl KeyboardSubscriptionImpl {
         subscriptions: Arc<RwLock<Subscriptions>>,
     ) -> KeyboardSubscriptionImpl {
         KeyboardSubscriptionImpl {
-            mailbox: mailbox,
+            mailbox,
             _node: node,
             uid,
             sid,
@@ -1150,10 +1150,10 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             .insert(
                 id,
                 DaemonSubscriberHandle {
-                    client: client,
-                    requests_in_flight: 0,
-                    auth: self.auth,
-                    node: self.node.clone(),
+                    _client: client,
+                    _requests_in_flight: 0,
+                    _auth: self.auth,
+                    _node: self.node.clone(),
                 },
             );
 
@@ -1172,10 +1172,10 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
 }
 
 struct DaemonSubscriberHandle {
-    client: daemon_capnp::daemon::subscriber::Client,
-    requests_in_flight: i32,
-    auth: AuthLevel,
-    node: Endpoint,
+    _client: daemon_capnp::daemon::subscriber::Client,
+    _requests_in_flight: i32,
+    _auth: AuthLevel,
+    _node: Endpoint,
 }
 
 struct DaemonSubscriberMap {
@@ -1327,7 +1327,7 @@ async fn server_bind(
         let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
         let disconnector = rpc_system.get_disconnector();
         disconnector.await.unwrap();
-        let rpc_task = tokio::task::spawn_local(Box::pin(
+        let _rpc_task = tokio::task::spawn_local(Box::pin(
             rpc_system
                 .map_err(|e| info!("rpc_system: {}", e))
                 .map(move |_| {

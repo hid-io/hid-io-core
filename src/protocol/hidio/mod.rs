@@ -353,22 +353,20 @@ pub fn payload_start(packet_data: &mut Vec<u8>) -> Result<usize, HIDIOParseError
 /// # Remarks
 /// The very first byte in the bitmask represents 0->7 and the final byte ends at 255
 /// Opposite of keyboard_vec2bitmask.
-pub fn hid_bitmask2vec(bitmask: &Vec<u8>) -> Vec<u8> {
-    let mut data = vec![];
+pub fn hid_bitmask2vec(bitmask: &[u8]) -> Vec<u8> {
+    let mut data: Vec<u8> = vec![];
 
     // Iterate over each byte of the bitmask adding a code for each found bit
-    let mut byte_pos = 0;
-    for byte in bitmask {
+    for (byte_pos, byte) in bitmask.iter().enumerate() {
         // Iterate over each of the bits
         for b in 0..=7 {
             // Check if bit is active, if so use the b position, then add byte_pos
             let active = ((byte >> b) & 0x01) == 0x01;
             if active {
                 let code = b + byte_pos * 8;
-                data.push(code);
+                data.push(code as u8);
             }
         }
-        byte_pos += 1; // Increment bitmask byte position
     }
     data
 }
@@ -380,8 +378,8 @@ pub fn hid_bitmask2vec(bitmask: &Vec<u8>) -> Vec<u8> {
 ///
 /// # Remarks
 /// Opposite of keyboard_bitmask2vec.
-pub fn hid_vec2bitmask(codes: &Vec<u8>) -> Vec<u8> {
-    let mut data = vec![0; 32]; // Maximum of 32 bytes when dealing with 8 bit codes
+pub fn hid_vec2bitmask(codes: &[u8]) -> Vec<u8> {
+    let mut data: Vec<u8> = vec![0; 32]; // Maximum of 32 bytes when dealing with 8 bit codes
 
     // Iterate through codes and set each bit accordingly
     for code in codes {
@@ -497,8 +495,9 @@ impl HIDIOPacketBuffer {
             }
 
             // Check if not a continued packet, and we have a payload
-            if !self.data.is_empty()
-                && !(ptype == HIDIOPacketType::Continued || ptype == HIDIOPacketType::NAContinued)
+            if !(self.data.is_empty()
+                || ptype == HIDIOPacketType::Continued
+                || ptype == HIDIOPacketType::NAContinued)
             {
                 warn!("Dropping. Invalid packet type (non-HIDIOPacketType::Continued) on a already initialized buffer");
                 return Ok(packet_len);
@@ -539,6 +538,7 @@ impl HIDIOPacketBuffer {
         let serialized: Vec<u8> = match serialize(&self) {
             Ok(v) => v,
             Err(e) => {
+                error!("Parse error: {:?}", e);
                 return Err(HIDIOParseError {});
             }
         };
@@ -947,7 +947,7 @@ mod test {
     /// Tests hid_bitmask2vec and hid_vec2bitmask
     #[test]
     fn hid_vec2bitmask2vec_test() {
-        let mut inputvec = vec![1, 2, 3, 4, 5, 100, 255];
+        let inputvec = vec![1, 2, 3, 4, 5, 100, 255];
 
         // Convert, then convert back
         let bitmask = hid_vec2bitmask(&inputvec);

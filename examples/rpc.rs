@@ -15,6 +15,13 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO Need to fully port to async subscriptions
+#[tokio::main]
+pub async fn main() -> Result<(), ::capnp::Error> {
+    Ok(())
+}
+
+/*
 extern crate tokio;
 
 use capnp;
@@ -349,3 +356,4 @@ async fn try_main() -> Result<(), ::capnp::Error> {
     */
     Ok(())
 }
+*/
