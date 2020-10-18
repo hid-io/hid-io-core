@@ -105,7 +105,7 @@ impl Mailbox {
     /// Attempt to locate an unused id for the device key
     pub fn get_uid(&mut self, key: String, path: String) -> Option<u64> {
         let mut lookup = self.lookup.write().unwrap();
-        let lookup_entry = lookup.entry(key).or_insert(vec![]);
+        let lookup_entry = lookup.entry(key).or_default();
 
         // Locate an id
         'outer: for uid in lookup_entry.iter() {
@@ -132,7 +132,7 @@ impl Mailbox {
     /// Add uid to lookup
     pub fn add_uid(&mut self, key: String, uid: u64) {
         let mut lookup = self.lookup.write().unwrap();
-        let lookup_entry = lookup.entry(key).or_insert(vec![]);
+        let lookup_entry = lookup.entry(key).or_default();
         lookup_entry.push(uid);
     }
 

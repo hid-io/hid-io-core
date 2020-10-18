@@ -1263,6 +1263,7 @@ mod test {
     use std::sync::{Arc, RwLock};
 
     #[test]
+    #[ignore]
     fn uhid_evdev_keyboard_test() {
         setup_logging_lite().ok();
         // Create uhid keyboard interface

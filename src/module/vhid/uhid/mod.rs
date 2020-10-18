@@ -729,6 +729,7 @@ mod test {
 
     // This test will fail unless your user has permission to read/write to /dev/uhid
     #[test]
+    #[ignore]
     fn uhid_keyboard_nkro_test() {
         setup_logging_lite().ok();
         let name = "uhid-keyboard-nkro-test".to_string();
@@ -866,6 +867,7 @@ mod test {
 
     // This test will fail unless your user has permission to read/write to /dev/uhid
     #[test]
+    #[ignore]
     fn uhid_keyboard_6kro_test() {
         setup_logging_lite().ok();
         let name = "uhid-keyboard-6kro-test".to_string();

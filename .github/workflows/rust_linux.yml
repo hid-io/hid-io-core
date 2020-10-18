@@ -14,16 +14,7 @@ jobs:
           override: true
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev libudev-dev -y
-          # Install capnproto
-          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
-          tar zxf capnproto-c++-0.7.0.tar.gz
-          cd capnproto-c++-0.7.0
-          mkdir -p build
-          cd build
-          cmake .. -G 'Ninja' -DCMAKE_POSITION_INDEPENDENT_CODE=1 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF
-          cmake --build .
-          sudo cmake --build . --target install
+          sudo apt-get install ninja-build libxtst-dev libclang-dev libevdev-dev llvm capnproto libudev-dev -y
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -46,16 +37,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev libudev-dev -y
-          # Install capnproto
-          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
-          tar zxf capnproto-c++-0.7.0.tar.gz
-          cd capnproto-c++-0.7.0
-          mkdir -p build
-          cd build
-          cmake .. -G 'Ninja' -DCMAKE_POSITION_INDEPENDENT_CODE=1 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF
-          cmake --build .
-          sudo cmake --build . --target install
+          sudo apt-get install ninja-build libxtst-dev libclang-dev libevdev-dev llvm capnproto libudev-dev -y
           python -m pip install --upgrade pip
       - uses: actions-rs/cargo@v1
         with:
@@ -93,16 +75,7 @@ jobs:
           override: true
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libusb-1.0-0-dev libhidapi-dev libhidapi-libusb0 libxtst-dev libudev-dev -y
-          # Install capnproto
-          curl -O https://capnproto.org/capnproto-c++-0.7.0.tar.gz
-          tar zxf capnproto-c++-0.7.0.tar.gz
-          cd capnproto-c++-0.7.0
-          mkdir -p build
-          cd build
-          cmake .. -G 'Ninja' -DCMAKE_POSITION_INDEPENDENT_CODE=1 -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF
-          cmake --build .
-          sudo cmake --build . --target install
+          sudo apt-get install ninja-build libxtst-dev libclang-dev libevdev-dev llvm capnproto libudev-dev -y
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
