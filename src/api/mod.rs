@@ -453,8 +453,8 @@ impl HIDIOServerImpl {
             .expect("Unable to create file");
 
         // Generate keys
-        let basic_key = nanoid::simple();
-        let auth_key = nanoid::simple();
+        let basic_key = nanoid::nanoid!();
+        let auth_key = nanoid::nanoid!();
 
         // Writes basic key to file
         basic_key_file
