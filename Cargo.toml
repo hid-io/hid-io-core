@@ -47,13 +47,13 @@ rand            = "^0.7"
 rcgen           = "^0.5"
 regex           = "^1.3"
 rustls          = { version = "^0.18", features = ["dangerous_configuration"] }
-serde           = "1.0.116"
+serde           = "1.0.117"
 stream-cancel   = "^0.6"
 #tempfile        = "3.1.0"
 tempfile        = { git = "https://github.com/haata/tempfile" } # Needed for world accessible patches
-tokio           = { version = "^0.2", features = ["net", "rt-util", "tcp", "macros", "blocking", "sync", "stream", "time", "rt-core"]}
-tokio-rustls    = "0.14.1"
-tokio-util      = { version = "^0.3", features = ["compat"] }
+tokio           = { version = "^0.3", features = ["net", "rt-multi-thread", "macros", "sync", "stream", "time"] }
+tokio-rustls    = "^0.20"
+tokio-util      = { version = "^0.4", features = ["compat"] }
 webpki          = "^0.21"
 windows-service = "0.1.0"
 

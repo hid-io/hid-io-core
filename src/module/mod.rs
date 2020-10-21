@@ -233,7 +233,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                 if !RUNNING.load(Ordering::SeqCst) {
                     break;
                 }
-                tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         })
         .await;

@@ -31,7 +31,7 @@ async fn processing() {
         }
 
         // Sleep so we don't starve the CPU
-        tokio::time::delay_for(std::time::Duration::from_millis(SLEEP_DURATION)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(SLEEP_DURATION)).await;
     }
 }
 

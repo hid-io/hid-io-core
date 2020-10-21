@@ -285,7 +285,7 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
                 // Sleep so we don't starve the CPU
                 // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
                 // XXX - Rewrite hidapi with rust and include async
-                tokio::time::delay_for(std::time::Duration::from_millis(ENUMERATE_DELAY)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(ENUMERATE_DELAY)).await;
             }
         }
 
@@ -340,7 +340,7 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
 
             // If there was any IO, on any of the devices, do not sleep, only sleep when all devices are idle
             if io_events == 0 {
-                tokio::time::delay_for(std::time::Duration::from_millis(POLL_DELAY)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(POLL_DELAY)).await;
             }
         }
     }

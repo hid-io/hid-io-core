@@ -1237,7 +1237,7 @@ async fn server_bind(
         .to_socket_addrs()?
         .next()
         .expect("could not parse address");
-    let mut listener = tokio::net::TcpListener::bind(&addr).await?;
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
     println!("API: Listening on {}", addr);
 
     // Generate new self-signed public/private key
@@ -1271,7 +1271,7 @@ async fn server_bind(
                     abort_handle.abort();
                     break;
                 }
-                tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         });
         // Setup TLS stream
@@ -1351,7 +1351,7 @@ async fn server_bind(
                     println!("22222ABORTTTT");
                     break;
                 }
-                tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         });
         */
@@ -1572,7 +1572,7 @@ async fn server_subscriptions(
             }
             last_node_refresh = Instant::now();
         } else {
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
     }
 

@@ -247,11 +247,11 @@ impl HIDIOController {
                         }
                     }
                 }
-                Err(broadcast::TryRecvError::Empty) => {
+                Err(broadcast::error::TryRecvError::Empty) => {
                     break;
                 }
-                Err(broadcast::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
-                Err(broadcast::TryRecvError::Closed) => {
+                Err(broadcast::error::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
+                Err(broadcast::error::TryRecvError::Closed) => {
                     return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
                     //::std::process::exit(1);
                 }

@@ -1146,7 +1146,7 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
                 // Sleep so we don't starve the CPU
                 // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
                 // XXX - Rewrite hidapi with rust and include async
-                tokio::time::delay_for(std::time::Duration::from_millis(ENUMERATE_DELAY)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(ENUMERATE_DELAY)).await;
             }
         }
 
@@ -1201,7 +1201,7 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
 
             // If there was any IO, on any of the devices, do not sleep, only sleep when all devices are idle
             if io_events == 0 {
-                tokio::time::delay_for(std::time::Duration::from_millis(POLL_DELAY)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(POLL_DELAY)).await;
             }
         }
     }
@@ -1371,7 +1371,7 @@ mod test {
 
         rt.block_on(async {
             // Make sure everything is initialized and monitoring
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
             // Send A;A,B;B key using uhid device
             // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
@@ -1381,7 +1381,7 @@ mod test {
             keyboard.send(vec![]).unwrap();
 
             // Give some time for the events to propagate
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         });
 
         // Force the runtime to shutdown

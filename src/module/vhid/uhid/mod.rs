@@ -839,7 +839,7 @@ mod test {
 
         rt.block_on(async {
             // Make sure everything is initialized and monitoring
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
             // Send A;A,B;B key using uhid device
             // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
@@ -852,11 +852,11 @@ mod test {
                 .unwrap();
             // XXX (HaaTa): Need to give uhid (and evdev) some time to process the event
             //              Otherwise evdev may decide to just drop the event entirely
-            tokio::time::delay_for(std::time::Duration::from_millis(10)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             keyboard.send(vec![]).unwrap();
 
             // Give some time for the events to propagate
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         });
 
         // Force the runtime to shutdown
@@ -975,7 +975,7 @@ mod test {
 
         rt.block_on(async {
             // Make sure everything is initialized and monitoring
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
             // Send A;A,B;B key using uhid device
             // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
@@ -988,7 +988,7 @@ mod test {
             keyboard.send(vec![]).unwrap();
 
             // Give some time for the events to propagate
-            tokio::time::delay_for(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         });
 
         // Force the runtime to shutdown
