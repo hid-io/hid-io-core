@@ -1267,7 +1267,6 @@ async fn server_bind(
         tokio::spawn(async move {
             loop {
                 if !RUNNING.load(Ordering::SeqCst) {
-                    println!("ABORTTTT");
                     abort_handle.abort();
                     break;
                 }
@@ -1326,11 +1325,11 @@ async fn server_bind(
         let nodes = nodes.clone();
         let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
         let disconnector = rpc_system.get_disconnector();
-        disconnector.await.unwrap();
-        let _rpc_task = tokio::task::spawn_local(Box::pin(
-            rpc_system
-                .map_err(|e| info!("rpc_system: {}", e))
-                .map(move |_| {
+        let rpc_task = tokio::task::spawn_local(async move {
+            let uid = uid.clone();
+            let addr = addr.clone();
+            let _rpc_system = Box::pin(rpc_system.map_err(|e| info!("rpc_system: {}", e)).map(
+                move |_| {
                     info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);
 
                     // Client disconnected, delete node
@@ -1339,22 +1338,35 @@ async fn server_bind(
                         .write()
                         .unwrap()
                         .retain(|x| !connected_nodes.contains(&x.uid));
-                }),
-        ));
-        println!("TRY EXIT");
-        /*
-        tokio::task::spawn_local(async {
+                },
+            ))
+            .await;
+        });
+
+        // This task is needed if hid-io-core wants to gracefully exit while capnp rpc_systems are
+        // still active.
+        tokio::task::spawn_local(async move {
             loop {
                 if !RUNNING.load(Ordering::SeqCst) {
-                    println!("22222ABORTTTT");
                     disconnector.await.unwrap();
-                    println!("22222ABORTTTT");
+                    rpc_task.abort();
+                    // Check if we aborted or just exited normally (i.e. task already complete)
+                    match rpc_task.await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            if e.is_cancelled() {
+                                warn!("Connection aborted:7185 - {:?} - uid:{}", addr, uid);
+                            }
+                            if e.is_panic() {
+                                error!("Connection panic:7185 - {:?} - uid:{}", addr, uid);
+                            }
+                        }
+                    };
                     break;
                 }
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         });
-        */
     }
 }
 
