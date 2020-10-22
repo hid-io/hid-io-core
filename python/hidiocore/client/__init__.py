@@ -40,12 +40,12 @@ import hidiocore.schema.hidio_capnp as hidio_capnp
 logger = logging.getLogger(__name__)
 
 
-class NodesSubscriberImpl(hidio_capnp.HIDIO.NodesSubscriber.Server):
+class NodesSubscriberImpl(hidio_capnp.HidIo.NodesSubscriber.Server):
     '''
     NodesSubscriber response interface for HID-IO
     '''
     def __init__(self, hidioclient):
-        hidio_capnp.HIDIO.NodesSubscriber.Server.__init__(self)
+        hidio_capnp.HidIo.NodesSubscriber.Server.__init__(self)
 
         # Reference used to make callback
         self.hidioclient = hidioclient
@@ -58,7 +58,7 @@ class NodesSubscriberImpl(hidio_capnp.HIDIO.NodesSubscriber.Server):
         self.hidioclient.on_nodesupdate(nodes)
 
 
-class HIDIOClient:
+class HidIoClient:
     '''
     HID-IO RPC interface class
 
@@ -277,7 +277,7 @@ class HIDIOClient:
         logging.debug("Starting TwoPartyClient")
         self.client = capnp.TwoPartyClient()
         logging.debug("Starting Bootstrap")
-        self.cap = self.client.bootstrap().cast_as(hidio_capnp.HIDIOServer)
+        self.cap = self.client.bootstrap().cast_as(hidio_capnp.HidIoServer)
 
         # Start watcher to restart socket connection if it is lost
         logging.debug("Backgrounding socketwatcher")
@@ -439,8 +439,8 @@ class HIDIOClient:
         It is called on server connection events.
         This may occur if the server restarts, or due to some network issue.
 
-        @param cap: Reference to capnp HIDIOServer interface
-        @param cap_auth: Reference to capnp HIDIO interface
+        @param cap: Reference to capnp HidIoServer interface
+        @param cap_auth: Reference to capnp HidIo interface
                          (May be set to None, if not authenticated)
         '''
 
@@ -549,7 +549,7 @@ class HIDIOClient:
 
     def name(self):
         '''
-        If connected successfully, will return the name of the HIDIO daemon
+        If connected successfully, will return the name of the HidIo daemon
 
         Fox example:
         hid-io-core

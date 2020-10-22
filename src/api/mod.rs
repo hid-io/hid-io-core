@@ -23,7 +23,7 @@ pub use crate::keyboard_capnp;
 
 use crate::built_info;
 use crate::mailbox;
-use crate::protocol::hidio::HIDIOCommandID;
+use crate::protocol::hidio::HidIoCommandID;
 use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
@@ -396,11 +396,11 @@ struct Subscriptions {
     nodes_next_id: u64,
     nodes: NodesSubscriberMap,
 
-    // HIDIO Keyboard node subscriptions
+    // HidIo Keyboard node subscriptions
     keyboard_node_next_id: u64,
     keyboard_node: KeyboardSubscriberMap,
 
-    // HIDIO Daemon node subscriptions
+    // HidIo Daemon node subscriptions
     daemon_node_next_id: u64,
     daemon_node: DaemonSubscriberMap,
 }
@@ -418,7 +418,7 @@ impl Subscriptions {
     }
 }
 
-struct HIDIOServerImpl {
+struct HidIoServerImpl {
     mailbox: mailbox::Mailbox,
     connections: Arc<RwLock<HashMap<u64, Vec<u64>>>>,
     uid: u64,
@@ -432,13 +432,13 @@ struct HIDIOServerImpl {
     subscriptions: Arc<RwLock<Subscriptions>>,
 }
 
-impl HIDIOServerImpl {
+impl HidIoServerImpl {
     fn new(
         mailbox: mailbox::Mailbox,
         connections: Arc<RwLock<HashMap<u64, Vec<u64>>>>,
         uid: u64,
         subscriptions: Arc<RwLock<Subscriptions>>,
-    ) -> HIDIOServerImpl {
+    ) -> HidIoServerImpl {
         // Create temp file for basic key
         let mut basic_key_file = tempfile::Builder::new()
             .world_accessible(true)
@@ -471,7 +471,7 @@ impl HIDIOServerImpl {
         //       Basic key is world readable
         //       These keys are purposefully not sent over RPC
         //       to enforce local-only connections.
-        HIDIOServerImpl {
+        HidIoServerImpl {
             mailbox,
             connections,
             uid,
@@ -490,7 +490,7 @@ impl HIDIOServerImpl {
         &mut self,
         mut node: Endpoint,
         auth: AuthLevel,
-    ) -> hidio_capnp::h_i_d_i_o::Client {
+    ) -> hidio_capnp::hid_io::Client {
         {
             let mut connections = self.connections.write().unwrap();
             node.uid = self.uid;
@@ -504,7 +504,7 @@ impl HIDIOServerImpl {
         }
 
         info!("Connection authed! - {:?}", auth);
-        capnp_rpc::new_client(HIDIOImpl::new(
+        capnp_rpc::new_client(HidIoImpl::new(
             self.mailbox.clone(),
             node,
             auth,
@@ -513,11 +513,11 @@ impl HIDIOServerImpl {
     }
 }
 
-impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
+impl hidio_capnp::hid_io_server::Server for HidIoServerImpl {
     fn basic(
         &mut self,
-        params: hidio_capnp::h_i_d_i_o_server::BasicParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::BasicResults,
+        params: hidio_capnp::hid_io_server::BasicParams,
+        mut results: hidio_capnp::hid_io_server::BasicResults,
     ) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
@@ -544,8 +544,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn auth(
         &mut self,
-        params: hidio_capnp::h_i_d_i_o_server::AuthParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::AuthResults,
+        params: hidio_capnp::hid_io_server::AuthParams,
+        mut results: hidio_capnp::hid_io_server::AuthResults,
     ) -> Promise<(), Error> {
         let info = pry!(pry!(params.get()).get_info());
         let key = pry!(pry!(params.get()).get_key());
@@ -572,8 +572,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn version(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o_server::VersionParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::VersionResults,
+        _params: hidio_capnp::hid_io_server::VersionParams,
+        mut results: hidio_capnp::hid_io_server::VersionResults,
     ) -> Promise<(), Error> {
         // Get and set fields
         let mut version = results.get().init_version();
@@ -590,8 +590,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn alive(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o_server::AliveParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::AliveResults,
+        _params: hidio_capnp::hid_io_server::AliveParams,
+        mut results: hidio_capnp::hid_io_server::AliveResults,
     ) -> Promise<(), Error> {
         results.get().set_alive(true);
         Promise::ok(())
@@ -599,8 +599,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn key(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o_server::KeyParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::KeyResults,
+        _params: hidio_capnp::hid_io_server::KeyParams,
+        mut results: hidio_capnp::hid_io_server::KeyResults,
     ) -> Promise<(), Error> {
         // Get and set fields
         let mut key = results.get().init_key();
@@ -611,8 +611,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn id(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o_server::IdParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::IdResults,
+        _params: hidio_capnp::hid_io_server::IdParams,
+        mut results: hidio_capnp::hid_io_server::IdResults,
     ) -> Promise<(), Error> {
         results.get().set_id(self.uid);
         Promise::ok(())
@@ -620,8 +620,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn name(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o_server::NameParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::NameResults,
+        _params: hidio_capnp::hid_io_server::NameParams,
+        mut results: hidio_capnp::hid_io_server::NameResults,
     ) -> Promise<(), Error> {
         results.get().set_name("hid-io-core");
         Promise::ok(())
@@ -629,8 +629,8 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
 
     fn log_files(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o_server::LogFilesParams,
-        mut results: hidio_capnp::h_i_d_i_o_server::LogFilesResults,
+        _params: hidio_capnp::hid_io_server::LogFilesParams,
+        mut results: hidio_capnp::hid_io_server::LogFilesResults,
     ) -> Promise<(), Error> {
         // Get list of log files
         let path = env::temp_dir()
@@ -654,21 +654,21 @@ impl hidio_capnp::h_i_d_i_o_server::Server for HIDIOServerImpl {
     }
 }
 
-struct HIDIOImpl {
+struct HidIoImpl {
     mailbox: mailbox::Mailbox,
     node: Endpoint,
     auth: AuthLevel,
     subscriptions: Arc<RwLock<Subscriptions>>,
 }
 
-impl HIDIOImpl {
+impl HidIoImpl {
     fn new(
         mailbox: mailbox::Mailbox,
         node: Endpoint,
         auth: AuthLevel,
         subscriptions: Arc<RwLock<Subscriptions>>,
-    ) -> HIDIOImpl {
-        HIDIOImpl {
+    ) -> HidIoImpl {
+        HidIoImpl {
             mailbox,
             node,
             auth,
@@ -677,11 +677,11 @@ impl HIDIOImpl {
     }
 }
 
-impl hidio_capnp::h_i_d_i_o::Server for HIDIOImpl {
+impl hidio_capnp::hid_io::Server for HidIoImpl {
     fn nodes(
         &mut self,
-        _params: hidio_capnp::h_i_d_i_o::NodesParams,
-        mut results: hidio_capnp::h_i_d_i_o::NodesResults,
+        _params: hidio_capnp::hid_io::NodesParams,
+        mut results: hidio_capnp::hid_io::NodesResults,
     ) -> Promise<(), Error> {
         let nodes = self.mailbox.nodes.read().unwrap();
         let mut result = results.get().init_nodes((nodes.len()) as u32);
@@ -719,8 +719,8 @@ impl hidio_capnp::h_i_d_i_o::Server for HIDIOImpl {
 
     fn subscribe_nodes(
         &mut self,
-        params: hidio_capnp::h_i_d_i_o::SubscribeNodesParams,
-        mut results: hidio_capnp::h_i_d_i_o::SubscribeNodesResults,
+        params: hidio_capnp::hid_io::SubscribeNodesParams,
+        mut results: hidio_capnp::hid_io::SubscribeNodesResults,
     ) -> Promise<(), Error> {
         let id = self.subscriptions.read().unwrap().nodes_next_id;
         info!("Adding subscribeNodes watcher id #{}", id,);
@@ -755,7 +755,7 @@ impl hidio_capnp::h_i_d_i_o::Server for HIDIOImpl {
 }
 
 struct NodesSubscriberHandle {
-    client: hidio_capnp::h_i_d_i_o::nodes_subscriber::Client,
+    client: hidio_capnp::hid_io::nodes_subscriber::Client,
     requests_in_flight: i32,
     auth: AuthLevel,
     node: Endpoint,
@@ -808,7 +808,7 @@ impl Drop for NodesSubscriptionImpl {
     }
 }
 
-impl hidio_capnp::h_i_d_i_o::nodes_subscription::Server for NodesSubscriptionImpl {}
+impl hidio_capnp::hid_io::nodes_subscription::Server for NodesSubscriptionImpl {}
 
 struct KeyboardNodeImpl {
     mailbox: mailbox::Mailbox,
@@ -853,7 +853,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 self.mailbox.send_command(
                     src,
                     dst,
-                    HIDIOCommandID::Terminal,
+                    HidIoCommandID::Terminal,
                     cmd.as_bytes().to_vec(),
                 );
                 Promise::ok(())
@@ -875,12 +875,12 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
                 self.mailbox
-                    .send_command(src, dst, HIDIOCommandID::SleepMode, vec![]);
+                    .send_command(src, dst, HidIoCommandID::SleepMode, vec![]);
 
                 // Wait for ACK/NAK
                 let res = tokio::runtime::Runtime::new()
                     .unwrap()
-                    .block_on(self.mailbox.ack_wait(dst, HIDIOCommandID::FlashMode, 0));
+                    .block_on(self.mailbox.ack_wait(dst, HidIoCommandID::FlashMode, 0));
                 match res {
                     Ok(_msg) => Promise::ok(()),
                     Err(mailbox::AckWaitError::TooManySyncs) => Promise::err(capnp::Error {
@@ -945,12 +945,12 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
                 // Send command
                 self.mailbox
-                    .send_command(src, dst, HIDIOCommandID::FlashMode, vec![]);
+                    .send_command(src, dst, HidIoCommandID::FlashMode, vec![]);
 
                 // Wait for ACK/NAK
                 let res = tokio::runtime::Runtime::new()
                     .unwrap()
-                    .block_on(self.mailbox.ack_wait(dst, HIDIOCommandID::FlashMode, 0));
+                    .block_on(self.mailbox.ack_wait(dst, HidIoCommandID::FlashMode, 0));
                 match res {
                     Ok(msg) => {
                         // Convert byte stream to u16 TODO Should handle better
@@ -1303,7 +1303,7 @@ async fn server_bind(
         };
 
         // Initialize auth tokens
-        let hidio_server = HIDIOServerImpl::new(
+        let hidio_server = HidIoServerImpl::new(
             mailbox.clone(),
             connections.clone(),
             uid,
@@ -1311,7 +1311,7 @@ async fn server_bind(
         );
 
         // Setup capnproto server
-        let hidio_server: hidio_capnp::h_i_d_i_o_server::Client =
+        let hidio_server: hidio_capnp::hid_io_server::Client =
             capnp_rpc::new_client(hidio_server);
         let network = twoparty::VatNetwork::new(
             reader,
@@ -1433,13 +1433,13 @@ async fn server_subscriptions(
                 }
                 // Filter: cli command
                 let mut stream =
-                    stream.filter(|msg| msg.data.id == HIDIOCommandID::Terminal as u32);
+                    stream.filter(|msg| msg.data.id == HidIoCommandID::Terminal as u32);
                 // Filters: kll trigger
-                //let stream = stream.filter(|msg| msg.data.id == HIDIOCommandID::KLLState);
+                //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::KLLState);
                 // Filters: layer
                 // TODO
                 // Filters: host macro
-                //let stream = stream.filter(|msg| msg.data.id == HIDIOCommandID::HostMacro);
+                //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::HostMacro);
 
                 while let Some(msg) = stream.next().await {
                     debug!("{:?}", msg);

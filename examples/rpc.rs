@@ -217,11 +217,9 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         request
     };
     //subscribe_req.send().promise.await?;
-    /* TODO
     tokio::task::spawn_local(subscribe_req.send().promise)
         .await
         .unwrap();
-    */
 
     println!("READY");
     let (vt_tx, vt_rx) = std::sync::mpsc::channel::<u8>();
@@ -311,14 +309,14 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                             DevicePacket(p) => {
                                 let p = pry!(p);
                                 let data = pry!(p.get_data()).iter().collect::<Vec<u8>>();
-                                let id: HIDIOCommandID =
+                                let id: HidIoCommandID =
                                     unsafe { std::mem::transmute(p.get_id() as u16) };
                                 match id {
-                                    HIDIOCommandID::Terminal => {
+                                    HidIoCommandID::Terminal => {
                                         pry!(std::io::stdout().write_all(&data));
                                         pry!(std::io::stdout().flush());
                                     }
-                                    HIDIOCommandID::HostMacro => {}
+                                    HidIoCommandID::HostMacro => {}
                                     // ...
                                     _ => {}
                                 }

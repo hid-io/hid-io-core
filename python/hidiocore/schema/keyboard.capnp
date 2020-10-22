@@ -23,14 +23,14 @@
 ## Imports ##
 
 using Common = import "common.capnp";
-using HIDIO = import "hidio.capnp";
+using HidIo = import "hidio.capnp";
 
 
 
 ## Interfaces ##
 
-interface Keyboard extends(HIDIO.Node) {
-    # HIDIO Keyboard node
+interface Keyboard extends(HidIo.Node) {
+    # HidIo Keyboard node
 
     enum SubscriptionOptionType {
         hostMacro @0;

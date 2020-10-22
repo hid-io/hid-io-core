@@ -130,7 +130,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         let mut info = request.get().get_info()?;
         let mut rng = rand::thread_rng();
         info.set_type(NodeType::HidioApi);
-        info.set_name("RPC Test");
+        info.set_name("lsnodes");
         info.set_serial(&format!("{:x}", rng.gen::<u64>()));
         info.set_id(uid);
         request.get().set_key(&auth_key);

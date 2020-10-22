@@ -36,7 +36,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
-class MyHIDIOClient(hidiocore.client.HIDIOClient):
+class MyHidIoClient(hidiocore.client.HidIoClient):
     async def on_connect(self, cap, cap_auth):
         logger.info("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
@@ -51,10 +51,10 @@ class MyHIDIOClient(hidiocore.client.HIDIOClient):
 
 
 async def main(args):
-    client = MyHIDIOClient('Python example.py')
+    client = MyHidIoClient('Python example.py')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HIDIOClient.AUTH_BASIC)], return_exceptions=True)]
+    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:

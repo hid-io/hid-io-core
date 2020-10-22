@@ -43,7 +43,7 @@ pub enum Address {
         // Subscription id
         sid: u64,
     },
-    // HIDIO address, with node uid
+    // HidIo address, with node uid
     DeviceHidio {
         uid: u64,
     },
@@ -175,17 +175,17 @@ impl Mailbox {
             .collect::<Vec<_>>();
     }
 
-    /// Convenience function to send a HIDIO Command to device using the mailbox
+    /// Convenience function to send a HidIo Command to device using the mailbox
     pub fn send_command(
         &self,
         src: Address,
         dst: Address,
-        id: hidio::HIDIOCommandID,
+        id: hidio::HidIoCommandID,
         data: Vec<u8>,
     ) {
         // Construct command packet
-        let data = hidio::HIDIOPacketBuffer {
-            ptype: hidio::HIDIOPacketType::Data,
+        let data = hidio::HidIoPacketBuffer {
+            ptype: hidio::HidIoPacketType::Data,
             id: id as u32,
             max_len: 64, //..Defaults
             data,
@@ -207,7 +207,7 @@ impl Mailbox {
     pub async fn ack_wait(
         &self,
         src: Address,
-        id: hidio::HIDIOCommandID,
+        id: hidio::HidIoCommandID,
         mut max_sync_packets: usize,
     ) -> Result<Message, AckWaitError> {
         // Prepare receiver and filter
@@ -218,25 +218,25 @@ impl Mailbox {
         // Wait on filtered messages
         while let Some(msg) = stream.next().await {
             match msg.data.ptype {
-                // Syncs signify a timeout as they are only sent when there is no HIDIO traffic
+                // Syncs signify a timeout as they are only sent when there is no HidIo traffic
                 // Some wait operations may take a while, so it might be necessary to skip syncs
                 // before timing out
-                hidio::HIDIOPacketType::Sync => {
+                hidio::HidIoPacketType::Sync => {
                     if max_sync_packets == 0 {
                         return Err(AckWaitError::TooManySyncs);
                     }
                     max_sync_packets -= 1;
                 }
-                hidio::HIDIOPacketType::ACK => {
+                hidio::HidIoPacketType::ACK => {
                     return Ok(msg);
                 }
                 // We may still want the message data from a NAK
-                hidio::HIDIOPacketType::NAK => {
+                hidio::HidIoPacketType::NAK => {
                     return Err(AckWaitError::NAKReceived { msg });
                 }
                 // We don't care about data packets
-                hidio::HIDIOPacketType::NAData | hidio::HIDIOPacketType::NAContinued => {}
-                hidio::HIDIOPacketType::Continued | hidio::HIDIOPacketType::Data => {}
+                hidio::HidIoPacketType::NAData | hidio::HidIoPacketType::NAContinued => {}
+                hidio::HidIoPacketType::Continued | hidio::HidIoPacketType::Data => {}
             }
         }
         Err(AckWaitError::Invalid)
@@ -244,7 +244,7 @@ impl Mailbox {
 
     pub fn drop_subscriber(&self, uid: u64, sid: u64) {
         // Construct a dummy message
-        let data = hidio::HIDIOPacketBuffer::default();
+        let data = hidio::HidIoPacketBuffer::default();
 
         // Construct command message and broadcast
         let result = self.sender.send(Message {
@@ -265,29 +265,29 @@ impl Default for Mailbox {
     }
 }
 
-/// Container for HIDIOPacketBuffer
+/// Container for HidIoPacketBuffer
 /// Used to indicate the source and destinations inside of hid-io-core.
 /// Also contains a variety of convenience functions using the src and dst information.
 #[derive(PartialEq, Clone, Debug)]
 pub struct Message {
     pub src: Address,
     pub dst: Address,
-    pub data: hidio::HIDIOPacketBuffer,
+    pub data: hidio::HidIoPacketBuffer,
 }
 
 impl Message {
-    pub fn new(src: Address, dst: Address, data: hidio::HIDIOPacketBuffer) -> Message {
+    pub fn new(src: Address, dst: Address, data: hidio::HidIoPacketBuffer) -> Message {
         Message { src, dst, data }
     }
 
-    /// Acknowledgement of a HIDIO packet
+    /// Acknowledgement of a HidIo packet
     pub fn send_ack(&self, sender: broadcast::Sender<Message>, data: Vec<u8>) {
         let src = self.dst;
         let dst = self.src;
 
         // Construct ack packet
-        let data = hidio::HIDIOPacketBuffer {
-            ptype: hidio::HIDIOPacketType::ACK,
+        let data = hidio::HidIoPacketBuffer {
+            ptype: hidio::HidIoPacketType::ACK,
             id: self.data.id, // id,
             max_len: 64,      // Default
             data,
@@ -302,14 +302,14 @@ impl Message {
         }
     }
 
-    /// Rejection/NAK of a HIDIO packet
+    /// Rejection/NAK of a HidIo packet
     pub fn send_nak(&self, sender: broadcast::Sender<Message>, data: Vec<u8>) {
         let src = self.dst;
         let dst = self.src;
 
         // Construct ack packet
-        let data = hidio::HIDIOPacketBuffer {
-            ptype: hidio::HIDIOPacketType::NAK,
+        let data = hidio::HidIoPacketBuffer {
+            ptype: hidio::HidIoPacketType::NAK,
             id: self.data.id, // id,
             max_len: 64,      // Default
             data,

@@ -211,7 +211,7 @@ impl KeyboardNKRO {
                 self.mailbox.send_command(
                     mailbox::Address::DeviceHid { uid: self.uid },
                     mailbox::Address::All,
-                    hidio::HIDIOCommandID::HIDKeyboardLED,
+                    hidio::HidIoCommandID::HIDKeyboardLED,
                     data.to_vec(),
                 );
             }
@@ -342,7 +342,7 @@ impl Keyboard6KRO {
                 self.mailbox.send_command(
                     mailbox::Address::DeviceHid { uid: self.uid },
                     mailbox::Address::All,
-                    hidio::HIDIOCommandID::HIDKeyboardLED,
+                    hidio::HidIoCommandID::HIDKeyboardLED,
                     data.to_vec(),
                 );
             }
@@ -545,7 +545,7 @@ impl SysCtrlConsControl {
                     self.mailbox.send_command(
                         mailbox::Address::DeviceHid { uid: self.uid },
                         mailbox::Address::All,
-                        hidio::HIDIOCommandID::HIDKeyboardLED,
+                        hidio::HidIoCommandID::HIDKeyboardLED,
                         data.to_vec(),
                     );
                 }

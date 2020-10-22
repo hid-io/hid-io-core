@@ -111,7 +111,7 @@ impl std::io::Write for HIDAPIDevice {
     }
 }
 
-impl HIDIOTransport for HIDAPIDevice {}
+impl HidIoTransport for HIDAPIDevice {}
 
 fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
     let mut string = format!(
@@ -165,7 +165,7 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
     // Initialize HID interface
     let mut api = ::hidapi::HidApi::new().expect("HID API object creation failed");
 
-    let mut devices: Vec<HIDIOController> = vec![];
+    let mut devices: Vec<HidIoController> = vec![];
 
     let mut last_scan = Instant::now();
     let mut enumerate = true;
@@ -251,7 +251,7 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
                         println!("Connected to {}", node);
                         let device = HIDAPIDevice::new(device);
                         let mut device =
-                            HIDIOEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
+                            HidIoEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
 
                         if let Err(e) = device.send_sync() {
                             // Could not open device (likely removed, or in use)
@@ -260,8 +260,8 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
                         }
 
                         // Setup device controller (handles communication and protocol conversion
-                        // for the HIDIO device)
-                        let master = HIDIOController::new(mailbox.clone(), uid, device);
+                        // for the HidIo device)
+                        let master = HidIoController::new(mailbox.clone(), uid, device);
                         devices.push(master);
 
                         // Add device to node list

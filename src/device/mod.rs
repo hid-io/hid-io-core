@@ -27,28 +27,28 @@ use std::io::{Read, Write};
 use std::time::Instant;
 use tokio::sync::broadcast;
 
-/// A duplex stream for HIDIO to communicate over
-pub trait HIDIOTransport: Read + Write {}
+/// A duplex stream for HidIo to communicate over
+pub trait HidIoTransport: Read + Write {}
 
 const MAX_RECV_SIZE: usize = 1024;
 
 /// A raw transport plus any associated metadata
 ///
-/// Contains helpers to encode/decode HIDIO packets
-pub struct HIDIOEndpoint {
-    socket: Box<dyn HIDIOTransport>,
+/// Contains helpers to encode/decode HidIo packets
+pub struct HidIoEndpoint {
+    socket: Box<dyn HidIoTransport>,
     max_packet_len: u32,
 }
 
-impl HIDIOEndpoint {
-    pub fn new(socket: Box<dyn HIDIOTransport>, max_packet_len: u32) -> HIDIOEndpoint {
-        HIDIOEndpoint {
+impl HidIoEndpoint {
+    pub fn new(socket: Box<dyn HidIoTransport>, max_packet_len: u32) -> HidIoEndpoint {
+        HidIoEndpoint {
             socket,
             max_packet_len,
         }
     }
 
-    pub fn recv_chunk(&mut self, buffer: &mut HIDIOPacketBuffer) -> Result<usize, std::io::Error> {
+    pub fn recv_chunk(&mut self, buffer: &mut HidIoPacketBuffer) -> Result<usize, std::io::Error> {
         let mut rbuf = [0; MAX_RECV_SIZE];
         match self.socket.read(&mut rbuf) {
             Ok(len) => {
@@ -71,33 +71,33 @@ impl HIDIOEndpoint {
         }
     }
 
-    pub fn create_buffer(&self) -> HIDIOPacketBuffer {
-        let mut buffer = HIDIOPacketBuffer::new();
+    pub fn create_buffer(&self) -> HidIoPacketBuffer {
+        let mut buffer = HidIoPacketBuffer::new();
         buffer.max_len = self.max_packet_len;
         buffer
     }
 
-    pub fn recv_packet(&mut self) -> HIDIOPacketBuffer {
+    pub fn recv_packet(&mut self) -> HidIoPacketBuffer {
         let mut deserialized = self.create_buffer();
 
         while !deserialized.done {
             if let Ok(len) = self.recv_chunk(&mut deserialized) {
                 if len > 0 {
                     match &deserialized.ptype {
-                        HIDIOPacketType::Sync => {
+                        HidIoPacketType::Sync => {
                             deserialized = self.create_buffer();
                         }
-                        HIDIOPacketType::ACK => {
+                        HidIoPacketType::ACK => {
                             // Don't ack an ack
                         }
-                        HIDIOPacketType::NAData | HIDIOPacketType::NAContinued => {
+                        HidIoPacketType::NAData | HidIoPacketType::NAContinued => {
                             // Don't ack no ack packets
                         }
-                        HIDIOPacketType::NAK => {
+                        HidIoPacketType::NAK => {
                             println!("NACK");
                             break;
                         }
-                        HIDIOPacketType::Continued | HIDIOPacketType::Data => {
+                        HidIoPacketType::Continued | HidIoPacketType::Data => {
                             self.send_ack(deserialized.id, vec![]);
                         }
                     }
@@ -109,7 +109,7 @@ impl HIDIOEndpoint {
         deserialized
     }
 
-    pub fn send_packet(&mut self, mut packet: HIDIOPacketBuffer) -> Result<(), std::io::Error> {
+    pub fn send_packet(&mut self, mut packet: HidIoPacketBuffer) -> Result<(), std::io::Error> {
         debug!("Sending {:x?}", packet);
         let buf: Vec<u8> = packet.serialize_buffer().unwrap();
         for chunk in buf
@@ -123,8 +123,8 @@ impl HIDIOEndpoint {
     }
 
     pub fn send_sync(&mut self) -> Result<(), std::io::Error> {
-        self.send_packet(HIDIOPacketBuffer {
-            ptype: HIDIOPacketType::Sync,
+        self.send_packet(HidIoPacketBuffer {
+            ptype: HidIoPacketType::Sync,
             id: 0,
             max_len: 64, //..Defaults
             data: vec![],
@@ -133,8 +133,8 @@ impl HIDIOEndpoint {
     }
 
     pub fn send_ack(&mut self, id: u32, data: Vec<u8>) {
-        self.send_packet(HIDIOPacketBuffer {
-            ptype: HIDIOPacketType::ACK,
+        self.send_packet(HidIoPacketBuffer {
+            ptype: HidIoPacketType::ACK,
             id,
             max_len: 64, //..Defaults
             data,
@@ -150,22 +150,22 @@ impl HIDIOEndpoint {
 /// messages from without having to worry about the underlying device type.
 /// It is responsible for managing the underlying acks/nacks, etc.
 /// Process must be continually called.
-pub struct HIDIOController {
+pub struct HidIoController {
     mailbox: mailbox::Mailbox,
     uid: u64,
-    device: HIDIOEndpoint,
-    received: HIDIOPacketBuffer,
+    device: HidIoEndpoint,
+    received: HidIoPacketBuffer,
     receiver: broadcast::Receiver<mailbox::Message>,
     last_sync: Instant,
 }
 
-impl HIDIOController {
-    pub fn new(mailbox: mailbox::Mailbox, uid: u64, device: HIDIOEndpoint) -> HIDIOController {
+impl HidIoController {
+    pub fn new(mailbox: mailbox::Mailbox, uid: u64, device: HidIoEndpoint) -> HidIoController {
         let received = device.create_buffer();
         // Setup receiver so that it can queue up messages between processing loops
         let receiver = mailbox.sender.subscribe();
         let last_sync = Instant::now();
-        HIDIOController {
+        HidIoController {
             mailbox,
             device,
             uid,
@@ -189,18 +189,18 @@ impl HIDIOController {
                     prev_len = received.data.len();*/
 
                     match &self.received.ptype {
-                        HIDIOPacketType::Sync => {
+                        HidIoPacketType::Sync => {
                             self.received = self.device.create_buffer();
                         }
-                        HIDIOPacketType::ACK => {
+                        HidIoPacketType::ACK => {
                             // Don't ack an ack
                         }
-                        HIDIOPacketType::NAK => {
+                        HidIoPacketType::NAK => {
                             println!("NACK. Resetting buffer");
                             self.received = self.device.create_buffer();
                         }
-                        HIDIOPacketType::Continued | HIDIOPacketType::Data => {}
-                        HIDIOPacketType::NAData | HIDIOPacketType::NAContinued => {}
+                        HidIoPacketType::Continued | HidIoPacketType::Data => {}
+                        HidIoPacketType::NAData | HidIoPacketType::NAContinued => {}
                     }
 
                     if !self.received.done {
@@ -242,7 +242,7 @@ impl HIDIOController {
                         msg.data.max_len = self.device.max_packet_len;
                         self.device.send_packet(msg.data.clone())?;
 
-                        if msg.data.ptype == HIDIOPacketType::Sync {
+                        if msg.data.ptype == HidIoPacketType::Sync {
                             self.received = self.device.create_buffer();
                         }
                     }

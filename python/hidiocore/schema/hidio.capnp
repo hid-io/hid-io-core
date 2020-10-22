@@ -28,8 +28,8 @@ using Common = import "common.capnp";
 
 ## Interfaces ##
 
-interface HIDIOServer {
-    # Authentication interface for HIDIO
+interface HidIoServer {
+    # Authentication interface for HidIo
 
     struct Version {
         version @0 :Text;
@@ -57,19 +57,19 @@ interface HIDIOServer {
 
     ## Functions ##
 
-    basic @0 (info :Common.Source, key :Text) -> (port :HIDIO);
+    basic @0 (info :Common.Source, key :Text) -> (port :HidIo);
     # Allocates a basic interface, with no special priviledges
-    # Must include a key retrieved using locations specified by HIDIOInit
+    # Must include a key retrieved using locations specified by HidIoInit
 
-    auth @1 (info :Common.Source, key :Text) -> (port :HIDIO);
+    auth @1 (info :Common.Source, key :Text) -> (port :HidIo);
     # Priviledged interface
-    # Must include a key retrieved using locations specified by HIDIOInit
+    # Must include a key retrieved using locations specified by HidIoInit
 
     version @2 () -> (version :Version);
     # Returns the version number of the running server
 
     key @3 () -> (key :KeyInfo);
-    # Returns information needed to authenticate with HIDIOServer
+    # Returns information needed to authenticate with HidIoServer
 
     alive @4 () -> (alive: Bool);
     # Always returns true, used to determine if socket connection/API is working
@@ -87,14 +87,14 @@ interface HIDIOServer {
     # rCURRENT is the current active log file
 }
 
-interface HIDIO {
-    # Main HIDIO Interface
-    # Requires authentication through HIDIOServer first
+interface HidIo {
+    # Main HidIo Interface
+    # Requires authentication through HidIoServer first
 
     struct Packet {
-        # This struct represents a modified HIDIO packet
+        # This struct represents a modified HidIo packet
         # as used internally by hid-io-core.
-        # This is not the same as the "on-the-wire" HIDIO packets
+        # This is not the same as the "on-the-wire" HidIo packets
         # (Continued packets are joined together)
         # TODO DOCUMENT MORE
         enum Type {
@@ -115,10 +115,10 @@ interface HIDIO {
         # Destination uid of the packet (set to 0 if N/A)
 
         type @2 :Type;
-        # Type of HIDIO packet
+        # Type of HidIo packet
 
         id @3 :UInt32;
-        # Id of the HIDIO packet
+        # Id of the HidIo packet
 
         data @4 :List(UInt8);
         # Payload data of packet (in bytes)
@@ -127,7 +127,7 @@ interface HIDIO {
     nodes @0 () -> (nodes :List(Common.Destination));
     # List of supported nodes
     # This may not contain all nodes due to authentication levels
-    # The HIDIO daemon may revoke priviledges for certain modules during runtime
+    # The HidIo daemon may revoke priviledges for certain modules during runtime
 
     interface NodesSubscription {}
     # Node subscription interface
@@ -141,7 +141,7 @@ interface HIDIO {
         # Called whenever the list of nodes changes
 
         hidioWatcher @1 (packets :List(Packet));
-        # Called on every internal HIDIO message
+        # Called on every internal HidIo message
         # This watcher will show most of the "on-the-wire" packets as well as some hid-io-core internal packets.
         # Sync, Continued and NAContinued will not be triggered by the watcher.
         # NOTE: This callback is only used when hid-io-core is in debug mode with a priviledged interface
@@ -153,7 +153,7 @@ interface HIDIO {
 }
 
 interface Node extends(Common.Node) {
-    # Common interface for all HIDIO nodes
+    # Common interface for all HidIo nodes
 
     struct FlashModeStatus {
         # Result of a flash mode command

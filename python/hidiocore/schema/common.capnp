@@ -31,17 +31,17 @@ using import "keyboard.capnp".Keyboard;
 
 enum NodeType {
     hidioDaemon @0;
-    # HIDIO Daemon node (hid-io-core functionality)
+    # HidIo Daemon node (hid-io-core functionality)
     # There should always be a single daemon node active
 
     hidioApi @1;
-    # Generic HIDIO API node
+    # Generic HidIo API node
 
     usbKeyboard @2;
-    # HIDIO USB Keyboard
+    # HidIo USB Keyboard
 
     bleKeyboard @3;
-    # HIDIO BLE Keyboard
+    # HidIo BLE Keyboard
 
     hidKeyboard @4;
     # Generic HID Keyboard
@@ -108,7 +108,7 @@ struct Destination {
         # to the API
 
         keyboard @4 :Keyboard;
-        # HIDIO Keyboard Node
+        # HidIo Keyboard Node
         # Valid when the type is set to usbKeyboard or bleKeyboard
 
         daemon @5 :Daemon;
@@ -122,5 +122,5 @@ struct Destination {
 ## Interfaces ##
 
 interface Node {
-    # Common interface for all HIDIO api nodes
+    # Common interface for all HidIo api nodes
 }

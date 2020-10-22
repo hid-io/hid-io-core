@@ -38,13 +38,13 @@ use tokio::stream::StreamExt;
 // TODO: Use const fn to adjust based on cago features
 // TODO: Let capnp nodes add to this list
 /// List of commands we advertise as supporting to devices
-pub const SUPPORTED_IDS: &[HIDIOCommandID] = &[
-    HIDIOCommandID::SupportedIDs,
-    HIDIOCommandID::GetProperties,
-    HIDIOCommandID::UnicodeText,
-    HIDIOCommandID::UnicodeKey,
-    HIDIOCommandID::OpenURL,
-    HIDIOCommandID::Terminal,
+pub const SUPPORTED_IDS: &[HidIoCommandID] = &[
+    HidIoCommandID::SupportedIDs,
+    HidIoCommandID::GetProperties,
+    HidIoCommandID::UnicodeText,
+    HidIoCommandID::UnicodeKey,
+    HidIoCommandID::OpenURL,
+    HidIoCommandID::Terminal,
 ];
 
 fn as_u8_slice(v: &[u16]) -> &[u8] {
@@ -126,39 +126,39 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
             info!("My msg2: {} {:?} {:?}", msg.data, msg.src, msg.dst); // TODO REMOVEME
 
             // Make sure this is a valid packet
-            if msg.data.ptype != HIDIOPacketType::Data {
+            if msg.data.ptype != HidIoPacketType::Data {
                 continue;
             }
 
-            let id: HIDIOCommandID = unsafe { std::mem::transmute(msg.data.id as u16) };
+            let id: HidIoCommandID = unsafe { std::mem::transmute(msg.data.id as u16) };
             let mydata = msg.data.data.clone();
             debug!("Processing command: {:?}", id);
             match id {
-                HIDIOCommandID::SupportedIDs => {
+                HidIoCommandID::SupportedIDs => {
                     let ids = SUPPORTED_IDS
                         .iter()
                         .map(|x| unsafe { std::mem::transmute(*x) })
                         .collect::<Vec<u16>>();
                     msg.send_ack(sender.clone(), as_u8_slice(&ids).to_vec());
                 }
-                HIDIOCommandID::GetProperties => {
+                HidIoCommandID::GetProperties => {
                     use crate::built_info;
-                    let property: HIDIOPropertyID = unsafe { std::mem::transmute(mydata[0]) };
+                    let property: HidIoPropertyID = unsafe { std::mem::transmute(mydata[0]) };
                     info!("Get prop {:?}", property);
                     match property {
-                        HIDIOPropertyID::HIDIOMajor => {
+                        HidIoPropertyID::HidIoMajor => {
                             let v = built_info::PKG_VERSION_MAJOR.parse::<u16>().unwrap();
                             msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
                         }
-                        HIDIOPropertyID::HIDIOMinor => {
+                        HidIoPropertyID::HidIoMinor => {
                             let v = built_info::PKG_VERSION_MINOR.parse::<u16>().unwrap();
                             msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
                         }
-                        HIDIOPropertyID::HIDIOPatch => {
+                        HidIoPropertyID::HidIoPatch => {
                             let v = built_info::PKG_VERSION_PATCH.parse::<u16>().unwrap();
                             msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
                         }
-                        HIDIOPropertyID::HostOS => {
+                        HidIoPropertyID::HostOS => {
                             let os = match built_info::CFG_OS {
                                 "windows" => HostOSID::Windows,
                                 "macos" => HostOSID::Mac,
@@ -170,51 +170,51 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                             };
                             msg.send_ack(sender.clone(), vec![os as u8]);
                         }
-                        HIDIOPropertyID::OSVersion => {
+                        HidIoPropertyID::OSVersion => {
                             let version = "1.0"; // TODO: Retreive in cross platform way
                             msg.send_ack(sender.clone(), version.as_bytes().to_vec());
                         }
-                        HIDIOPropertyID::HostName => {
+                        HidIoPropertyID::HostName => {
                             let name = built_info::PKG_NAME;
                             msg.send_ack(sender.clone(), name.as_bytes().to_vec());
                         }
-                        HIDIOPropertyID::InputLayout => {
+                        HidIoPropertyID::InputLayout => {
                             let layout = module.display.get_layout();
                             println!("Current layout: {}", layout);
                             msg.send_ack(sender.clone(), layout.as_bytes().to_vec());
                         }
                     };
                 }
-                HIDIOCommandID::UnicodeText => {
+                HidIoCommandID::UnicodeText => {
                     let s = String::from_utf8(mydata).unwrap();
                     module.display.type_string(&s);
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HIDIOCommandID::UnicodeKey => {
+                HidIoCommandID::UnicodeKey => {
                     let s = String::from_utf8(mydata).unwrap();
                     module.display.set_held(&s);
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HIDIOCommandID::HostMacro => {
+                HidIoCommandID::HostMacro => {
                     warn!("TODO");
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HIDIOCommandID::KLLState => {
+                HidIoCommandID::KLLState => {
                     warn!("TODO");
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HIDIOCommandID::OpenURL => {
+                HidIoCommandID::OpenURL => {
                     let s = String::from_utf8(mydata).unwrap();
                     println!("Open url: {}", s);
                     open::that(s).unwrap();
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HIDIOCommandID::Terminal => {
+                HidIoCommandID::Terminal => {
                     msg.send_ack(sender.clone(), vec![]);
                     /*std::io::stdout().write_all(&mydata).unwrap();
                     std::io::stdout().flush().unwrap();*/
                 }
-                HIDIOCommandID::InputLayout => {
+                HidIoCommandID::InputLayout => {
                     let s = String::from_utf8(mydata).unwrap();
                     info!("Setting language to {}", s);
                 }
