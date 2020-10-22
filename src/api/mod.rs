@@ -1326,8 +1326,6 @@ async fn server_bind(
         let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
         let disconnector = rpc_system.get_disconnector();
         let rpc_task = tokio::task::spawn_local(async move {
-            let uid = uid.clone();
-            let addr = addr.clone();
             let _rpc_system = Box::pin(rpc_system.map_err(|e| info!("rpc_system: {}", e)).map(
                 move |_| {
                     info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);

@@ -1274,7 +1274,7 @@ mod test {
         *mailbox.last_uid.write().unwrap() = 10;
 
         // Generate a unique key (to handle parallel tests)
-        let uniq = nanoid::simple();
+        let uniq = nanoid::nanoid!();
 
         // Instantiate hid device
         let mut keyboard = vhid::uhid::KeyboardNKRO::new(
@@ -1317,7 +1317,7 @@ mod test {
         // messages
         let mut receiver = mailbox.sender.subscribe(); // Subscribe to mailbox messages
 
-        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
         let status: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
         let status2 = status.clone();
 
@@ -1345,10 +1345,10 @@ mod test {
                             assert!(msg.data.data == vec![], "Unexpected message: {:?}", msg);
                         }
                     }
-                    Err(tokio::sync::broadcast::RecvError::Closed) => {
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                         assert!(false, "Mailbox has been closed unexpectedly!");
                     }
-                    Err(tokio::sync::broadcast::RecvError::Lagged(skipped)) => {
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
                         assert!(
                             false,
                             "Mailbox has received too many messages, lagging by: {}",
