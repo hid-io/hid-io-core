@@ -722,8 +722,19 @@ impl hidio_capnp::hid_io::Server for HidIoImpl {
         params: hidio_capnp::hid_io::SubscribeNodesParams,
         mut results: hidio_capnp::hid_io::SubscribeNodesResults,
     ) -> Promise<(), Error> {
-        let id = self.subscriptions.read().unwrap().nodes_next_id;
-        info!("Adding subscribeNodes watcher id #{}", id,);
+        let sid = match self.subscriptions.read() {
+            Ok(sub) => sub.nodes_next_id,
+            Err(e) => {
+                return Promise::err(capnp::Error {
+                    kind: capnp::ErrorKind::Failed,
+                    description: format!("Failed to get sid lock: {}", e),
+                });
+            }
+        };
+        info!(
+            "Adding subscribeNodes watcher sid:{} uid:{}",
+            sid, self.node.uid
+        );
         let client = pry!(pry!(params.get()).get_subscriber());
         self.subscriptions
             .write()
@@ -731,7 +742,7 @@ impl hidio_capnp::hid_io::Server for HidIoImpl {
             .nodes
             .subscribers
             .insert(
-                id,
+                sid,
                 NodesSubscriberHandle {
                     client,
                     requests_in_flight: 0,
@@ -747,6 +758,7 @@ impl hidio_capnp::hid_io::Server for HidIoImpl {
                 self.node.clone(),
                 self.node.uid,
                 self.subscriptions.clone(),
+                sid,
             )));
 
         self.subscriptions.write().unwrap().nodes_next_id += 1;
@@ -778,6 +790,7 @@ struct NodesSubscriptionImpl {
     _node: Endpoint, // API Node information
     uid: u64,
     subscriptions: Arc<RwLock<Subscriptions>>,
+    sid: u64,
 }
 
 impl NodesSubscriptionImpl {
@@ -786,25 +799,27 @@ impl NodesSubscriptionImpl {
         node: Endpoint,
         uid: u64,
         subscriptions: Arc<RwLock<Subscriptions>>,
+        sid: u64,
     ) -> NodesSubscriptionImpl {
         NodesSubscriptionImpl {
             _mailbox: mailbox,
             _node: node,
             uid,
             subscriptions,
+            sid,
         }
     }
 }
 
 impl Drop for NodesSubscriptionImpl {
     fn drop(&mut self) {
-        info!("Subscription dropped id: {}", self.uid);
+        info!("subscribeNodes dropped uid:{} sid:{}", self.uid, self.sid);
         self.subscriptions
             .write()
             .unwrap()
             .nodes
             .subscribers
-            .remove(&self.uid);
+            .remove(&self.sid);
     }
 }
 
@@ -1011,7 +1026,7 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
         mut results: keyboard_capnp::keyboard::SubscribeResults,
     ) -> Promise<(), Error> {
         let sid = self.subscriptions.read().unwrap().keyboard_node_next_id;
-        info!("Adding KeyboardNode watcher id #{}", sid,);
+        info!("Adding KeyboardNode watcher sid:{} uid:{}", sid, self.uid);
         let client = pry!(pry!(params.get()).get_subscriber());
         self.subscriptions
             .write()
@@ -1092,14 +1107,17 @@ impl KeyboardSubscriptionImpl {
 
 impl Drop for KeyboardSubscriptionImpl {
     fn drop(&mut self) {
-        info!("KeyboardSubscription dropped id: {}", self.uid);
+        info!(
+            "KeyboardNode watcher dropped uid:{} sid:{}",
+            self.uid, self.sid
+        );
         self.mailbox.drop_subscriber(self.uid, self.sid);
         self.subscriptions
             .write()
             .unwrap()
             .keyboard_node
             .subscribers
-            .remove(&self.uid);
+            .remove(&self.sid);
     }
 }
 
@@ -1139,8 +1157,8 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         params: daemon_capnp::daemon::SubscribeParams,
         mut results: daemon_capnp::daemon::SubscribeResults,
     ) -> Promise<(), Error> {
-        let id = self.subscriptions.read().unwrap().daemon_node_next_id;
-        info!("Adding DaemonNode watcher id #{}", id,);
+        let sid = self.subscriptions.read().unwrap().daemon_node_next_id;
+        info!("Adding DaemonNode watcher sid:{} uid:{}", sid, self.uid);
         let client = pry!(pry!(params.get()).get_subscriber());
         self.subscriptions
             .write()
@@ -1148,7 +1166,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             .daemon_node
             .subscribers
             .insert(
-                id,
+                sid,
                 DaemonSubscriberHandle {
                     _client: client,
                     _requests_in_flight: 0,
@@ -1164,6 +1182,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
                 self.node.clone(),
                 self.uid,
                 self.subscriptions.clone(),
+                sid,
             )));
 
         self.subscriptions.write().unwrap().daemon_node_next_id += 1;
@@ -1195,6 +1214,7 @@ struct DaemonSubscriptionImpl {
     _node: Endpoint, // API Node information
     uid: u64,
     subscriptions: Arc<RwLock<Subscriptions>>,
+    sid: u64,
 }
 
 impl DaemonSubscriptionImpl {
@@ -1203,19 +1223,24 @@ impl DaemonSubscriptionImpl {
         node: Endpoint,
         uid: u64,
         subscriptions: Arc<RwLock<Subscriptions>>,
+        sid: u64,
     ) -> DaemonSubscriptionImpl {
         DaemonSubscriptionImpl {
             _mailbox: mailbox,
             _node: node,
             uid,
             subscriptions,
+            sid,
         }
     }
 }
 
 impl Drop for DaemonSubscriptionImpl {
     fn drop(&mut self) {
-        info!("Subscription dropped id: {}", self.uid);
+        info!(
+            "DaemonNode subscription dropped sid:{} uid:{}",
+            self.sid, self.uid
+        );
         self.subscriptions
             .write()
             .unwrap()
@@ -1311,8 +1336,7 @@ async fn server_bind(
         );
 
         // Setup capnproto server
-        let hidio_server: hidio_capnp::hid_io_server::Client =
-            capnp_rpc::new_client(hidio_server);
+        let hidio_server: hidio_capnp::hid_io_server::Client = capnp_rpc::new_client(hidio_server);
         let network = twoparty::VatNetwork::new(
             reader,
             writer,
