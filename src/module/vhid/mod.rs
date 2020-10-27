@@ -381,10 +381,27 @@ pub const RAWIO: [u8; 28] = [
 /// Handles setting up the vhid interface
 /// Depending on the platform, there may be support for dynamically created/configured hid devices
 /// (tbd)
+#[cfg(target_os = "linux")]
 pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing module/vhid...");
 
     // Initialize the platform specific module
     #[cfg(target_os = "linux")]
     uhid::initialize(mailbox).await;
+}
+
+#[cfg(target_os = "macos")]
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
+    info!("Initializing module/vhid...");
+
+    // Initialize the platform specific module
+    // TODO
+}
+
+#[cfg(target_os = "windows")]
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
+    info!("Initializing module/vhid...");
+
+    // Initialize the platform specific module
+    // TODO
 }

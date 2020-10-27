@@ -1,3 +1,4 @@
+#![cfg(target_os = "linux")]
 /* Copyright (C) 2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify

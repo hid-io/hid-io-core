@@ -116,6 +116,7 @@ impl UhidInfo {
         )
     }
 
+    #[cfg(target_os = "linux")]
     pub fn new(params: uhid_virt::CreateParams) -> UhidInfo {
         UhidInfo {
             name: params.name,
@@ -161,6 +162,7 @@ impl EvdevInfo {
         )
     }
 
+    #[cfg(target_os = "linux")]
     pub fn new(device: evdev_rs::Device) -> EvdevInfo {
         EvdevInfo {
             name: device.name().unwrap_or("").to_string(),

@@ -266,11 +266,28 @@ impl HidIoController {
 pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing devices...");
 
+    #[cfg(target_os = "linux")]
     tokio::join!(
         // Initialize hidapi watcher
         hidapi::initialize(mailbox.clone()),
         // Initialize evdev watcher
         evdev::initialize(mailbox.clone()),
+        // Initialize debug thread
+        debug::initialize(mailbox),
+    );
+
+    #[cfg(target_os = "macos")]
+    tokio::join!(
+        // Initialize hidapi watcher
+        hidapi::initialize(mailbox.clone()),
+        // Initialize debug thread
+        debug::initialize(mailbox),
+    );
+
+    #[cfg(target_os = "windows")]
+    tokio::join!(
+        // Initialize hidapi watcher
+        hidapi::initialize(mailbox.clone()),
         // Initialize debug thread
         debug::initialize(mailbox),
     );
