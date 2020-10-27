@@ -20,7 +20,7 @@ extern crate tokio;
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
 use hid_io_core::common_capnp::NodeType;
-use hid_io_core::hidio_capnp::h_i_d_i_o_server;
+use hid_io_core::hidio_capnp::hid_io_server;
 use rand::Rng;
 use std::fs;
 use std::net::ToSocketAddrs;
@@ -87,7 +87,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         Default::default(),
     ));
     let mut rpc_system = RpcSystem::new(network, None);
-    let hidio_server: h_i_d_i_o_server::Client =
+    let hidio_server: hid_io_server::Client =
         rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
 
     let rpc_disconnector = rpc_system.get_disconnector();

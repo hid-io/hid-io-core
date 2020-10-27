@@ -96,7 +96,6 @@ interface HidIo {
         # as used internally by hid-io-core.
         # This is not the same as the "on-the-wire" HidIo packets
         # (Continued packets are joined together)
-        # TODO DOCUMENT MORE
         enum Type {
             data @0;
             # Data packet
@@ -106,6 +105,8 @@ interface HidIo {
             # Nak for a data packet (Error)
             naData @3;
             # Non-acknowledged data packet (no corresponding ack/nak packet)
+            unknown @4;
+            # Unknown packet type (i.e. there's a bug somewhere)
         }
 
         src @0 :UInt64;
@@ -140,7 +141,7 @@ interface HidIo {
         nodesUpdate @0 (nodes :List(Common.Destination));
         # Called whenever the list of nodes changes
 
-        hidioWatcher @1 (packets :List(Packet));
+        hidioWatcher @1 (packet :Packet);
         # Called on every internal HidIo message
         # This watcher will show most of the "on-the-wire" packets as well as some hid-io-core internal packets.
         # Sync, Continued and NAContinued will not be triggered by the watcher.

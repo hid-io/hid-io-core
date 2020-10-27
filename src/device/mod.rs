@@ -183,11 +183,6 @@ impl HidIoController {
                     io_events += 1;
                     self.last_sync = Instant::now();
 
-                    /*let len = received.data.len();
-                    //println!("[{}..{}]", prev_len, len);
-                    info!("<{:?}>", &received.data[prev_len..len].iter().map(|x| *x as char).collect::<Vec<char>>());
-                    prev_len = received.data.len();*/
-
                     match &self.received.ptype {
                         HidIoPacketType::Sync => {
                             self.received = self.device.create_buffer();
@@ -203,7 +198,7 @@ impl HidIoController {
                         HidIoPacketType::NAData | HidIoPacketType::NAContinued => {}
                     }
 
-                    if !self.received.done {
+                    if self.received.done {
                         self.device.send_ack(self.received.id, vec![]);
                     }
                 }
@@ -221,7 +216,6 @@ impl HidIoController {
             let msg = mailbox::Message::new(src, dst, self.received.clone());
             self.mailbox.sender.send(msg).unwrap();
             self.received = self.device.create_buffer();
-            //prev_len = 0;
         }
 
         if self.last_sync.elapsed().as_secs() >= 5 {

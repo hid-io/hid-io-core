@@ -35,6 +35,8 @@ pub enum Address {
     ApiCapnp {
         uid: u64,
     },
+    // Cancel all subscriptions
+    CancelAllSubscriptions,
     // Cancel subscription
     // Used to gracefully end message streams
     CancelSubscription {
@@ -255,6 +257,22 @@ impl Mailbox {
 
         if let Err(e) = result {
             error!("drop_subscriber {:?}", e);
+        }
+    }
+
+    pub fn drop_all_subscribers(&self) {
+        // Construct a dummy message
+        let data = hidio::HidIoPacketBuffer::default();
+
+        // Construct command message and broadcast
+        let result = self.sender.send(Message {
+            src: Address::DropSubscription,
+            dst: Address::CancelAllSubscriptions,
+            data,
+        });
+
+        if let Err(e) = result {
+            error!("drop_all_subscribers {:?}", e);
         }
     }
 }

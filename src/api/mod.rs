@@ -24,6 +24,7 @@ pub use crate::keyboard_capnp;
 use crate::built_info;
 use crate::mailbox;
 use crate::protocol::hidio::HidIoCommandID;
+use crate::protocol::hidio::HidIoPacketType;
 use crate::RUNNING;
 use capnp::capability::Promise;
 use capnp::Error;
@@ -74,7 +75,7 @@ impl std::fmt::Debug for common_capnp::NodeType {
 }
 
 /// Authorization level for a remote node
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AuthLevel {
     /// Allows connecting and listing devices
     Basic,
@@ -748,6 +749,7 @@ impl hidio_capnp::hid_io::Server for HidIoImpl {
                     requests_in_flight: 0,
                     auth: self.auth,
                     node: self.node.clone(),
+                    uid: self.node.uid,
                 },
             );
 
@@ -771,6 +773,7 @@ struct NodesSubscriberHandle {
     requests_in_flight: i32,
     auth: AuthLevel,
     node: Endpoint,
+    uid: u64,
 }
 
 struct NodesSubscriberMap {
@@ -786,7 +789,7 @@ impl NodesSubscriberMap {
 }
 
 struct NodesSubscriptionImpl {
-    _mailbox: mailbox::Mailbox,
+    mailbox: mailbox::Mailbox,
     _node: Endpoint, // API Node information
     uid: u64,
     subscriptions: Arc<RwLock<Subscriptions>>,
@@ -802,7 +805,7 @@ impl NodesSubscriptionImpl {
         sid: u64,
     ) -> NodesSubscriptionImpl {
         NodesSubscriptionImpl {
-            _mailbox: mailbox,
+            mailbox,
             _node: node,
             uid,
             subscriptions,
@@ -814,6 +817,7 @@ impl NodesSubscriptionImpl {
 impl Drop for NodesSubscriptionImpl {
     fn drop(&mut self) {
         info!("subscribeNodes dropped uid:{} sid:{}", self.uid, self.sid);
+        self.mailbox.drop_subscriber(self.uid, self.sid);
         self.subscriptions
             .write()
             .unwrap()
@@ -1037,7 +1041,6 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
                 sid,
                 KeyboardSubscriberHandle {
                     client,
-                    _requests_in_flight: 0,
                     _auth: self.auth,
                     _node: self.node.clone(),
                     uid: self.uid,
@@ -1061,7 +1064,6 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
 
 struct KeyboardSubscriberHandle {
     client: keyboard_capnp::keyboard::subscriber::Client,
-    _requests_in_flight: i32,
     _auth: AuthLevel,
     _node: Endpoint,
     uid: u64,
@@ -1169,7 +1171,6 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
                 sid,
                 DaemonSubscriberHandle {
                     _client: client,
-                    _requests_in_flight: 0,
                     _auth: self.auth,
                     _node: self.node.clone(),
                 },
@@ -1192,7 +1193,6 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
 
 struct DaemonSubscriberHandle {
     _client: daemon_capnp::daemon::subscriber::Client,
-    _requests_in_flight: i32,
     _auth: AuthLevel,
     _node: Endpoint,
 }
@@ -1210,7 +1210,7 @@ impl DaemonSubscriberMap {
 }
 
 struct DaemonSubscriptionImpl {
-    _mailbox: mailbox::Mailbox,
+    mailbox: mailbox::Mailbox,
     _node: Endpoint, // API Node information
     uid: u64,
     subscriptions: Arc<RwLock<Subscriptions>>,
@@ -1226,7 +1226,7 @@ impl DaemonSubscriptionImpl {
         sid: u64,
     ) -> DaemonSubscriptionImpl {
         DaemonSubscriptionImpl {
-            _mailbox: mailbox,
+            mailbox,
             _node: node,
             uid,
             subscriptions,
@@ -1241,6 +1241,7 @@ impl Drop for DaemonSubscriptionImpl {
             "DaemonNode subscription dropped sid:{} uid:{}",
             self.sid, self.uid
         );
+        self.mailbox.drop_subscriber(self.uid, self.sid);
         self.subscriptions
             .write()
             .unwrap()
@@ -1399,19 +1400,22 @@ async fn server_subscriptions(
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Setting up api subscriptions...");
 
+    // Id references (keeps track of state)
     let mut last_node_refresh = Instant::now();
     let mut last_node_count = 0;
+    let mut last_node_next_id = 0;
 
     let mut last_keyboard_next_id = 0;
 
     loop {
         if !RUNNING.load(Ordering::SeqCst) {
+            // Send signal to all tokio subscription threads to exit
+            mailbox.drop_all_subscribers();
             break;
         }
 
         // Check for new keyboard node subscriptions
         while subscriptions.read().unwrap().keyboard_node_next_id > last_keyboard_next_id {
-            // TODO
             // Locate the subscription
             let subscriptions = subscriptions.clone();
             let mailbox = mailbox.clone();
@@ -1421,12 +1425,8 @@ async fn server_subscriptions(
                 // Subscribe to the mailbox to monitor for incoming messages
                 let receiver = mailbox.sender.subscribe();
 
-                // Wait on the appropriate message filter
-                // TODO Use the cli option to monitor cli
-                // TODO Stream or poll/await or both?
-                // Filter: device uid
                 debug!(
-                    "WATCH ID: {:?}",
+                    "keyboardwatcher active uid:{:?}",
                     mailbox::Address::DeviceHidio {
                         uid: subscriptions
                             .read()
@@ -1438,6 +1438,7 @@ async fn server_subscriptions(
                             .uid
                     }
                 );
+
                 tokio::pin! {
                     let stream = receiver
                         .into_stream()
@@ -1448,6 +1449,10 @@ async fn server_subscriptions(
                                 uid: subscriptions.read().unwrap().keyboard_node.subscribers.get(&last_keyboard_next_id).unwrap().uid,
                                 sid: last_keyboard_next_id
                             }
+                        )
+                        .take_while(|msg|
+                            msg.src != mailbox::Address::DropSubscription &&
+                            msg.dst != mailbox::Address::CancelAllSubscriptions
                         )
                         .filter(|msg|
                             msg.src == mailbox::Address::DeviceHidio {
@@ -1465,13 +1470,11 @@ async fn server_subscriptions(
                 // Filters: host macro
                 //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::HostMacro);
 
+                // TODO Split into multiple stream paths? Or just handle here?
                 while let Some(msg) = stream.next().await {
-                    debug!("{:?}", msg);
-                    // TODO
-                    //stream.await
+                    debug!("DIS {:?}", msg);
 
                     // Forward message to api callback
-                    // TODO requests in flight
                     let mut request = subscriptions
                         .read()
                         .unwrap()
@@ -1481,21 +1484,156 @@ async fn server_subscriptions(
                         .unwrap()
                         .client
                         .update_request();
-                    request.get().set_time(
+
+                    // Build Signal message
+                    let mut signal = request.get().init_signal();
+                    signal.set_time(
                         std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .expect("Time went backwards")
                             .as_millis() as u64,
                     );
-                    request.send().promise.await.unwrap(); // TODO requests in flight
-                                                           // End task if (a) Quitting (b) Subscription is dropped
-                }
+                    // TODO Convert HID-IO terminal text to unicode capnproto text
+                    signal
+                        .init_data()
+                        .init_cli()
+                        .set_output(&String::from_utf8_lossy(&msg.data.data));
 
-                debug!("NOOOOO");
+                    // Block on each send, drop subscription on failure
+                    if let Err(e) = request.send().promise.await {
+                        warn!(
+                            "keyboardwatcher packet error: {:?}. Dropping subscriber.",
+                            e
+                        );
+                        subscriptions
+                            .write()
+                            .unwrap()
+                            .nodes
+                            .subscribers
+                            .remove(&last_keyboard_next_id);
+                        break;
+                    }
+                }
             });
 
             // Increment to the next subscription
             last_keyboard_next_id += 1;
+        }
+
+        // Check for new node subscriptions (hidio watcher)
+        while subscriptions.read().unwrap().nodes_next_id > last_node_next_id {
+            // Make sure we have Debug authlevel before creating watcher
+            if subscriptions
+                .clone()
+                .read()
+                .unwrap()
+                .nodes
+                .subscribers
+                .get(&last_node_next_id)
+                .unwrap()
+                .auth
+                != AuthLevel::Debug
+            {
+                // Skip to the next node id
+                last_node_next_id += 1;
+                continue;
+            }
+
+            // Locate the subscription
+            let subscriptions = subscriptions.clone();
+            let mailbox = mailbox.clone();
+
+            // Spawn an task
+            tokio::task::spawn_local(async move {
+                // Subscribe to the mailbox to monitor for incoming messages
+                let receiver = mailbox.sender.subscribe();
+
+                debug!(
+                    "hidiowatcher active uid:{:?}",
+                    mailbox::Address::DeviceHidio {
+                        uid: subscriptions
+                            .read()
+                            .unwrap()
+                            .nodes
+                            .subscribers
+                            .get(&last_node_next_id)
+                            .unwrap()
+                            .uid
+                    }
+                );
+
+                tokio::pin! {
+                    let stream = receiver
+                        .into_stream()
+                        .filter(Result::is_ok).map(Result::unwrap)
+                        .take_while(|msg|
+                            msg.src != mailbox::Address::DropSubscription &&
+                            msg.dst != mailbox::Address::CancelSubscription {
+                                uid: subscriptions.read().unwrap().nodes.subscribers.get(&last_node_next_id).unwrap().uid,
+                                sid: last_node_next_id
+                            }
+                        )
+                        .take_while(|msg|
+                            msg.src != mailbox::Address::DropSubscription &&
+                            msg.dst != mailbox::Address::CancelAllSubscriptions
+                        );
+                }
+
+                while let Some(msg) = stream.next().await {
+                    // Forward message to api callback
+                    let mut request = subscriptions
+                        .read()
+                        .unwrap()
+                        .nodes
+                        .subscribers
+                        .get(&last_node_next_id)
+                        .unwrap()
+                        .client
+                        .hidio_watcher_request();
+                    let mut packet = request.get().init_packet();
+                    packet.set_src(match msg.src {
+                        mailbox::Address::ApiCapnp { uid } => uid,
+                        mailbox::Address::CancelSubscription { uid, sid: _ } => uid,
+                        mailbox::Address::DeviceHidio { uid } => uid,
+                        mailbox::Address::DeviceHid { uid } => uid,
+                        _ => 0,
+                    });
+                    packet.set_dst(match msg.dst {
+                        mailbox::Address::ApiCapnp { uid } => uid,
+                        mailbox::Address::CancelSubscription { uid, sid: _ } => uid,
+                        mailbox::Address::DeviceHidio { uid } => uid,
+                        mailbox::Address::DeviceHid { uid } => uid,
+                        _ => 0,
+                    });
+                    packet.set_type(match msg.data.ptype {
+                        HidIoPacketType::Data => hidio_capnp::hid_io::packet::Type::Data,
+                        HidIoPacketType::NAData => hidio_capnp::hid_io::packet::Type::NaData,
+                        HidIoPacketType::ACK => hidio_capnp::hid_io::packet::Type::Ack,
+                        HidIoPacketType::NAK => hidio_capnp::hid_io::packet::Type::Nak,
+                        _ => hidio_capnp::hid_io::packet::Type::Unknown,
+                    });
+                    packet.set_id(msg.data.id);
+                    let mut data = packet.init_data(msg.data.data.len() as u32);
+                    for (index, elem) in msg.data.data.iter().enumerate() {
+                        data.set(index as u32, *elem);
+                    }
+
+                    // Block on each send, drop subscription on failure
+                    if let Err(e) = request.send().promise.await {
+                        warn!("hidiowatcher packet error: {:?}. Dropping subscriber.", e);
+                        subscriptions
+                            .write()
+                            .unwrap()
+                            .nodes
+                            .subscribers
+                            .remove(&last_node_next_id);
+                        break;
+                    }
+                }
+            });
+
+            // Increment to the next subscription
+            last_node_next_id += 1;
         }
 
         // Check for new daemon node subscriptions

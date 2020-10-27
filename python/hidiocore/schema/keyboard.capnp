@@ -79,20 +79,17 @@ interface Keyboard extends(HidIo.Node) {
         time @0 :UInt64;
         # Signal event timestamp
 
-        source @1 :Common.Source;
-        # Source of signal
-
         data :union {
-            cli @2 :Cli;
+            cli @1 :Cli;
             # CLI Output message
 
-            kll @3 :KLL;
+            kll @2 :KLL;
             # KLL Trigger message
 
-            hostMacro @4 :HostMacro;
+            hostMacro @3 :HostMacro;
             # Host Macro message
 
-            layer @5 :Layer;
+            layer @4 :Layer;
             # Layer event message
         }
     }
@@ -133,12 +130,8 @@ interface Keyboard extends(HidIo.Node) {
         # Handles any push notifications from hid-io-core endpoints
         # NOTE: Not all packets are sent by default, you must configure the subscription to enable the ones you want
 
-        update @0 (time :UInt64, signal :List(Signal));
+        update @0 (signal :Signal);
         # Called whenever a subscribed packet type (to this device) is available
-        # May return 1 or more packets depending on the size of the queue
-        #
-        # Time is when the rpc is sent.
-        # Useful when determining Signal ordering
     }
 
     subscribe @0 (subscriber :Subscriber, options :List(SubscriptionOption)) -> (subscription :Subscription);
