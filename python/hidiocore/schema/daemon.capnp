@@ -32,17 +32,41 @@ interface Daemon extends(Common.Node) {
     # API interface to hid-io-core
     # This is the main entry point for calling hid-io-core functionality.
 
+    enum SubscriptionOptionType {
+        layout @0;
+        # OS Keyboard layout change subscription
+        # Sends a notification whenever the OS keyboard layout changes
+    }
+
     struct Signal {
+        struct Layout {
+        }
+
         time @0 :UInt64;
         # Signal event timestamp
 
-        source @1 :Common.Source;
-        # Source of signal
+        data :union {
+            layout @1 :Layout;
+            # Layout event message
 
-        # TODO
+            tmp @2 :Layout;
+            # TODO Removeme
+        }
     }
 
-    struct SubscriptionOption {}
+    struct SubscriptionOption {
+        type @0 :SubscriptionOptionType;
+
+        struct NoneOption {}
+
+        conf :union {
+            tmp1 @1 :NoneOption;
+            # TODO Removeme
+
+            tmp2 @2 :NoneOption;
+            # TODO Removeme
+        }
+    }
 
 
     interface Subscription {
@@ -55,7 +79,7 @@ interface Daemon extends(Common.Node) {
         # Handles any push notifications from hid-io-core endpoints
         # NOTE: Not all packets are sent by default, you must configure the subscription to enable the ones you want
 
-        update @0 (time :UInt64, signal :List(Signal));
+        update @0 (signal :Signal);
         # Called whenever a subscribed packet type (to this device) is available
         # May return 1 or more packets depending on the size of the queue
         #

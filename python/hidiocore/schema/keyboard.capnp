@@ -114,8 +114,8 @@ interface Keyboard extends(HidIo.Node) {
             kllTrigger @1 :List(KLLTriggerOption);
             # Specified with a kllTrigger or kllTriggerDisable option
 
-            none @2 :NoneOption;
-            # For options that don't need further configuration
+            tmp @2 :NoneOption;
+            # TODO Removeme
         }
     }
 

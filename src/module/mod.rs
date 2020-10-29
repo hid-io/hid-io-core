@@ -15,6 +15,7 @@
  */
 
 /// Platform specific character output and IME control
+pub mod daemonnode;
 pub mod unicode;
 pub mod vhid;
 
@@ -103,7 +104,10 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing modules...");
     let mailbox = mailbox.clone();
 
-    tokio::spawn(vhid::initialize(mailbox.clone()));
+    tokio::join!(
+        daemonnode::initialize(mailbox.clone()),
+        vhid::initialize(mailbox.clone()),
+    );
 
     // Setup local thread
     // Due to some of the setup in the Module struct we need to run processing in the same local
