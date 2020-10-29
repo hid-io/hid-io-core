@@ -23,6 +23,7 @@ pub mod hidapi;
 /// Works with both USB and BLE HID devices
 use crate::mailbox;
 use crate::protocol::hidio::*;
+use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::time::Instant;
 use tokio::sync::broadcast;
@@ -125,14 +126,14 @@ impl HidIoEndpoint {
     pub fn send_sync(&mut self) -> Result<(), std::io::Error> {
         self.send_packet(HidIoPacketBuffer {
             ptype: HidIoPacketType::Sync,
-            id: 0,
+            id: HidIoCommandID::try_from(0).unwrap(),
             max_len: 64, //..Defaults
             data: vec![],
             done: true,
         })
     }
 
-    pub fn send_ack(&mut self, id: u32, data: Vec<u8>) {
+    pub fn send_ack(&mut self, id: HidIoCommandID, data: Vec<u8>) {
         self.send_packet(HidIoPacketBuffer {
             ptype: HidIoPacketType::ACK,
             id,
@@ -253,6 +254,16 @@ impl HidIoController {
         }
         Ok(io_events)
     }
+}
+
+/// Supported Ids by this module
+/// recursive option applies supported ids from child modules as well
+pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
+    let mut ids: Vec<HidIoCommandID> = vec![];
+    if recursive {
+        ids.extend(evdev::supported_ids().iter().cloned());
+    }
+    ids
 }
 
 /// Module initialization

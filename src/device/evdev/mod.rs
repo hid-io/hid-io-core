@@ -1209,6 +1209,12 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
 }
 */
 
+/// Supported Ids by this module
+pub fn supported_ids() -> Vec<hidio::HidIoCommandID> {
+    let ids: Vec<hidio::HidIoCommandID> = vec![];
+    ids
+}
+
 /// evdev initialization
 ///
 /// Sets up processing threads for udev and evdev.

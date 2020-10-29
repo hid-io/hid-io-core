@@ -188,7 +188,7 @@ impl Mailbox {
         // Construct command packet
         let data = hidio::HidIoPacketBuffer {
             ptype: hidio::HidIoPacketType::Data,
-            id: id as u32,
+            id,
             max_len: 64, //..Defaults
             data,
             done: true,
@@ -215,7 +215,10 @@ impl Mailbox {
         // Prepare receiver and filter
         let receiver = self.sender.subscribe();
         tokio::pin! {
-            let stream = receiver.into_stream().filter(Result::is_ok).map(Result::unwrap).filter(|msg| msg.src == src && msg.data.id == id as u32);
+            let stream = receiver.into_stream()
+                .filter(Result::is_ok)
+                .map(Result::unwrap)
+                .filter(|msg| msg.src == src && msg.data.id == id);
         }
         // Wait on filtered messages
         while let Some(msg) = stream.next().await {

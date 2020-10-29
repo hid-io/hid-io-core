@@ -16,37 +16,14 @@
 
 /// Platform specific character output and IME control
 pub mod daemonnode;
-pub mod unicode;
+pub mod displayserver;
 pub mod vhid;
 
+use crate::api;
+use crate::device;
 use crate::mailbox;
-use crate::module::unicode::*;
 use crate::protocol::hidio::*;
-use crate::RUNNING;
-
-#[cfg(all(feature = "unicode", target_os = "linux"))]
-use crate::module::unicode::x11::*;
-
-#[cfg(all(feature = "unicode", target_os = "windows"))]
-use crate::module::unicode::winapi::*;
-
-#[cfg(all(feature = "unicode", target_os = "macos"))]
-use crate::module::unicode::osx::*;
-
-use std::sync::atomic::Ordering;
 use tokio::stream::StreamExt;
-
-// TODO: Use const fn to adjust based on cago features
-// TODO: Let capnp nodes add to this list
-/// List of commands we advertise as supporting to devices
-pub const SUPPORTED_IDS: &[HidIoCommandID] = &[
-    HidIoCommandID::SupportedIDs,
-    HidIoCommandID::GetProperties,
-    HidIoCommandID::UnicodeText,
-    HidIoCommandID::UnicodeKey,
-    HidIoCommandID::OpenURL,
-    HidIoCommandID::Terminal,
-];
 
 fn as_u8_slice(v: &[u16]) -> &[u8] {
     unsafe {
@@ -57,42 +34,18 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
     }
 }
 
-/// Our "internal" node responsible for handling required commands
-struct Module {
-    display: Box<dyn UnicodeOutput>,
-}
-
-#[cfg(not(feature = "unicode"))]
-fn get_display() -> Box<dyn UnicodeOutput> {
-    Box::new(StubOutput::new())
-}
-
-#[cfg(all(feature = "unicode", target_os = "linux"))]
-fn get_display() -> Box<dyn UnicodeOutput> {
-    Box::new(XConnection::new())
-}
-
-#[cfg(all(feature = "unicode", target_os = "windows"))]
-fn get_display() -> Box<dyn UnicodeOutput> {
-    Box::new(DisplayConnection::new())
-}
-
-#[cfg(all(feature = "unicode", target_os = "macos"))]
-fn get_display() -> Box<dyn UnicodeOutput> {
-    Box::new(OSXConnection::new())
-}
-
-impl Module {
-    fn new() -> Module {
-        let connection = get_display();
-
-        let layout = connection.get_layout();
-        info!("Current layout: {}", layout);
-
-        Module {
-            display: connection,
-        }
+/// Supported Ids by this module
+/// recursive option applies supported ids from child modules as well
+pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
+    let mut ids = vec![
+        HidIoCommandID::SupportedIDs,
+        HidIoCommandID::GetProperties,
+        HidIoCommandID::OpenURL,
+    ];
+    if recursive {
+        ids.extend(displayserver::supported_ids().iter().cloned());
     }
+    ids
 }
 
 /// Device initialization
@@ -102,46 +55,36 @@ impl Module {
 /// If a device is unplugged, the Device thread will exit.
 pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing modules...");
-    let mailbox = mailbox.clone();
-
-    tokio::join!(
-        daemonnode::initialize(mailbox.clone()),
-        vhid::initialize(mailbox.clone()),
-    );
 
     // Setup local thread
     // Due to some of the setup in the Module struct we need to run processing in the same local
     // thread.
-    let local = tokio::task::LocalSet::new();
-    local.spawn_local(async move {
-
-        // Top-level module setup
-        let mut module = Module::new();
-
+    let mailbox1 = mailbox.clone();
+    let rt = tokio::spawn(async move {
         // Setup receiver stream
-        let sender = mailbox.clone().sender.clone();
+        let sender = mailbox1.clone().sender.clone();
         let receiver = sender.clone().subscribe();
         tokio::pin! {
-            let stream = receiver.into_stream().filter(Result::is_ok).map(Result::unwrap).filter(|msg| msg.src == mailbox::Address::Module);
+            let stream = receiver.into_stream()
+                .filter(Result::is_ok).map(Result::unwrap)
+                .take_while(|msg|
+                    msg.src != mailbox::Address::DropSubscription &&
+                    msg.dst != mailbox::Address::CancelAllSubscriptions
+                )
+                .filter(|msg| msg.src == mailbox::Address::Module)
+                .filter(|msg| supported_ids(false).contains(&msg.data.id))
+                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
         }
 
         // Process filtered message stream
         while let Some(msg) = stream.next().await {
-            info!("My msg2: {} {:?} {:?}", msg.data, msg.src, msg.dst); // TODO REMOVEME
-
-            // Make sure this is a valid packet
-            if msg.data.ptype != HidIoPacketType::Data {
-                continue;
-            }
-
-            let id: HidIoCommandID = unsafe { std::mem::transmute(msg.data.id as u16) };
             let mydata = msg.data.data.clone();
-            debug!("Processing command: {:?}", id);
-            match id {
+            debug!("Processing command: {:?}", msg.data.id);
+            match msg.data.id {
                 HidIoCommandID::SupportedIDs => {
-                    let ids = SUPPORTED_IDS
+                    let ids = supported_ids(false)
                         .iter()
-                        .map(|x| unsafe { std::mem::transmute(*x) })
+                        .map(|x| *x as u16)
                         .collect::<Vec<u16>>();
                     msg.send_ack(sender.clone(), as_u8_slice(&ids).to_vec());
                 }
@@ -174,38 +117,28 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                             };
                             msg.send_ack(sender.clone(), vec![os as u8]);
                         }
-                        HidIoPropertyID::OSVersion => {
-                            let version = "1.0"; // TODO: Retreive in cross platform way
-                            msg.send_ack(sender.clone(), version.as_bytes().to_vec());
-                        }
+                        HidIoPropertyID::OSVersion => match sys_info::os_release() {
+                            Ok(version) => {
+                                msg.send_ack(sender.clone(), version.as_bytes().to_vec());
+                            }
+                            Err(e) => {
+                                error!("OS Release retrieval failed: {}", e);
+                                msg.send_nak(sender.clone(), vec![]);
+                            }
+                        },
                         HidIoPropertyID::HostName => {
                             let name = built_info::PKG_NAME;
                             msg.send_ack(sender.clone(), name.as_bytes().to_vec());
                         }
-                        HidIoPropertyID::InputLayout => {
-                            let layout = module.display.get_layout();
-                            println!("Current layout: {}", layout);
-                            msg.send_ack(sender.clone(), layout.as_bytes().to_vec());
-                        }
                     };
                 }
-                HidIoCommandID::UnicodeText => {
-                    let s = String::from_utf8(mydata).unwrap();
-                    module.display.type_string(&s);
-                    msg.send_ack(sender.clone(), vec![]);
-                }
-                HidIoCommandID::UnicodeKey => {
-                    let s = String::from_utf8(mydata).unwrap();
-                    module.display.set_held(&s);
-                    msg.send_ack(sender.clone(), vec![]);
-                }
                 HidIoCommandID::HostMacro => {
-                    warn!("TODO");
-                    msg.send_ack(sender.clone(), vec![]);
+                    warn!("Host Macro not implemented");
+                    msg.send_nak(sender.clone(), vec![]);
                 }
                 HidIoCommandID::KLLState => {
-                    warn!("TODO");
-                    msg.send_ack(sender.clone(), vec![]);
+                    warn!("KLL State not implemented");
+                    msg.send_nak(sender.clone(), vec![]);
                 }
                 HidIoCommandID::OpenURL => {
                     let s = String::from_utf8(mydata).unwrap();
@@ -213,32 +146,49 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                     open::that(s).unwrap();
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HidIoCommandID::Terminal => {
-                    msg.send_ack(sender.clone(), vec![]);
-                    /*std::io::stdout().write_all(&mydata).unwrap();
-                    std::io::stdout().flush().unwrap();*/
-                }
-                HidIoCommandID::InputLayout => {
-                    let s = String::from_utf8(mydata).unwrap();
-                    info!("Setting language to {}", s);
-                }
-                _ => {
-                    warn!("Unknown command ID: {:?}", msg.data.id);
-                    msg.send_nak(sender.clone(), vec![]);
-                }
+                _ => {}
             }
         }
     });
 
-    // Wait for exit signal before cleaning up
-    local
-        .run_until(async move {
-            loop {
-                if !RUNNING.load(Ordering::SeqCst) {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    // NAK unsupported command ids
+    let mailbox2 = mailbox.clone();
+    let naks = tokio::spawn(async move {
+        // Setup receiver stream
+        let sender = mailbox2.clone().sender.clone();
+        let receiver = sender.clone().subscribe();
+        tokio::pin! {
+            let stream = receiver.into_stream()
+                .filter(Result::is_ok).map(Result::unwrap)
+                .take_while(|msg|
+                    msg.src != mailbox::Address::DropSubscription &&
+                    msg.dst != mailbox::Address::CancelAllSubscriptions
+                )
+                .filter(|msg| msg.src == mailbox::Address::Module)
+                .filter(|msg| !(
+                    supported_ids(true).contains(&msg.data.id) ||
+                    api::supported_ids().contains(&msg.data.id) ||
+                    device::supported_ids(true).contains(&msg.data.id)
+                ))
+                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
+        }
+
+        // Process filtered message stream
+        while let Some(msg) = stream.next().await {
+            warn!("Unknown command ID: {:?} ({})", msg.data.id, msg.data.ptype);
+            // Only send NAK with Data packets (NAData packets don't have acknowledgements, so just
+            // warn)
+            if msg.data.ptype == HidIoPacketType::Data {
+                msg.send_nak(sender.clone(), vec![]);
             }
-        })
-        .await;
+        }
+    });
+
+    let (_, _, _, _, _) = tokio::join!(
+        daemonnode::initialize(mailbox.clone()),
+        displayserver::initialize(mailbox.clone()),
+        naks,
+        rt,
+        vhid::initialize(mailbox.clone()),
+    );
 }

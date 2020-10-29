@@ -18,10 +18,11 @@
 
 // ----- Modules -----
 
-use std::fmt;
-
 use bincode::serialize;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::ser::{self, Serialize, SerializeSeq, Serializer};
+use std::convert::TryFrom;
+use std::fmt;
 
 // ----- Enumerations -----
 
@@ -47,8 +48,8 @@ pub enum HidIoPacketType {
     NAContinued = 6,
 }
 
-#[repr(u16)]
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[repr(u32)]
+#[derive(PartialEq, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
 /// Requests for to perform a specific action
 pub enum HidIoCommandID {
     SupportedIDs = 0x00,
@@ -76,7 +77,8 @@ pub enum HidIoCommandID {
 
     OpenURL = 0x30,
     Terminal = 0x31,
-    InputLayout = 0x32,
+    GetInputLayout = 0x32,
+    SetInputLayout = 0x33,
 
     HIDKeyboard = 0x40,
     HIDKeyboardLED = 0x41,
@@ -98,7 +100,6 @@ pub enum HidIoPropertyID {
     HostOS = 0x03,
     OSVersion = 0x04,
     HostName = 0x05,
-    InputLayout = 0x06,
 }
 
 #[repr(u8)]
@@ -126,7 +127,7 @@ pub struct HidIoPacketBuffer {
     /// Type of packet (Continued is automatically set if needed)
     pub ptype: HidIoPacketType,
     /// Packet Id
-    pub id: u32,
+    pub id: HidIoCommandID,
     /// Packet length for serialization (in bytes)
     pub max_len: u32,
     /// Payload data, chunking is done automatically by serializer
@@ -396,7 +397,7 @@ impl Default for HidIoPacketBuffer {
     fn default() -> Self {
         HidIoPacketBuffer {
             ptype: HidIoPacketType::Data,
-            id: 0,
+            id: HidIoCommandID::try_from(0).unwrap(),
             max_len: 0,
             data: vec![],
             done: false,
@@ -469,7 +470,14 @@ impl HidIoPacketBuffer {
         }
 
         // Get packet Id
-        let id = packet_id(packet_data)?;
+        let id_num = packet_id(packet_data)?;
+        let id = match HidIoCommandID::try_from(id_num) {
+            Ok(id) => id,
+            Err(e) => {
+                error!("Failed to convert {} to HidIoCommandID: {}", id_num, e);
+                return Err(HidIoParseError {});
+            }
+        };
 
         // Is this a new packet?
         // More information to set, if initializing buffer
@@ -505,7 +513,10 @@ impl HidIoPacketBuffer {
 
             // Validate that we're looking at the same Id
             if self.id != id {
-                warn!("Dropping. Invalid incoming id:{}, expected:{}", id, self.id);
+                warn!(
+                    "Dropping. Invalid incoming id:{:?}, expected:{:?}",
+                    id, self.id
+                );
                 return Ok(packet_len);
             }
         }
@@ -586,7 +597,7 @@ impl Serialize for HidIoPacketBuffer {
         // --- First Packet ---
 
         // Determine id_width
-        let id_width: u8 = match self.id {
+        let id_width: u8 = match self.id as u32 {
             0x00..=0xFFFF => 0,           // 16 bit Id
             0x01_0000..=0xFFFF_FFFF => 1, // 32 bit Id
         };
@@ -637,7 +648,7 @@ impl Serialize for HidIoPacketBuffer {
         // Convert Id into bytes
         let mut id_vec: Vec<u8> = Vec::new();
         for idx in 0..id_width_len {
-            let id = (self.id >> (idx * 8)) as u8;
+            let id = (self.id as u32 >> (idx * 8)) as u8;
             id_vec.push(id);
         }
 
@@ -790,7 +801,7 @@ impl fmt::Display for HidIoPacketBuffer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "\n{{\n    ptype: {}\n    id: {}\n    max_len: {}\n    done: {}\n    data: {:#?}\n}}",
+            "\n{{\n    ptype: {}\n    id: {:?}\n    max_len: {}\n    done: {}\n    data: {:#?}\n}}",
             self.ptype, self.id, self.max_len, self.done, self.data,
         )
     }

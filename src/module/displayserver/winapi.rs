@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 by Jacob Alexander
+/* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::mem::size_of;
 use std::process::Command;
 
-use crate::module::unicode::UnicodeOutput;
+use crate::module::displayserver::DisplayOutput;
 
 use winapi::ctypes::wchar_t;
 //use winapi::um::{winnls, winnt, winuser};

@@ -1036,12 +1036,12 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
         mut results: keyboard_capnp::keyboard::SubscribeResults,
     ) -> Promise<(), Error> {
         // First check to make sure we're actually trying to subscribe to something
-        let options = match pry!(params.get()).get_options() {
+        let _options = match pry!(params.get()).get_options() {
             Ok(options) => {
                 if options.len() == 0 {
                     return Promise::err(capnp::Error {
                         kind: capnp::ErrorKind::Failed,
-                        description: format!("No subscription options specified"),
+                        description: "No subscription options specified".to_string(),
                     });
                 }
                 // TODO Store/Setup options for KeyboardSubscriberHandle
@@ -1572,7 +1572,7 @@ async fn server_subscriptions_keyboard(
                     );
             }
             // Filter: cli command
-            let mut stream = stream.filter(|msg| msg.data.id == HidIoCommandID::Terminal as u32);
+            let mut stream = stream.filter(|msg| msg.data.id == HidIoCommandID::Terminal);
             // Filters: kll trigger
             //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::KLLState);
             // Filters: layer
@@ -1727,7 +1727,7 @@ async fn server_subscriptions_hidiowatcher(
                     HidIoPacketType::NAK => hidio_capnp::hid_io::packet::Type::Nak,
                     _ => hidio_capnp::hid_io::packet::Type::Unknown,
                 });
-                packet.set_id(msg.data.id);
+                packet.set_id(msg.data.id as u32);
                 let mut data = packet.init_data(msg.data.data.len() as u32);
                 for (index, elem) in msg.data.data.iter().enumerate() {
                     data.set(index as u32, *elem);
@@ -1916,6 +1916,11 @@ async fn server_subscriptions(
     }
 
     Ok(())
+}
+
+/// Supported Ids by this module
+pub fn supported_ids() -> Vec<HidIoCommandID> {
+    vec![HidIoCommandID::Terminal]
 }
 
 /// Cap'n'Proto API Initialization

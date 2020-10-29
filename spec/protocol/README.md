@@ -633,9 +633,10 @@ This is the standard HID keyboard LED bitmask.
 * 0x23 - (Host)        [Pixel Set (3 ch, 8 bit)](#pixel-set-3-ch-8-bit)
 * 0x24 - (Host)        [Pixel Set (1 ch, 16 bit)](#pixel-set-1-ch-16-bit)
 * 0x25 - (Host)        [Pixel Set (3 ch, 16 bit)](#pixel-set-3-ch-16-bit)
-* 0x30 - (Host)        Reserved - Open URL
-* 0x31 - (Host)        Reserved - Terminal
-* 0x32 - (Host)        Reserved - Input Layout
+* 0x30 - (Device)      Reserved - Open URL
+* 0x31 - (Device)      Reserved - Terminal
+* 0x32 - (Device)      Reserved - Get OS Layout
+* 0x33 - (Device)      Reserved - Set OS Layout
 * 0x40 - (Host/Device) [HID Keyboard State](#hid-keyboard-state)
 * 0x41 - (Host/Device) [HID Keyboard LED State](#hid-keyboard-led-state)
 * 0x41 - (Host/Device) Reserved - HID Mouse State

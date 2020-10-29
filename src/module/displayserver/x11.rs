@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 by Jacob Alexander
+/* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -15,6 +15,7 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::module::displayserver::{DisplayOutput, DisplayOutputError};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::{c_int, c_uchar, c_void};
@@ -23,8 +24,6 @@ use std::ptr::null;
 use std::{thread, time};
 use x11::xlib::*;
 use x11::xtest::*;
-
-use crate::module::unicode::UnicodeOutput;
 
 const KEY_DELAY_US: u64 = 60000;
 
@@ -180,7 +179,7 @@ impl Drop for XConnection {
     fn drop(&mut self) {
         info!("Releasing all keys");
         for c in &self.held.clone() {
-            self.press_symbol(*c, false);
+            self.press_symbol(*c, false).unwrap();
         }
         info!("Unbinding all keys");
         for keycode in self.charmap.values() {
@@ -192,8 +191,8 @@ impl Drop for XConnection {
     }
 }
 
-impl UnicodeOutput for XConnection {
-    fn get_layout(&self) -> String {
+impl DisplayOutput for XConnection {
+    fn get_layout(&self) -> Result<String, DisplayOutputError> {
         // TODO: Better solution. https://unix.stackexchange.com/a/422493
 
         let result = Command::new("setxkbmap")
@@ -209,14 +208,15 @@ impl UnicodeOutput for XConnection {
             .find(|(k, _): &(&str, &str)| *k == "layout")
             .map(|(_, v)| v.trim())
             .unwrap_or("");
-        layout.to_string()
+        Ok(layout.to_string())
     }
 
-    fn set_layout(&self, layout: &str) {
+    fn set_layout(&self, layout: &str) -> Result<(), DisplayOutputError> {
         Command::new("setxkbmap").args(&[layout]).output().unwrap();
+        Ok(())
     }
 
-    fn type_string(&mut self, string: &str) {
+    fn type_string(&mut self, string: &str) -> Result<(), DisplayOutputError> {
         let mut keycodes = Vec::with_capacity(string.len());
 
         for c in string.chars() {
@@ -234,7 +234,6 @@ impl UnicodeOutput for XConnection {
             self.press_key(*k, true, time);
             thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
             self.press_key(*k, false, time);
-            //thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
         }
 
         unsafe {
@@ -244,11 +243,14 @@ impl UnicodeOutput for XConnection {
         for c in string.chars() {
             self.unmap_sym(c);
         }
+
+        Ok(())
     }
 
-    fn press_symbol(&mut self, c: char, press: bool) {
+    fn press_symbol(&mut self, c: char, press: bool) -> Result<(), DisplayOutputError> {
+        // Nothing to do
         if c == '\0' {
-            return;
+            return Ok(());
         }
         if let Some(keycode) = self.get_sym(c) {
             println!("Set {:?} ({}) = {}", c, keycode, press);
@@ -267,21 +269,24 @@ impl UnicodeOutput for XConnection {
                 XFlush(self.display);
             }
         }
+
+        Ok(())
     }
 
-    fn get_held(&mut self) -> Vec<char> {
-        self.held.clone()
+    fn get_held(&mut self) -> Result<Vec<char>, DisplayOutputError> {
+        Ok(self.held.clone())
     }
 
-    fn set_held(&mut self, string: &str) {
+    fn set_held(&mut self, string: &str) -> Result<(), DisplayOutputError> {
         let s: Vec<char> = string.chars().collect();
         for c in &self.held.clone() {
             if !s.contains(c) {
-                self.press_symbol(*c, false);
+                self.press_symbol(*c, false)?;
             }
         }
         for c in &s {
-            self.press_symbol(*c, true);
+            self.press_symbol(*c, true)?;
         }
+        Ok(())
     }
 }
