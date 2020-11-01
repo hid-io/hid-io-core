@@ -87,6 +87,8 @@ pub enum HidIoCommandID {
     HIDSystemCtrl = 0x44,
     HIDConsumerCtrl = 0x45,
 
+    ManufacturingTest = 0x50,
+
     Unused = 0xFFFF,
 }
 

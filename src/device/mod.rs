@@ -78,38 +78,6 @@ impl HidIoEndpoint {
         buffer
     }
 
-    pub fn recv_packet(&mut self) -> HidIoPacketBuffer {
-        let mut deserialized = self.create_buffer();
-
-        while !deserialized.done {
-            if let Ok(len) = self.recv_chunk(&mut deserialized) {
-                if len > 0 {
-                    match &deserialized.ptype {
-                        HidIoPacketType::Sync => {
-                            deserialized = self.create_buffer();
-                        }
-                        HidIoPacketType::ACK => {
-                            // Don't ack an ack
-                        }
-                        HidIoPacketType::NAData | HidIoPacketType::NAContinued => {
-                            // Don't ack no ack packets
-                        }
-                        HidIoPacketType::NAK => {
-                            println!("NACK");
-                            break;
-                        }
-                        HidIoPacketType::Continued | HidIoPacketType::Data => {
-                            self.send_ack(deserialized.id, vec![]);
-                        }
-                    }
-                }
-            }
-        }
-
-        //info!("Received {:x?}", deserialized);
-        deserialized
-    }
-
     pub fn send_packet(&mut self, mut packet: HidIoPacketBuffer) -> Result<(), std::io::Error> {
         debug!("Sending {:x?}", packet);
         let buf: Vec<u8> = packet.serialize_buffer().unwrap();
@@ -206,7 +174,6 @@ impl HidIoController {
             }
             Err(e) => {
                 return Err(e);
-                //::std::process::exit(1);
             }
         };
 
@@ -248,7 +215,6 @@ impl HidIoController {
                 Err(broadcast::error::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
                 Err(broadcast::error::TryRecvError::Closed) => {
                     return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, ""));
-                    //::std::process::exit(1);
                 }
             }
         }

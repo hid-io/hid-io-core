@@ -1053,6 +1053,54 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             }),
         }
     }
+
+    fn manufacturing_test(
+        &mut self,
+        params: hidio_capnp::node::ManufacturingTestParams,
+        mut _results: hidio_capnp::node::ManufacturingTestResults,
+    ) -> Promise<(), Error> {
+        match self.auth {
+            AuthLevel::Secure | AuthLevel::Debug => {
+                let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+                let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+                let params = params.get().unwrap();
+                let mut data = params.get_cmd().to_le_bytes().to_vec();
+                data.append(&mut params.get_arg().to_le_bytes().to_vec());
+
+                // Send command
+                let res = self.mailbox.try_send_command(
+                    src,
+                    dst,
+                    HidIoCommandID::ManufacturingTest,
+                    data,
+                    true,
+                );
+
+                // Wait for ACK/NAK
+                match res {
+                    Ok(msg) => {
+                        if let Some(_msg) = msg {
+                            Promise::ok(())
+                        } else {
+                            Promise::err(capnp::Error {
+                                kind: capnp::ErrorKind::Failed,
+                                description: "Error no ACK (manufacturing_test)".to_string(),
+                            })
+                        }
+                    }
+                    Err(e) => Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: format!("Error (manufacturing_test): {:?}", e),
+                    }),
+                }
+            }
+            _ => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
+        }
+    }
 }
 
 impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {

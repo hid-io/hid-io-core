@@ -726,6 +726,83 @@ pub fn udev_find_device(
     ))
 }
 
+/* TODO Move to udev_tokio when possible
+/// Use parameters to find a uhid device using udev
+/// If we don't find the device right away, start to poll
+pub async fn udev_find_device2(
+    vid: u16,
+    pid: u16,
+    subsystem: String,
+    uniq: String,
+    timeout: std::time::Duration,
+) -> Result<tokio_udev::Device, std::io::Error> {
+    // First look in the list of devices
+    let mut enumerator = tokio_udev::Enumerator::new().unwrap();
+    enumerator.match_subsystem("input").unwrap();
+    enumerator
+        .match_attribute("id/vendor", format!("{:04x}", vhid::IC_VID))
+        .unwrap();
+    enumerator
+        .match_attribute("id/product", format!("{:04x}", vhid::IC_PID_KEYBOARD))
+        .unwrap();
+    enumerator.match_attribute("uniq", uniq.clone()).unwrap();
+
+    // Validate parameters
+    let mut devices = enumerator.scan_devices().unwrap();
+    if let Some(device) = devices.next() {
+        return Ok(device);
+    }
+
+    // Couldn't find, setup a watcher
+
+    // Locate hid device with udev
+    let builder = tokio_udev::MonitorBuilder::new()
+        .expect("Couldn't create builder")
+        .match_subsystem(subsystem)
+        .expect("Failed to add subsystem filter");
+
+    // Setup monitor
+    let monitor = builder.listen().expect("Couldn't create MonitorSocket");
+    monitor.for_each(|event| {
+    //tokio::time::timeout(timeout, monitor.for_each(|event| {
+        // Validate input uhid device
+        if event.event_type() == tokio_udev::EventType::Add || event.event_type() == tokio_udev::EventType::Bind
+        {
+            // Locate parent
+            if let Some(parent) = event.parent() {
+                // Match VID:PID
+                let found_vid = parent
+                    .attribute_value("id/vendor")
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
+                    .to_str()
+                    .unwrap();
+                let found_pid = parent
+                    .attribute_value("id/product")
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
+                    .to_str()
+                    .unwrap();
+                let found_uniq = parent
+                    .attribute_value("uniq")
+                    .unwrap_or_else(|| std::ffi::OsStr::new(""))
+                    .to_str()
+                    .unwrap();
+                if found_vid == format!("{:04x}", vid)
+                    && found_pid == format!("{:04x}", pid)
+                    && found_uniq == uniq
+                {
+                    return Ok(event.device());
+                }
+            }
+        }
+    }).await;
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "Could not locate udev device",
+    ))
+}
+*/
+
 // ------- Test Cases -------
 
 #[cfg(test)]

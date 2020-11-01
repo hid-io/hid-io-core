@@ -224,4 +224,8 @@ interface Node extends(Common.Node) {
 
     flashMode @2 () -> (status :FlashModeStatus);
     # Attempt to have the device enter flash mode
+
+    manufacturingTest @3 (cmd :UInt16, arg :UInt16);
+    # Send a device specific manufacturing test command
+    # Must have full auth-level to use
 }

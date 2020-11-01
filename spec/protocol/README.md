@@ -153,6 +153,8 @@ All payloads are Id specific and may include any sort of data without restrictio
 
 The Id Width field indicates whether the Id is 16 bits or 32 bits wide. As long as the Id is lower than 2^16, a 16 bit field is always supported. Only use 32 bit Ids when required, not all firmwares will support 32 bit Ids.
 
+When in doubt, data is in Little-Endian format.
+
 __Data Packet__
 ```
 <data> <length> <Id> [payload]
@@ -608,6 +610,27 @@ This is the standard HID keyboard LED bitmask.
 -> (No payload)
 ```
 
+### Manufacturing Test
+```
+0x50 <command:16 bits> <argument:16 bits>
+
+Various test commands used during manufacturing to validate the hardware.
+ * 0x0001 - LED test sequence
+            Generally cycles through all available colors to check for dead LEDs.
+            Args:
+            * 0x0000 - Disable
+            * 0x0001 - Enable
+ * 0x0002 - LED cycle on keypress test
+            Used with shake tests to determine if there are hair-trigger switches.
+            On each press or release event, cycle to a different LED event.
+            Args:
+            * 0x0000 - Disable
+            * 0x0001 - Enable
+
++> (No payload)
+-> (No payload)
+```
+
 
 ## ID List
 
@@ -633,11 +656,15 @@ This is the standard HID keyboard LED bitmask.
 * 0x23 - (Host)        [Pixel Set (3 ch, 8 bit)](#pixel-set-3-ch-8-bit)
 * 0x24 - (Host)        [Pixel Set (1 ch, 16 bit)](#pixel-set-1-ch-16-bit)
 * 0x25 - (Host)        [Pixel Set (3 ch, 16 bit)](#pixel-set-3-ch-16-bit)
+* 0x26..0x2F - **Unused**
 * 0x30 - (Device)      Reserved - Open URL
 * 0x31 - (Device)      Reserved - Terminal
 * 0x32 - (Device)      Reserved - Get OS Layout
 * 0x33 - (Device)      Reserved - Set OS Layout
+* 0x34..0x3F - **Unused**
 * 0x40 - (Host/Device) [HID Keyboard State](#hid-keyboard-state)
 * 0x41 - (Host/Device) [HID Keyboard LED State](#hid-keyboard-led-state)
 * 0x41 - (Host/Device) Reserved - HID Mouse State
 * 0x42 - (Host/Device) Reserved - HID Joystick State
+* 0x43..0x4F - **Unused**
+* 0x50 - (Host)        [Manufacturing Test](#manufacturing-test)
