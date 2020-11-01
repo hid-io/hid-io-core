@@ -97,7 +97,7 @@ class HidIoClient:
 
         # Generate serial number once per initialization
         # Just a random number
-        self.serial = "{}".format(random.getrandbits(64))
+        self.serial = "{} - pid:{}".format(random.getrandbits(64), os.getpid())
 
 
     def __del__(self):

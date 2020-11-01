@@ -23,6 +23,7 @@ use crate::api;
 use crate::device;
 use crate::mailbox;
 use crate::protocol::hidio::*;
+use std::sync::Arc;
 use tokio::stream::StreamExt;
 
 fn as_u8_slice(v: &[u16]) -> &[u8] {
@@ -53,14 +54,14 @@ pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
 /// Each scanning thread will create a new thread per device found.
 /// The scanning thread is required in case devices are plugged/unplugged while running.
 /// If a device is unplugged, the Device thread will exit.
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing modules...");
 
     // Setup local thread
     // Due to some of the setup in the Module struct we need to run processing in the same local
     // thread.
     let mailbox1 = mailbox.clone();
-    let rt = tokio::spawn(async move {
+    let data = tokio::spawn(async move {
         // Setup receiver stream
         let sender = mailbox1.clone().sender.clone();
         let receiver = sender.clone().subscribe();
@@ -71,7 +72,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                     msg.src != mailbox::Address::DropSubscription &&
                     msg.dst != mailbox::Address::CancelAllSubscriptions
                 )
-                .filter(|msg| msg.src == mailbox::Address::Module)
+                .filter(|msg| msg.dst == mailbox::Address::Module)
                 .filter(|msg| supported_ids(false).contains(&msg.data.id))
                 .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
         }
@@ -164,7 +165,6 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                     msg.src != mailbox::Address::DropSubscription &&
                     msg.dst != mailbox::Address::CancelAllSubscriptions
                 )
-                .filter(|msg| msg.src == mailbox::Address::Module)
                 .filter(|msg| !(
                     supported_ids(true).contains(&msg.data.id) ||
                     api::supported_ids().contains(&msg.data.id) ||
@@ -185,10 +185,10 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
     });
 
     let (_, _, _, _, _) = tokio::join!(
-        daemonnode::initialize(mailbox.clone()),
-        displayserver::initialize(mailbox.clone()),
+        daemonnode::initialize(rt.clone(), mailbox.clone()),
+        displayserver::initialize(rt.clone(), mailbox.clone()),
         naks,
-        rt,
-        vhid::initialize(mailbox.clone()),
+        data,
+        vhid::initialize(rt.clone(), mailbox.clone()),
     );
 }

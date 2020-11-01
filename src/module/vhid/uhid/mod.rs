@@ -24,6 +24,7 @@ use crate::protocol::hidio;
 use libc::{c_int, c_short, c_ulong, c_void};
 use std::io::{Error, ErrorKind};
 use std::os::unix::io::AsRawFd;
+use std::sync::Arc;
 
 /// Default OutputEvent handler
 /// Prints useful debug information when even when the events aren't normally used
@@ -209,12 +210,15 @@ impl KeyboardNKRO {
             if let uhid_virt::OutputEvent::Output { data } = event {
                 // NOTE: data is not processed and is sent as a bitfield
                 // Send message containing LED events
-                self.mailbox.send_command(
-                    mailbox::Address::DeviceHid { uid: self.uid },
-                    mailbox::Address::All,
-                    hidio::HidIoCommandID::HIDKeyboardLED,
-                    data.to_vec(),
-                );
+                self.mailbox
+                    .try_send_command(
+                        mailbox::Address::DeviceHid { uid: self.uid },
+                        mailbox::Address::All,
+                        hidio::HidIoCommandID::HIDKeyboardLED,
+                        data.to_vec(),
+                        false,
+                    )
+                    .unwrap();
             }
         }
 
@@ -340,12 +344,15 @@ impl Keyboard6KRO {
             if let uhid_virt::OutputEvent::Output { data } = event {
                 // NOTE: data is not processed and is sent as a bitfield
                 // Send message containing LED events
-                self.mailbox.send_command(
-                    mailbox::Address::DeviceHid { uid: self.uid },
-                    mailbox::Address::All,
-                    hidio::HidIoCommandID::HIDKeyboardLED,
-                    data.to_vec(),
-                );
+                self.mailbox
+                    .try_send_command(
+                        mailbox::Address::DeviceHid { uid: self.uid },
+                        mailbox::Address::All,
+                        hidio::HidIoCommandID::HIDKeyboardLED,
+                        data.to_vec(),
+                        false,
+                    )
+                    .unwrap();
             }
         }
 
@@ -570,7 +577,7 @@ impl Drop for SysCtrlConsControl {
 /// uhid initialization
 ///
 /// Sets up processing threads for uhid
-pub async fn initialize(_mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {
     info!("Initializing vhid/uhid...");
 
     // Spawn watcher thread (tokio)

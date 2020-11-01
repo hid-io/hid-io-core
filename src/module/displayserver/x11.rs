@@ -17,20 +17,24 @@
 
 use crate::module::displayserver::{DisplayOutput, DisplayOutputError};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::ffi::CString;
 use std::os::raw::{c_int, c_uchar, c_void};
 use std::process::Command;
 use std::ptr::null;
-use std::{thread, time};
 use x11::xlib::*;
 use x11::xtest::*;
 
-const KEY_DELAY_US: u64 = 60000;
+// XXX (HaaTa): Not sure why we need an additional 50 ms for the sequence to stick and not
+// to get overridden by the next sequence.
+const KEY_SEQUENCE_END_DELAY_MS: u64 = 50;
 
 pub struct XConnection {
     display: *mut x11::xlib::_XDisplay,
     charmap: HashMap<char, u32>,
     held: Vec<char>,
+    last_event_before_delays: std::time::Instant, // Last instance event, only updated when enough time has passed to decrement pending delays
+    pending_delays: i64,                          // Number of 1ms delays pending
 }
 
 impl Default for XConnection {
@@ -45,10 +49,14 @@ impl XConnection {
             let display = XOpenDisplay(null());
             let charmap = HashMap::new();
             let held = Vec::new();
+            let last_event_before_delays = std::time::Instant::now();
+            let pending_delays = 0;
             XConnection {
                 display,
                 charmap,
                 held,
+                last_event_before_delays,
+                pending_delays,
             }
         }
     }
@@ -138,14 +146,66 @@ impl XConnection {
         }
     }
 
-    pub fn press_key(&self, keycode: u32, state: bool, time: x11::xlib::Time) {
+    fn update_pending_delays(&mut self) {
+        // Update pending delay (if enough time has pass, can be set to zero)
+        let elapsed_ms: i64 = self
+            .last_event_before_delays
+            .elapsed()
+            .as_millis()
+            .try_into()
+            .unwrap();
+        if elapsed_ms > self.pending_delays {
+            self.pending_delays = 0; // Safe to send the event immediately
+        } else {
+            self.pending_delays -= elapsed_ms as i64 - 1; // Add a 1ms delay
+        }
+    }
+
+    /// Press/Release a specific keycode
+    /// NOTE: This call does not update the pending delays and must be updated prior
+    /// (unlike press_release_key())
+    pub fn press_key(&mut self, keycode: u32, press: bool) {
         unsafe {
-            XTestFakeKeyEvent(self.display, keycode, state as i32, time);
+            XTestFakeKeyEvent(
+                self.display,
+                keycode,
+                press as i32,
+                self.pending_delays as u64,
+            );
+        }
+    }
+
+    /// Press then release a specific keycode
+    /// Faster than individual calls to press_key as you don't need a delay between press and
+    /// release of the same keycode.
+    /// This function will automatically add delays as necessary using previously calculated
+    /// delays.
+    pub fn press_release_key(&mut self, keycode: u32) {
+        self.update_pending_delays();
+
+        unsafe {
+            XTestFakeKeyEvent(
+                self.display,
+                keycode,
+                true as i32,
+                self.pending_delays as u64,
+            );
+            XTestFakeKeyEvent(
+                self.display,
+                keycode,
+                false as i32,
+                self.pending_delays as u64,
+            );
         }
     }
 
     pub fn map_sym(&mut self, c: char) -> Option<u32> {
-        let keysym = XConnection::lookup_sym(c);
+        // Special character lookup, otherwise normal lookup
+        let keysym = match c {
+            '\n' => x11::keysym::XK_Return as u64,
+            '\t' => x11::keysym::XK_Tab as u64,
+            _ => XConnection::lookup_sym(c),
+        };
         let (unmapped, keycode) = self.find_keycode(keysym);
         if let Some(keycode) = keycode {
             if unmapped {
@@ -219,30 +279,66 @@ impl DisplayOutput for XConnection {
     fn type_string(&mut self, string: &str) -> Result<(), DisplayOutputError> {
         let mut keycodes = Vec::with_capacity(string.len());
 
+        // Make sure we have a keysym for every key
         for c in string.chars() {
             if c == '\0' {
                 continue;
             }
             if let Some(keycode) = self.get_sym(c) {
-                info!("Type {} => {:x?}", keycode, c);
+                debug!("Type {} => {:x?}", keycode, c);
                 keycodes.push(keycode);
+            } else {
+                error!("Could not allocate a keysym for unicode '{}'", c);
+                return Err(DisplayOutputError {});
             }
         }
 
-        let time = x11::xlib::CurrentTime;
+        // Send keypresses in chunks
+        // We have to increase the delay for each chunk (1ms intervals) as we can queue up events
+        // much quicker than 1ms.
+        // e.g. The tall moose
+        // Instance 1   Press: 'The tall' # Stops at the 2nd space
+        // Instance 1 Release: 'The tall'
+        // Instance 2   Press: ' mo'      # Double o so we have to stop again
+        // Instance 2 Release: ' mo'
+        // Instance 3   Press: 'ose'
+        // Instance 3 Release: 'ose'
+        let mut keysym_queue = vec![];
         for k in keycodes.iter() {
-            self.press_key(*k, true, time);
-            thread::sleep(time::Duration::from_micros(KEY_DELAY_US));
-            self.press_key(*k, false, time);
+            if !keysym_queue.contains(k) {
+                keysym_queue.push(*k)
+            } else {
+                // Press/Release
+                for qk in keysym_queue {
+                    self.press_release_key(qk);
+                }
+
+                // Clear queue and insert the keysym we weren't able to add
+                keysym_queue = vec![*k];
+            }
+        }
+
+        // Handle remaining queue
+        // Press/Release
+        for qk in keysym_queue {
+            self.press_release_key(qk);
         }
 
         unsafe {
             XFlush(self.display);
         }
 
+        // Cleanup any symbols we had to map (just in case we need to remap new symbols another
+        // time)
         for c in string.chars() {
             self.unmap_sym(c);
         }
+
+        // Make sure to sleep the length of the delay to make sure we don't call this API again too
+        // quickly and interfere with these keypresses.
+        std::thread::sleep(std::time::Duration::from_millis(
+            KEY_SEQUENCE_END_DELAY_MS + self.pending_delays as u64,
+        ));
 
         Ok(())
     }
@@ -253,8 +349,8 @@ impl DisplayOutput for XConnection {
             return Ok(());
         }
         if let Some(keycode) = self.get_sym(c) {
-            println!("Set {:?} ({}) = {}", c, keycode, press);
-            self.press_key(keycode, press, x11::xlib::CurrentTime);
+            debug!("Set {:?} ({}) = {}", c, keycode, press);
+            self.press_key(keycode, press);
 
             if press {
                 self.held.push(c);
@@ -279,6 +375,10 @@ impl DisplayOutput for XConnection {
 
     fn set_held(&mut self, string: &str) -> Result<(), DisplayOutputError> {
         let s: Vec<char> = string.chars().collect();
+
+        // This is a single instance, so update the pending delays first
+        self.update_pending_delays();
+
         for c in &self.held.clone() {
             if !s.contains(c) {
                 self.press_symbol(*c, false)?;
@@ -287,6 +387,13 @@ impl DisplayOutput for XConnection {
         for c in &s {
             self.press_symbol(*c, true)?;
         }
+
+        // Make sure to sleep the length of the delay to make sure we don't call this API again too
+        // quickly and interfere with these keypresses.
+        std::thread::sleep(std::time::Duration::from_millis(
+            KEY_SEQUENCE_END_DELAY_MS + self.pending_delays as u64,
+        ));
+
         Ok(())
     }
 }

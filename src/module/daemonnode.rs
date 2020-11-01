@@ -23,6 +23,7 @@
 use crate::api::Endpoint;
 use crate::common_capnp;
 use crate::mailbox;
+use std::sync::Arc;
 
 pub struct DaemonNode {
     mailbox: mailbox::Mailbox,
@@ -64,7 +65,7 @@ impl Drop for DaemonNode {
     }
 }
 
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     // Event loop for Daemon Node (typically not used)
     tokio::spawn(async {
         let node = DaemonNode::new(mailbox).unwrap();

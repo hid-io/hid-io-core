@@ -14,7 +14,6 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-pub mod debug;
 pub mod evdev;
 pub mod hidapi;
 
@@ -25,6 +24,7 @@ use crate::mailbox;
 use crate::protocol::hidio::*;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::broadcast;
 
@@ -274,32 +274,22 @@ pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
 /// Each device is repsonsible for accepting and responding to packet requests.
 /// It is also possible to send requests asynchronously back to any Modules.
 /// Each device may have it's own RPC API.
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing devices...");
 
     #[cfg(target_os = "linux")]
     tokio::join!(
         // Initialize hidapi watcher
-        hidapi::initialize(mailbox.clone()),
+        hidapi::initialize(rt.clone(), mailbox.clone()),
         // Initialize evdev watcher
-        evdev::initialize(mailbox.clone()),
-        // Initialize debug thread
-        debug::initialize(mailbox),
+        evdev::initialize(rt.clone(), mailbox.clone()),
     );
 
+    // Initialize hidapi watcher
     #[cfg(target_os = "macos")]
-    tokio::join!(
-        // Initialize hidapi watcher
-        hidapi::initialize(mailbox.clone()),
-        // Initialize debug thread
-        debug::initialize(mailbox),
-    );
+    hidapi::initialize(rt.clone(), mailbox.clone()).await;
 
+    // Initialize hidapi watcher
     #[cfg(target_os = "windows")]
-    tokio::join!(
-        // Initialize hidapi watcher
-        hidapi::initialize(mailbox.clone()),
-        // Initialize debug thread
-        debug::initialize(mailbox),
-    );
+    hidapi::initialize(rt.clone(), mailbox.clone()).await;
 }

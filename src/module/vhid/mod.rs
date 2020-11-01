@@ -17,6 +17,7 @@
 pub mod uhid;
 
 use crate::mailbox;
+use std::sync::Arc;
 
 /// USB VID:PID pairs for Virtual HID Devices
 /// These are assigned by Input Club (as these are Input Club HID descriptors)
@@ -382,16 +383,16 @@ pub const RAWIO: [u8; 28] = [
 /// Depending on the platform, there may be support for dynamically created/configured hid devices
 /// (tbd)
 #[cfg(target_os = "linux")]
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing module/vhid...");
 
     // Initialize the platform specific module
     #[cfg(target_os = "linux")]
-    uhid::initialize(mailbox).await;
+    uhid::initialize(rt, mailbox).await;
 }
 
 #[cfg(target_os = "macos")]
-pub async fn initialize(_mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing module/vhid...");
 
     // Initialize the platform specific module
@@ -399,7 +400,7 @@ pub async fn initialize(_mailbox: mailbox::Mailbox) {
 }
 
 #[cfg(target_os = "windows")]
-pub async fn initialize(_mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing module/vhid...");
 
     // Initialize the platform specific module

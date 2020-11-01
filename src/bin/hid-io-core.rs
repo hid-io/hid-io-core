@@ -28,6 +28,7 @@ use hid_io_core::mailbox;
 use hid_io_core::RUNNING;
 use hid_io_core::{api, built_info, device, module};
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 #[cfg(windows)]
 fn main() -> Result<(), std::io::Error> {
@@ -53,58 +54,66 @@ fn main() -> Result<(), std::io::Error> {
 }
 
 /// Main entry point
-#[tokio::main]
-async fn start() {
-    // Setup signal handler
-    let r = RUNNING.clone();
-    ctrlc::set_handler(move || {
-        r.store(false, Ordering::SeqCst);
-    })
-    .expect("Error setting Ctrl-C handler");
-    println!("Press Ctrl-C to exit...");
-
-    let version_info = format!(
-        "{}{} - {}",
-        built_info::PKG_VERSION,
-        built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
-        built_info::PROFILE,
-    );
-    info!("Version: {}", version_info);
-    let after_info = format!(
-        "{} ({}) -> {} ({})",
-        built_info::RUSTC_VERSION,
-        built_info::HOST,
-        built_info::TARGET,
-        built_info::BUILT_TIME_UTC,
-    );
-    info!("Build: {}", after_info);
-
-    // Process command-line arguments
-    // Most of the information is generated from Cargo.toml using built crate (build.rs)
-    App::new(built_info::PKG_NAME.to_string())
-        .version(version_info.as_str())
-        .author(built_info::PKG_AUTHORS)
-        .about(format!("\n{}", built_info::PKG_DESCRIPTION).as_str())
-        .after_help(after_info.as_str())
-        .get_matches();
-
-    // Start initialization
-    info!("Initializing HID-IO daemon...");
-
-    // Setup mailbox
-    let mailbox = mailbox::Mailbox::new();
-
-    // Wait until completion
-    let (_, _, _) = tokio::join!(
-        // Initialize Modules
-        module::initialize(mailbox.clone()),
-        // Initialize Device monitoring
-        device::initialize(mailbox.clone()),
-        // Initialize Cap'n'Proto API Server
-        api::initialize(mailbox),
+fn start() {
+    let rt: Arc<tokio::runtime::Runtime> = Arc::new(
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap(),
     );
 
-    info!("-------------------------- HID-IO Core exiting! --------------------------");
+    rt.block_on(async {
+        // Setup signal handler
+        let r = RUNNING.clone();
+        ctrlc::set_handler(move || {
+            r.store(false, Ordering::SeqCst);
+        })
+        .expect("Error setting Ctrl-C handler");
+        println!("Press Ctrl-C to exit...");
+
+        let version_info = format!(
+            "{}{} - {}",
+            built_info::PKG_VERSION,
+            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
+            built_info::PROFILE,
+        );
+        info!("Version: {}", version_info);
+        let after_info = format!(
+            "{} ({}) -> {} ({})",
+            built_info::RUSTC_VERSION,
+            built_info::HOST,
+            built_info::TARGET,
+            built_info::BUILT_TIME_UTC,
+        );
+        info!("Build: {}", after_info);
+
+        // Process command-line arguments
+        // Most of the information is generated from Cargo.toml using built crate (build.rs)
+        App::new(built_info::PKG_NAME.to_string())
+            .version(version_info.as_str())
+            .author(built_info::PKG_AUTHORS)
+            .about(format!("\n{}", built_info::PKG_DESCRIPTION).as_str())
+            .after_help(after_info.as_str())
+            .get_matches();
+
+        // Start initialization
+        info!("Initializing HID-IO daemon...");
+
+        // Setup mailbox
+        let mailbox = mailbox::Mailbox::new();
+
+        // Wait until completion
+        let (_, _, _) = tokio::join!(
+            // Initialize Modules
+            module::initialize(rt.clone(), mailbox.clone()),
+            // Initialize Device monitoring
+            device::initialize(rt.clone(), mailbox.clone()),
+            // Initialize Cap'n'Proto API Server
+            api::initialize(rt.clone(), mailbox),
+        );
+
+        info!("-------------------------- HID-IO Core exiting! --------------------------");
+    });
 }
 
 #[cfg(windows)]

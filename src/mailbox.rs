@@ -84,6 +84,7 @@ pub struct Mailbox {
     pub last_uid: Arc<RwLock<u64>>,
     pub lookup: Arc<RwLock<HashMap<String, Vec<u64>>>>,
     pub sender: broadcast::Sender<Message>,
+    pub ack_timeout: Arc<RwLock<std::time::Duration>>,
 }
 
 impl Mailbox {
@@ -96,11 +97,15 @@ impl Mailbox {
         let lookup = Arc::new(RwLock::new(HashMap::new()));
         // Setup last uid assigned (uids are reused when possible for devices)
         let last_uid: Arc<RwLock<u64>> = Arc::new(RwLock::new(0));
+        // Setup default timeout of 2 seconds
+        let ack_timeout: Arc<RwLock<std::time::Duration>> =
+            Arc::new(RwLock::new(std::time::Duration::from_millis(2000)));
         Mailbox {
             nodes,
             last_uid,
             lookup,
             sender,
+            ack_timeout,
         }
     }
 
@@ -178,73 +183,204 @@ impl Mailbox {
     }
 
     /// Convenience function to send a HidIo Command to device using the mailbox
-    pub fn send_command(
+    /// Returns the ACK message if enabled.
+    /// ACK will timeout if it exceeds self.ack_timeout
+    pub async fn send_command(
         &self,
         src: Address,
         dst: Address,
         id: hidio::HidIoCommandID,
         data: Vec<u8>,
-    ) {
+        ack: bool,
+    ) -> Result<Option<Message>, AckWaitError> {
+        // Select packet type
+        /* TODO Add firmware support for NAData
+        let ptype = if ack {
+            hidio::HidIoPacketType::Data
+        } else {
+            hidio::HidIoPacketType::NAData
+        };
+        */
+        let ptype = hidio::HidIoPacketType::Data;
+
         // Construct command packet
         let data = hidio::HidIoPacketBuffer {
-            ptype: hidio::HidIoPacketType::Data,
+            ptype,
             id,
             max_len: 64, //..Defaults
             data,
             done: true,
         };
 
+        // Check receiver count
+        if self.sender.receiver_count() == 0 {
+            error!("send_command (no active receivers)");
+            return Err(AckWaitError::NoActiveReceivers);
+        }
+
+        // Subscribe to messages before sending message, but this means we have to check the
+        // receiver count earlier
+        let receiver = self.sender.subscribe();
+
         // Construct command message and broadcast
-        let result = self.sender.send(Message { src, dst, data });
+        let result = self.sender.send(Message {
+            src,
+            dst,
+            data: data.clone(),
+        });
 
         if let Err(e) = result {
-            error!("send_command (no active receivers) {:?}", e);
+            error!(
+                "send_command failed, something is odd, should not get here... {:?}",
+                e
+            );
+            return Err(AckWaitError::NoActiveReceivers);
         }
-    }
 
-    /// Convenience function to wait for an ack
-    /// Will return the next matching ack or nak packet
-    /// If a sync packet is returned, then an error is thrown (supports waiting for a number of
-    /// sync packets)
-    pub async fn ack_wait(
-        &self,
-        src: Address,
-        id: hidio::HidIoCommandID,
-        mut max_sync_packets: usize,
-    ) -> Result<Message, AckWaitError> {
-        // Prepare receiver and filter
-        let receiver = self.sender.subscribe();
+        // No ACK data packet command, no ACK to wait for
+        if !ack {
+            return Ok(None);
+        }
+
+        // Construct stream filter
         tokio::pin! {
             let stream = receiver.into_stream()
                 .filter(Result::is_ok)
                 .map(Result::unwrap)
-                .filter(|msg| msg.src == src && msg.data.id == id);
+                .filter(|msg| msg.src == src && msg.dst == dst && msg.data.id == id);
         }
+
         // Wait on filtered messages
-        while let Some(msg) = stream.next().await {
-            match msg.data.ptype {
-                // Syncs signify a timeout as they are only sent when there is no HidIo traffic
-                // Some wait operations may take a while, so it might be necessary to skip syncs
-                // before timing out
-                hidio::HidIoPacketType::Sync => {
-                    if max_sync_packets == 0 {
-                        return Err(AckWaitError::TooManySyncs);
+        loop {
+            match tokio::time::timeout(*self.ack_timeout.read().unwrap(), stream.next()).await {
+                Ok(msg) => {
+                    if let Some(msg) = msg {
+                        match msg.data.ptype {
+                            hidio::HidIoPacketType::ACK => {
+                                return Ok(Some(msg));
+                            }
+                            // We may still want the message data from a NAK
+                            hidio::HidIoPacketType::NAK => {
+                                return Err(AckWaitError::NAKReceived { msg });
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        return Err(AckWaitError::Invalid);
                     }
-                    max_sync_packets -= 1;
                 }
-                hidio::HidIoPacketType::ACK => {
-                    return Ok(msg);
+                Err(_) => {
+                    warn!(
+                        "Timeout ({:?}) receiving ACK for: {}",
+                        self.ack_timeout.read().unwrap(),
+                        data
+                    );
+                    return Err(AckWaitError::Timeout);
                 }
-                // We may still want the message data from a NAK
-                hidio::HidIoPacketType::NAK => {
-                    return Err(AckWaitError::NAKReceived { msg });
-                }
-                // We don't care about data packets
-                hidio::HidIoPacketType::NAData | hidio::HidIoPacketType::NAContinued => {}
-                hidio::HidIoPacketType::Continued | hidio::HidIoPacketType::Data => {}
             }
         }
-        Err(AckWaitError::Invalid)
+    }
+
+    /// Convenience function to send a HidIo Command to device using the mailbox
+    /// Returns the ACK message if enabled.
+    /// This is the blocking version of send_command().
+    /// ACK will timeout if it exceeds self.ack_timeout
+    pub fn try_send_command(
+        &self,
+        src: Address,
+        dst: Address,
+        id: hidio::HidIoCommandID,
+        data: Vec<u8>,
+        ack: bool,
+    ) -> Result<Option<Message>, AckWaitError> {
+        // Select packet type
+        /* TODO Add firmware support for NAData
+        let ptype = if ack {
+            hidio::HidIoPacketType::Data
+        } else {
+            hidio::HidIoPacketType::NAData
+        };
+        */
+        let ptype = hidio::HidIoPacketType::Data;
+
+        // Construct command packet
+        let data = hidio::HidIoPacketBuffer {
+            ptype,
+            id,
+            max_len: 64, //..Defaults
+            data,
+            done: true,
+        };
+
+        // Check receiver count
+        if self.sender.receiver_count() == 0 {
+            error!("send_command (no active receivers)");
+            return Err(AckWaitError::NoActiveReceivers);
+        }
+
+        // Subscribe to messages before sending message, but this means we have to check the
+        // receiver count earlier
+        let mut receiver = self.sender.subscribe();
+
+        // Construct command message and broadcast
+        let result = self.sender.send(Message { src, dst, data });
+
+        if let Err(e) = result {
+            error!(
+                "send_command failed, something is odd, should not get here... {:?}",
+                e
+            );
+            return Err(AckWaitError::NoActiveReceivers);
+        }
+
+        // No ACK data packet command, no ACK to wait for
+        if !ack {
+            return Ok(None);
+        }
+
+        // Loop until we find the message we want
+        let start_time = std::time::Instant::now();
+        loop {
+            // Check for timeout
+            if start_time.elapsed() >= *self.ack_timeout.read().unwrap() {
+                warn!(
+                    "Timeout ({:?}) receiving ACK for command: src:{:?} dst:{:?}",
+                    *self.ack_timeout.read().unwrap(),
+                    src,
+                    dst
+                );
+                return Err(AckWaitError::Timeout);
+            }
+
+            // Attempt to receive message
+            match receiver.try_recv() {
+                Ok(msg) => {
+                    // Packet must have the same address as was sent, except reversed
+                    if msg.dst == src && msg.src == dst && msg.data.id == id {
+                        match msg.data.ptype {
+                            hidio::HidIoPacketType::ACK => {
+                                return Ok(Some(msg));
+                            }
+                            // We may still want the message data from a NAK
+                            hidio::HidIoPacketType::NAK => {
+                                return Err(AckWaitError::NAKReceived { msg });
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Err(broadcast::error::TryRecvError::Empty) => {
+                    // Sleep while queue is empty
+                    std::thread::yield_now();
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(broadcast::error::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
+                Err(broadcast::error::TryRecvError::Closed) => {
+                    // Channel has closed, this is very bad
+                    return Err(AckWaitError::ChannelClosed);
+                }
+            }
+        }
     }
 
     pub fn drop_subscriber(&self, uid: u64, sid: u64) {
@@ -346,8 +482,12 @@ impl Message {
     }
 }
 
+#[derive(Debug)]
 pub enum AckWaitError {
     TooManySyncs,
     NAKReceived { msg: Message },
     Invalid,
+    NoActiveReceivers,
+    Timeout,
+    ChannelClosed,
 }

@@ -21,6 +21,7 @@ use crate::common_capnp;
 use crate::mailbox;
 use crate::module::vhid;
 use crate::protocol::hidio;
+use std::sync::Arc;
 
 // TODO This should be converted to use hid-io/layouts (may need a rust package to handle
 // conversion)
@@ -867,12 +868,15 @@ impl EvdevDevice {
                                     };
 
                                     // Encode the message as a HidIo packet
-                                    self.mailbox.send_command(
-                                        mailbox::Address::DeviceHid { uid: self.uid },
-                                        mailbox::Address::All,
-                                        event_queue_command,
-                                        data,
-                                    );
+                                    self.mailbox
+                                        .try_send_command(
+                                            mailbox::Address::DeviceHid { uid: self.uid },
+                                            mailbox::Address::All,
+                                            event_queue_command,
+                                            data,
+                                            false,
+                                        )
+                                        .unwrap();
                                 }
                                 continue;
                             }
@@ -1218,7 +1222,7 @@ pub fn supported_ids() -> Vec<hidio::HidIoCommandID> {
 /// evdev initialization
 ///
 /// Sets up processing threads for udev and evdev.
-pub async fn initialize(_mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {
     info!("Initializing device/evdev...");
 
     // Spawn watcher thread (tokio)

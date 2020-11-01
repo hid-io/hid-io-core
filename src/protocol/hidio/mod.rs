@@ -812,7 +812,7 @@ impl fmt::Display for HidIoPacketBuffer {
 #[cfg(test)]
 mod test {
     use super::{hid_bitmask2vec, hid_vec2bitmask};
-    use super::{HidIoPacketBuffer, HidIoPacketType};
+    use super::{HidIoCommandID, HidIoPacketBuffer, HidIoPacketType};
 
     /// Loopback helper
     /// Serializes, deserializes, then checks if same as original
@@ -876,7 +876,7 @@ mod test {
             // Data packet
             ptype: HidIoPacketType::Data,
             // Test packet id
-            id: 2,
+            id: HidIoCommandID::TestPacket,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // Single byte, 0xAC
@@ -898,7 +898,7 @@ mod test {
             // Data packet
             ptype: HidIoPacketType::Data,
             // Test packet id
-            id: 2,
+            id: HidIoCommandID::TestPacket,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // 60 bytes, 0xAC; requires 2 byte header, and 2 bytes for id, which is 64 bytes
@@ -920,7 +920,7 @@ mod test {
             // Data packet
             ptype: HidIoPacketType::Data,
             // Test packet id
-            id: 2,
+            id: HidIoCommandID::TestPacket,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // 110 bytes, 0xAC: 60 then 50 (62 then 52)
@@ -942,7 +942,7 @@ mod test {
             // Data packet
             ptype: HidIoPacketType::Data,
             // Test packet id
-            id: 2,
+            id: HidIoCommandID::TestPacket,
             // Standard USB 2.0 FS packet length
             max_len: 64,
             // 170 bytes, 0xAC: 60, 60 then 50 (62, 62 then 52)

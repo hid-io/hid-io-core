@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 by Jacob Alexander
+/* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -16,17 +16,19 @@
  */
 
 #[cfg(target_os = "linux")]
-use hid_io_core::module::unicode::x11::*;
+use hid_io_core::module::displayserver::x11::*;
 
 #[cfg(target_os = "macos")]
-use hid_io_core::module::unicode::osx::*;
+use hid_io_core::module::displayserver::osx::*;
 
 #[cfg(target_os = "windows")]
-use hid_io_core::module::unicode::winapi::*;
+use hid_io_core::module::displayserver::winapi::*;
 
-use hid_io_core::module::unicode::UnicodeOutput;
+use hid_io_core::module::displayserver::DisplayOutput;
 
 pub fn main() {
+    hid_io_core::logging::setup_logging_lite().unwrap();
+
     #[cfg(target_os = "linux")]
     let mut connection = XConnection::new();
     #[cfg(target_os = "macos")]
@@ -34,5 +36,15 @@ pub fn main() {
     #[cfg(target_os = "windows")]
     let mut connection = DisplayConnection::new();
 
-    connection.type_string("💣💩🔥");
+    connection.type_string("💣💩🔥").unwrap(); // Test unicode
+    connection.type_string("abc💣💩🔥").unwrap(); // Test quickly repeated unicode
+    connection.type_string("\n").unwrap(); // Test enter
+    connection.type_string("carg\t --help\n").unwrap(); // Test tab and command
+
+    connection.set_held("def").unwrap();
+    connection.set_held("gアi").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1000)); // Test hold
+    connection.set_held("gア").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(1000)); // Test partial release
+    connection.set_held("").unwrap();
 }

@@ -306,6 +306,7 @@ impl Endpoint {
 
     pub fn set_daemonnode_params(&mut self) {
         self.name = "HID-IO Core Daemon Node".to_string();
+        self.serial = format!("pid:{}", std::process::id());
     }
 
     pub fn set_evdev_params(&mut self, info: EvdevInfo) {
@@ -875,13 +876,33 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 let cmd = params.get_command().unwrap();
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
-                self.mailbox.send_command(
+                match self.mailbox.try_send_command(
                     src,
                     dst,
                     HidIoCommandID::Terminal,
                     cmd.as_bytes().to_vec(),
-                );
-                Promise::ok(())
+                    //true,
+                    false, // TODO ACK Should work (firmware bug?)
+                ) {
+                    Ok(_msg) => {
+                        // TODO (HaaTa): FIXME This should have an ACK
+                        /*
+                        if let Some(msg) = msg {
+                            Promise::ok(())
+                        } else {
+                            Promise::err(capnp::Error {
+                            kind: capnp::ErrorKind::Failed,
+                            description: format!("No ACK received (cli_command)"),
+                            })
+                        }
+                        */
+                        Promise::ok(())
+                    }
+                    Err(e) => Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: format!("Error (cli_command): {:?}", e),
+                    }),
+                }
             }
             _ => Promise::err(capnp::Error {
                 kind: capnp::ErrorKind::Failed,
@@ -899,19 +920,18 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             AuthLevel::Secure | AuthLevel::Debug => {
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
-                self.mailbox
-                    .send_command(src, dst, HidIoCommandID::SleepMode, vec![]);
 
                 // Wait for ACK/NAK
-                let res = tokio::runtime::Runtime::new()
-                    .unwrap()
-                    .block_on(self.mailbox.ack_wait(dst, HidIoCommandID::FlashMode, 0));
+                let res = self.mailbox.try_send_command(
+                    src,
+                    dst,
+                    HidIoCommandID::SleepMode,
+                    vec![],
+                    true,
+                );
+
                 match res {
                     Ok(_msg) => Promise::ok(()),
-                    Err(mailbox::AckWaitError::TooManySyncs) => Promise::err(capnp::Error {
-                        kind: capnp::ErrorKind::Failed,
-                        description: "sleep_mode - Too many syncs...timeout".to_string(),
-                    }),
                     Err(mailbox::AckWaitError::NAKReceived { msg }) => {
                         match msg.data.data.first() {
                             Some(0x0) => {
@@ -946,9 +966,9 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                             }),
                         }
                     }
-                    Err(mailbox::AckWaitError::Invalid) => Promise::err(capnp::Error {
+                    Err(e) => Promise::err(capnp::Error {
                         kind: capnp::ErrorKind::Failed,
-                        description: "sleep_mode - Invalid response".to_string(),
+                        description: format!("Error (sleep_mode): {:?}", e),
                     }),
                 }
             }
@@ -969,26 +989,32 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
                 // Send command
-                self.mailbox
-                    .send_command(src, dst, HidIoCommandID::FlashMode, vec![]);
+                let res = self.mailbox.try_send_command(
+                    src,
+                    dst,
+                    HidIoCommandID::FlashMode,
+                    vec![],
+                    true,
+                );
 
                 // Wait for ACK/NAK
-                let res = tokio::runtime::Runtime::new()
-                    .unwrap()
-                    .block_on(self.mailbox.ack_wait(dst, HidIoCommandID::FlashMode, 0));
                 match res {
                     Ok(msg) => {
-                        // Convert byte stream to u16 TODO Should handle better
-                        let scancode = ((msg.data.data[0] as u16) << 8) | msg.data.data[1] as u16;
-                        let status = results.get().init_status();
-                        let mut success = status.init_success();
-                        success.set_scan_code(scancode);
-                        Promise::ok(())
+                        if let Some(msg) = msg {
+                            // Convert byte stream to u16 TODO Should handle better
+                            let scancode =
+                                ((msg.data.data[0] as u16) << 8) | msg.data.data[1] as u16;
+                            let status = results.get().init_status();
+                            let mut success = status.init_success();
+                            success.set_scan_code(scancode);
+                            Promise::ok(())
+                        } else {
+                            Promise::err(capnp::Error {
+                                kind: capnp::ErrorKind::Failed,
+                                description: "Error no ACK (flash_mode)".to_string(),
+                            })
+                        }
                     }
-                    Err(mailbox::AckWaitError::TooManySyncs) => Promise::err(capnp::Error {
-                        kind: capnp::ErrorKind::Failed,
-                        description: "flash_mode - Too many syncs...timeout".to_string(),
-                    }),
                     Err(mailbox::AckWaitError::NAKReceived { msg }) => {
                         match msg.data.data.first() {
                             Some(0x0) => {
@@ -1015,9 +1041,9 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                             }),
                         }
                     }
-                    Err(mailbox::AckWaitError::Invalid) => Promise::err(capnp::Error {
+                    Err(e) => Promise::err(capnp::Error {
                         kind: capnp::ErrorKind::Failed,
-                        description: "flash_mode - Invalid response".to_string(),
+                        description: format!("Error (flash_mode): {:?}", e),
                     }),
                 }
             }
@@ -1215,6 +1241,74 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
 
         self.subscriptions.write().unwrap().daemon_node_next_id += 1;
         Promise::ok(())
+    }
+
+    fn unicode_string(
+        &mut self,
+        params: daemon_capnp::daemon::UnicodeStringParams,
+        mut _results: daemon_capnp::daemon::UnicodeStringResults,
+    ) -> Promise<(), Error> {
+        let params = params.get().unwrap();
+        let string = params.get_string().unwrap();
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::Module;
+
+        match self.mailbox.try_send_command(
+            src,
+            dst,
+            HidIoCommandID::UnicodeText,
+            string.as_bytes().to_vec(),
+            true,
+        ) {
+            Ok(msg) => {
+                if let Some(_msg) = msg {
+                    Promise::ok(())
+                } else {
+                    Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: "No ACK received (unicode_string)".to_string(),
+                    })
+                }
+            }
+            Err(e) => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: format!("Error (unicode_string): {:?}", e),
+            }),
+        }
+    }
+
+    fn unicode_keys(
+        &mut self,
+        params: daemon_capnp::daemon::UnicodeKeysParams,
+        mut _results: daemon_capnp::daemon::UnicodeKeysResults,
+    ) -> Promise<(), Error> {
+        let params = params.get().unwrap();
+        let string = params.get_characters().unwrap();
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::Module;
+
+        match self.mailbox.try_send_command(
+            src,
+            dst,
+            HidIoCommandID::UnicodeKey,
+            string.as_bytes().to_vec(),
+            true,
+        ) {
+            Ok(msg) => {
+                if let Some(_msg) = msg {
+                    Promise::ok(())
+                } else {
+                    Promise::err(capnp::Error {
+                        kind: capnp::ErrorKind::Failed,
+                        description: "No ACK received (unicode_keys)".to_string(),
+                    })
+                }
+            }
+            Err(e) => Promise::err(capnp::Error {
+                kind: capnp::ErrorKind::Failed,
+                description: format!("Error (unicode_keys): {:?}", e),
+            }),
+        }
     }
 }
 
@@ -1926,18 +2020,28 @@ pub fn supported_ids() -> Vec<HidIoCommandID> {
 /// Cap'n'Proto API Initialization
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Some API usages may require external authentication to validate trustworthiness
-pub async fn initialize(mailbox: mailbox::Mailbox) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing api...");
-    let subscriptions = Arc::new(RwLock::new(Subscriptions::new()));
 
-    let local = tokio::task::LocalSet::new();
+    // This confusing block spawns a dedicated thread, and then runs a task LocalSet inside of it
+    // This is required to avoid the use of the Send trait.
+    // hid-io-core requires multiple threads like this which can dead-lock each other if run from
+    // the same thread (which is the default behaviour of task LocalSet spawn_local)
+    rt.clone()
+        .spawn_blocking(move || {
+            rt.block_on(async {
+                let subscriptions = Arc::new(RwLock::new(Subscriptions::new()));
 
-    // Start server
-    local.spawn_local(server_bind(mailbox.clone(), subscriptions.clone()));
+                let local = tokio::task::LocalSet::new();
 
-    // Start subscription thread
-    local.spawn_local(server_subscriptions(mailbox, subscriptions));
-    local.await;
+                // Start server
+                local.spawn_local(server_bind(mailbox.clone(), subscriptions.clone()));
 
-    Ok(())
+                // Start subscription thread
+                local.spawn_local(server_subscriptions(mailbox, subscriptions));
+                local.await;
+            });
+        })
+        .await
+        .unwrap();
 }

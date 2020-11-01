@@ -22,6 +22,7 @@ use crate::RUNNING;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Instant;
 
 pub const USAGE_PAGE: u16 = 0xFF1C;
@@ -29,7 +30,7 @@ pub const USAGE: u16 = 0x1100;
 
 const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY: u64 = 1000;
-const POLL_DELAY: u64 = 10;
+const POLL_DELAY: u64 = 10; // TODO (HaaTa) Implement native polling, much much faster and more efficient
 
 pub struct HIDAPIDevice {
     device: ::hidapi::HidDevice,
@@ -349,10 +350,17 @@ async fn processing(mut mailbox: mailbox::Mailbox) {
 /// hidapi initialization
 ///
 /// Sets up a processing thread for hidapi.
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing device/hidapi...");
 
     // Spawn watcher thread (tokio)
-    let local = tokio::task::LocalSet::new();
-    local.run_until(processing(mailbox)).await;
+    rt.clone()
+        .spawn_blocking(move || {
+            rt.block_on(async {
+                let local = tokio::task::LocalSet::new();
+                local.run_until(processing(mailbox)).await;
+            });
+        })
+        .await
+        .unwrap();
 }

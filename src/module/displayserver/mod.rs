@@ -31,6 +31,7 @@ use crate::mailbox;
 use crate::protocol::hidio::*;
 use crate::RUNNING;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use tokio::stream::StreamExt;
 
 #[cfg(all(feature = "unicode", target_os = "linux"))]
@@ -147,95 +148,112 @@ pub fn supported_ids() -> Vec<HidIoCommandID> {
     ]
 }
 
+async fn process(mailbox: mailbox::Mailbox) {
+    // Top-level module setup
+    let mut module = Module::new();
+
+    // Setup receiver stream
+    let sender = mailbox.clone().sender.clone();
+    let receiver = sender.clone().subscribe();
+    tokio::pin! {
+        let stream = receiver.into_stream()
+            .filter(Result::is_ok).map(Result::unwrap)
+            .filter(|msg| msg.dst == mailbox::Address::Module)
+            .filter(|msg| supported_ids().contains(&msg.data.id))
+            .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
+    }
+
+    // Process filtered message stream
+    while let Some(msg) = stream.next().await {
+        let mydata = msg.data.data.clone();
+        debug!("Processing command: {:?}", msg.data.id);
+        match msg.data.id {
+            HidIoCommandID::UnicodeText => {
+                let s = String::from_utf8(mydata).unwrap();
+                debug!("UnicodeText (start): {}", s);
+                match module.display.type_string(&s) {
+                    Ok(_) => {
+                        msg.send_ack(sender.clone(), vec![]);
+                    }
+                    Err(_) => {
+                        warn!("Failed to type Unicode string");
+                        msg.send_nak(sender.clone(), vec![]);
+                    }
+                }
+                debug!("UnicodeText (done): {}", s);
+            }
+            HidIoCommandID::UnicodeKey => {
+                let s = String::from_utf8(mydata).unwrap();
+                debug!("UnicodeKey (start): {}", s);
+                match module.display.set_held(&s) {
+                    Ok(_) => {
+                        msg.send_ack(sender.clone(), vec![]);
+                    }
+                    Err(_) => {
+                        warn!("Failed to set Unicode key");
+                        msg.send_nak(sender.clone(), vec![]);
+                    }
+                }
+                debug!("UnicodeKey (done): {}", s);
+            }
+            HidIoCommandID::GetInputLayout => {
+                debug!("GetInputLayout (start)");
+                match module.display.get_layout() {
+                    Ok(layout) => {
+                        info!("Current layout: {}", layout);
+                        msg.send_ack(sender.clone(), layout.as_bytes().to_vec());
+                    }
+                    Err(_) => {
+                        warn!("Failed to get input layout");
+                        msg.send_nak(sender.clone(), vec![]);
+                    }
+                }
+                debug!("GetInputLayout (done)");
+            }
+            HidIoCommandID::SetInputLayout => {
+                let s = String::from_utf8(mydata).unwrap();
+                debug!("SetInputLayout (start): {}", s);
+                /* TODO - Setting layout is more complicated for X11 (and Wayland)
+                info!("Setting language to {}", s);
+                msg.send_ack(sender.clone(), vec![]);
+                */
+                warn!("Not implemented");
+                msg.send_nak(sender.clone(), vec![]);
+                debug!("SetInputLayout (done): {}", s);
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Display Server initialization
 /// The display server module selection the OS native display server to start.
 /// Depending on the native display server not all of the functionality may be available.
-pub async fn initialize(mailbox: mailbox::Mailbox) {
+pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     // Setup local thread
-    // Due to some of the setup in the Module struct we need to run processing in the same local
-    // thread.
-    let local = tokio::task::LocalSet::new();
-    local.spawn_local(async move {
+    // This confusing block spawns a dedicated thread, and then runs a task LocalSet inside of it
+    // This is required to avoid the use of the Send trait.
+    // hid-io-core requires multiple threads like this which can dead-lock each other if run from
+    // the same thread (which is the default behaviour of task LocalSet spawn_local)
+    rt.clone()
+        .spawn_blocking(move || {
+            rt.block_on(async {
+                let local = tokio::task::LocalSet::new();
+                local.spawn_local(process(mailbox));
 
-        // Top-level module setup
-        let mut module = Module::new();
-
-        // Setup receiver stream
-        let sender = mailbox.clone().sender.clone();
-        let receiver = sender.clone().subscribe();
-        tokio::pin! {
-            let stream = receiver.into_stream()
-                .filter(Result::is_ok).map(Result::unwrap)
-                .filter(|msg| msg.src == mailbox::Address::Module)
-                .filter(|msg| supported_ids().contains(&msg.data.id))
-                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
-        }
-
-        // Process filtered message stream
-        // TODO Handle error conditions
-        while let Some(msg) = stream.next().await {
-            let mydata = msg.data.data.clone();
-            debug!("Processing command: {:?}", msg.data.id);
-            match msg.data.id {
-                HidIoCommandID::UnicodeText => {
-                    let s = String::from_utf8(mydata).unwrap();
-                    match module.display.type_string(&s) {
-                        Ok(_) => {
-                            msg.send_ack(sender.clone(), vec![]);
+                // Wait for exit signal before cleaning up
+                local
+                    .run_until(async move {
+                        loop {
+                            if !RUNNING.load(Ordering::SeqCst) {
+                                break;
+                            }
+                            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                         }
-                        Err(_) => {
-                            warn!("Failed to type Unicode string");
-                            msg.send_nak(sender.clone(), vec![]);
-                        }
-                    }
-                }
-                HidIoCommandID::UnicodeKey => {
-                    let s = String::from_utf8(mydata).unwrap();
-                    match module.display.set_held(&s) {
-                        Ok(_) => {
-                            msg.send_ack(sender.clone(), vec![]);
-                        }
-                        Err(_) => {
-                            warn!("Failed to set Unicode key");
-                            msg.send_nak(sender.clone(), vec![]);
-                        }
-                    }
-                }
-                HidIoCommandID::GetInputLayout => {
-                    match module.display.get_layout() {
-                        Ok(layout) => {
-                            info!("Current layout: {}", layout);
-                            msg.send_ack(sender.clone(), layout.as_bytes().to_vec());
-                        }
-                        Err(_) => {
-                            warn!("Failed to get input layout");
-                            msg.send_nak(sender.clone(), vec![]);
-                        }
-                    }
-                }
-                HidIoCommandID::SetInputLayout => {
-                    /* TODO - Setting layout is more complicated for X11 (and Wayland)
-                    let s = String::from_utf8(mydata).unwrap();
-                    info!("Setting language to {}", s);
-                    msg.send_ack(sender.clone(), vec![]);
-                    */
-                    warn!("Not implemented");
-                    msg.send_nak(sender.clone(), vec![]);
-                }
-                _ => {}
-            }
-        }
-    });
-
-    // Wait for exit signal before cleaning up
-    local
-        .run_until(async move {
-            loop {
-                if !RUNNING.load(Ordering::SeqCst) {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-            }
+                    })
+                    .await;
+            });
         })
-        .await;
+        .await
+        .unwrap();
 }

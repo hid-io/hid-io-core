@@ -23,6 +23,7 @@ use std::env;
 pub fn setup_logging() {
     Logger::with_env_or_str("")
         .log_to_file()
+        //.format(flexi_logger::colored_detailed_format)
         .format(flexi_logger::colored_default_format)
         .format_for_files(flexi_logger::colored_detailed_format)
         .directory(env::temp_dir())
