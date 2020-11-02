@@ -113,7 +113,9 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
                                 "ios" => HostOSID::IOS,
                                 "linux" => HostOSID::Linux,
                                 "android" => HostOSID::Android,
-                                "freebsd" | "openbsd" | "netbsd" => HostOSID::Linux,
+                                "freebsd" => HostOSID::FreeBSD,
+                                "openbsd" => HostOSID::OpenBSD,
+                                "netbsd" => HostOSID::NetBSD,
                                 _ => HostOSID::Unknown,
                             };
                             msg.send_ack(sender.clone(), vec![os as u8]);

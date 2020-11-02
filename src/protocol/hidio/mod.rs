@@ -115,6 +115,9 @@ pub enum HostOSID {
     Mac = 0x04,
     IOS = 0x05,
     ChromeOS = 0x06,
+    FreeBSD = 0x07,
+    OpenBSD = 0x08,
+    NetBSD = 0x09,
 }
 
 // ----- Structs -----

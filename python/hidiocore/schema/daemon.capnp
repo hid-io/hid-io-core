@@ -54,6 +54,20 @@ interface Daemon extends(Common.Node) {
         }
     }
 
+    struct Info {
+        hidioMajorVersion @0 :UInt16;
+        hidioMinorVersion @1 :UInt16;
+        hidioPatchVersion @2 :UInt16;
+        # HID-IO Version information
+
+        os @3 :Text;
+        osVersion @4 :Text;
+        # OS name and version running the daemon
+
+        hostName @5 :Text;
+        # Name of the daemon
+    }
+
     struct SubscriptionOption {
         type @0 :SubscriptionOptionType;
 
@@ -102,6 +116,10 @@ interface Daemon extends(Common.Node) {
     # e.g.
     #  unicodeKeys("abcd") -> Holds abcd
     #  unicodeKeys("d") -> Releases abc but keeps d held
+
+    info @3 () -> (info: Info);
+    # Returns system and daemon information
+    # Mirrors what's available to HID-IO devices
 
     # Unicode
     # TODO

@@ -1358,6 +1358,26 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             }),
         }
     }
+
+    fn info(
+        &mut self,
+        _params: daemon_capnp::daemon::InfoParams,
+        mut results: daemon_capnp::daemon::InfoResults,
+    ) -> Promise<(), Error> {
+        let mut info = results.get().init_info();
+        // Set version info
+        info.set_hidio_major_version(built_info::PKG_VERSION_MAJOR.parse::<u16>().unwrap());
+        info.set_hidio_minor_version(built_info::PKG_VERSION_MINOR.parse::<u16>().unwrap());
+        info.set_hidio_patch_version(built_info::PKG_VERSION_PATCH.parse::<u16>().unwrap());
+
+        // Set OS info
+        info.set_os(built_info::CFG_OS);
+        info.set_os_version(&sys_info::os_release().unwrap());
+
+        // Set daemon name
+        info.set_host_name(built_info::PKG_NAME);
+        Promise::ok(())
+    }
 }
 
 struct DaemonSubscriberHandle {
