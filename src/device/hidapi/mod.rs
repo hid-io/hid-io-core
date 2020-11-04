@@ -21,31 +21,32 @@ use crate::device::*;
 use crate::RUNNING;
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Instant;
+use std::sync::{Arc, RwLock};
 
 pub const USAGE_PAGE: u16 = 0xFF1C;
 pub const USAGE: u16 = 0x1100;
 
 const USB_FULLSPEED_PACKET_SIZE: usize = 64;
-const ENUMERATE_DELAY: u64 = 1000;
-const POLL_DELAY: u64 = 10; // TODO (HaaTa) Implement native polling, much much faster and more efficient
+const ENUMERATE_DELAY_MS: u64 = 1000;
+const TIMEOUT_MS: i32 = 500;
 
 pub struct HIDAPIDevice {
     device: ::hidapi::HidDevice,
+    timeout: i32,
 }
 
 impl HIDAPIDevice {
-    pub fn new(device: ::hidapi::HidDevice) -> HIDAPIDevice {
-        device.set_blocking_mode(false).unwrap();
-        HIDAPIDevice { device }
+    pub fn new(device: ::hidapi::HidDevice, timeout: i32) -> HIDAPIDevice {
+        device.set_blocking_mode(true).unwrap(); // Enable blocking mode, use timeouts to unblock
+        HIDAPIDevice { device, timeout }
     }
 }
 
 impl std::io::Read for HIDAPIDevice {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        match self.device.read(buf) {
+        match self.device.read_timeout(buf, self.timeout) {
             Ok(len) => {
                 if len > 0 {
                     trace!("Received {} bytes", len);
@@ -160,190 +161,165 @@ fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
 /// The thread also handles reading/writing from connected interfaces
 ///
 /// XXX (HaaTa) hidapi is not thread-safe on all platforms, so don't try to create a thread per device
-async fn processing(mut mailbox: mailbox::Mailbox) {
+async fn processing(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Spawning hidapi spawning thread...");
 
     // Initialize HID interface
-    let mut api = ::hidapi::HidApi::new().expect("HID API object creation failed");
+    let mut api: ::hidapi::HidApi =
+        ::hidapi::HidApi::new().expect("HID API object creation failed");
 
-    let mut devices: Vec<HidIoController> = vec![];
-
-    let mut last_scan = Instant::now();
-    let mut enumerate = true;
+    // List of allocated device uids
+    let uids: Arc<RwLock<HashMap<u64, tokio::task::JoinHandle<()>>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 
     // Loop infinitely, the watcher only exits if the daemon is quit
+    // TODO (HaaTa) - There should be a better way using hotplug events (e.g. udev) in a cross
+    // platform way
     loop {
-        while enumerate {
-            if !RUNNING.load(Ordering::SeqCst) {
-                return;
+        if !RUNNING.load(Ordering::SeqCst) {
+            return;
+        }
+
+        // Refresh devices list
+        api.refresh_devices().unwrap();
+
+        // Iterate over found USB interfaces and select usable ones
+        debug!("Scanning for devices");
+        for device_info in api.device_list() {
+            let device_str = format!(
+                "Device: {:#?}\n    {} R:{}",
+                device_info.path(),
+                device_name(device_info),
+                device_info.release_number()
+            );
+            debug!("{}", device_str);
+
+            // Use usage page and usage for matching HID-IO compatible device
+            if !match_device(device_info) {
+                continue;
             }
 
-            // Refresh devices list
-            api.refresh_devices().unwrap();
+            // Build set of HID info to make unique comparisons
+            let mut info = HIDAPIInfo::new(device_info);
 
-            // Iterate over found USB interfaces and select usable ones
-            debug!("Scanning for devices");
-            for device_info in api.device_list() {
-                let device_str = format!(
-                    "Device: {:#?}\n    {} R:{}",
-                    device_info.path(),
-                    device_name(device_info),
-                    device_info.release_number()
-                );
-                debug!("{}", device_str);
-
-                // Use usage page and usage for matching HID-IO compatible device
-                if !match_device(device_info) {
+            // Determine if id can be reused
+            // Criteria
+            // 1. Must match (even if field isn't valid)
+            //    vid, pid, usage page, usage, manufacturer, product, serial, interface
+            // 2. Must not currently be in use (generally, use path to differentiate)
+            let key = info.key();
+            let uid = match mailbox
+                .clone()
+                .assign_uid(key.clone(), format!("{:#?}", device_info.path()))
+            {
+                Ok(uid) => uid,
+                Err(_) => {
+                    // Device has already been registered, or is invalid
                     continue;
                 }
+            };
 
-                // Build set of HID info to make unique comparisons
-                let mut info = HIDAPIInfo::new(device_info);
+            // If serial number is a MAC address, this is a bluetooth device
+            lazy_static! {
+                static ref RE: Regex =
+                    Regex::new(r"([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])").unwrap();
+            }
+            let is_ble = RE.is_match(match device_info.serial_number() {
+                Some(s) => s,
+                _ => "",
+            });
 
-                // Determine if id can be reused
-                // Criteria
-                // 1. Must match (even if field isn't valid)
-                //    vid, pid, usage page, usage, manufacturer, product, serial, interface
-                // 2. Must not currently be in use (generally, use path to differentiate)
-                let key = info.key();
-                let uid =
-                    match mailbox.assign_uid(key.clone(), format!("{:#?}", device_info.path())) {
-                        Ok(uid) => uid,
-                        Err(_) => {
-                            // Device has already been registered, or is invalid
-                            continue;
-                        }
-                    };
+            // Basically, we need to copy the path string to deal with lifetime issues
+            let device_path = std::ffi::CString::new(device_info.path().to_bytes())
+                .expect("hidapi path generation failed");
 
-                // Check to see if already connected
-                if devices.iter().any(|dev| dev.uid == uid) {
-                    continue;
-                }
-
+            // Start thread if uid not it map (i.e. not already processing)
+            if !uids.clone().read().unwrap().contains_key(&uid) {
                 // Add device
                 info!("Connecting to uid:{} {}", uid, device_str);
 
-                // If serial number is a MAC address, this is a bluetooth device
-                lazy_static! {
-                    static ref RE: Regex =
-                        Regex::new(r"([0-9a-fA-F][0-9a-fA-F]:){5}([0-9a-fA-F][0-9a-fA-F])")
-                            .unwrap();
-                }
-                let is_ble = RE.is_match(match device_info.serial_number() {
-                    Some(s) => s,
-                    _ => "",
+                // Connect to device
+                let hid_device = api.open_path(&device_path);
+
+                // Start thread
+                let uids = uids.clone();
+                let uids_outer = uids.clone();
+                let mailbox = mailbox.clone();
+                let handle = rt.clone().spawn_blocking(move || {
+                    // Create node
+                    let mut node = Endpoint::new(
+                        if is_ble {
+                            NodeType::BleKeyboard
+                        } else {
+                            NodeType::UsbKeyboard
+                        },
+                        uid,
+                    );
+                    node.set_hidapi_params(info);
+
+                    // Setup device
+                    debug!("Attempting to setup {:#?}", node);
+                    match hid_device {
+                        Ok(device) => {
+                            println!("Connected to {}", node);
+                            let device = HIDAPIDevice::new(device, TIMEOUT_MS);
+                            let mut device = HidIoEndpoint::new(
+                                Box::new(device),
+                                USB_FULLSPEED_PACKET_SIZE as u32,
+                            );
+
+                            // Attempt to synchronize device (sync packet)
+                            if let Err(e) = device.send_sync() {
+                                // Could not open device (likely removed, or in use)
+                                warn!("Failed to sync device - {}", e);
+                            } else {
+                                // Setup device controller (handles communication and protocol conversion
+                                // for the HidIo device)
+                                let mut master = HidIoController::new(mailbox.clone(), uid, device);
+
+                                // Add device to node list
+                                mailbox.nodes.write().unwrap().push(node);
+
+                                loop {
+                                    // Stop processing, daemon trying to quit
+                                    if !RUNNING.load(Ordering::SeqCst) {
+                                        break;
+                                    }
+
+                                    // Process loop for device
+                                    let ret = master.process();
+                                    if ret.is_err() {
+                                        info!("{} disconnected. No longer polling it", uid);
+                                        // Remove handle from map
+                                        uids.write().unwrap().remove(&uid);
+
+                                        // Remove node from index
+                                        {
+                                            let mut nodes = mailbox.nodes.write().unwrap();
+                                            let index =
+                                                nodes.iter().position(|x| x.uid == uid).unwrap();
+                                            nodes.remove(index);
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            // Could not open device (likely removed, or in use)
+                            warn!("Failed to open device:{:?} - {}", device_path, e);
+                        }
+                    };
                 });
 
-                // Create node
-                let mut node = Endpoint::new(
-                    if is_ble {
-                        NodeType::BleKeyboard
-                    } else {
-                        NodeType::UsbKeyboard
-                    },
-                    uid,
-                );
-                node.set_hidapi_params(info);
-
-                // Connect to device
-                debug!("Attempt to open {:#?}", node);
-                match api.open_path(device_info.path()) {
-                    Ok(device) => {
-                        println!("Connected to {}", node);
-                        let device = HIDAPIDevice::new(device);
-                        let mut device =
-                            HidIoEndpoint::new(Box::new(device), USB_FULLSPEED_PACKET_SIZE as u32);
-
-                        if let Err(e) = device.send_sync() {
-                            // Could not open device (likely removed, or in use)
-                            warn!("Processing - {}", e);
-                            continue;
-                        }
-
-                        // Setup device controller (handles communication and protocol conversion
-                        // for the HidIo device)
-                        let master = HidIoController::new(mailbox.clone(), uid, device);
-                        devices.push(master);
-
-                        // Add device to node list
-                        mailbox.nodes.write().unwrap().push(node);
-                    }
-                    Err(e) => {
-                        // Could not open device (likely removed, or in use)
-                        warn!("Processing - {}", e);
-                        continue;
-                    }
-                };
-            }
-
-            // Update scan time
-            last_scan = Instant::now();
-
-            if !devices.is_empty() {
-                debug!("Enumeration finished");
-                enumerate = false;
-            } else {
-                // Sleep so we don't starve the CPU
-                // TODO (HaaTa) - There should be a better way to watch the ports, but still be responsive
-                // XXX - Rewrite hidapi with rust and include async
-                tokio::time::sleep(std::time::Duration::from_millis(ENUMERATE_DELAY)).await;
+                // Add uid to hashmap
+                uids_outer.write().unwrap().insert(uid, handle);
             }
         }
 
-        loop {
-            if !RUNNING.load(Ordering::SeqCst) {
-                return;
-            }
-
-            if devices.is_empty() {
-                info!("No connected devices. Forcing scan");
-                enumerate = true;
-                break;
-            }
-
-            // TODO (HaaTa): Make command-line argument/config option
-            if last_scan.elapsed().as_millis() >= 1000 {
-                enumerate = true;
-                break;
-            }
-
-            // Process devices
-            let mut removed_devices = vec![];
-            let mut io_events: usize = 0;
-            devices = devices
-                .drain_filter(|dev| {
-                    // Check if disconnected
-                    let ret = dev.process();
-                    let result = ret.is_ok();
-                    if ret.is_err() {
-                        removed_devices.push(dev.uid);
-                        info!("{} disconnected. No longer polling it", dev.uid);
-                    } else {
-                        // Record io events (used to schedule sleeps)
-                        io_events += ret.ok().unwrap();
-                    }
-                    result
-                })
-                .collect::<Vec<_>>();
-
-            // Modify nodes list to remove any uids that were disconnected
-            // uids are unique across both api and devices, so this is always safe to do
-            if !removed_devices.is_empty() {
-                let new_nodes = mailbox
-                    .nodes
-                    .read()
-                    .unwrap()
-                    .clone()
-                    .drain_filter(|node| !removed_devices.contains(&node.uid()))
-                    .collect::<Vec<_>>();
-                *mailbox.nodes.write().unwrap() = new_nodes;
-            }
-
-            // If there was any IO, on any of the devices, do not sleep, only sleep when all devices are idle
-            if io_events == 0 {
-                tokio::time::sleep(std::time::Duration::from_millis(POLL_DELAY)).await;
-            }
-        }
+        // Sleep so we don't starve the CPU
+        // XXX - Rewrite hidapi with rust and include async
+        tokio::time::sleep(std::time::Duration::from_millis(ENUMERATE_DELAY_MS)).await;
     }
 }
 
@@ -358,7 +334,7 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
         .spawn_blocking(move || {
             rt.block_on(async {
                 let local = tokio::task::LocalSet::new();
-                local.run_until(processing(mailbox)).await;
+                local.run_until(processing(rt.clone(), mailbox)).await;
             });
         })
         .await

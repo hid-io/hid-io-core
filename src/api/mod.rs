@@ -239,7 +239,7 @@ pub struct Endpoint {
     type_: common_capnp::NodeType,
     name: String,   // Used for hidio (e.g. hidioDaemon, hidioApi) types
     serial: String, // Used for hidio (e.g. hidioDaemon, hidioApi) types
-    uid: u64,
+    pub uid: u64,
     created: Instant,
     hidapi: HIDAPIInfo,
     evdev: EvdevInfo,
