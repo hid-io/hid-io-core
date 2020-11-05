@@ -860,6 +860,55 @@ impl KeyboardNodeImpl {
             subscriptions,
         }
     }
+
+    fn request_info_u16(&mut self, id: u8) -> Option<u16> {
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+        // Send command
+        let res = self
+            .mailbox
+            .try_send_command(src, dst, HidIoCommandID::GetInfo, vec![id], true);
+
+        // Wait for ACK/NAK
+        match res {
+            Ok(msg) => {
+                if let Some(msg) = msg {
+                    let mut data = [0u8; 2];
+                    data.clone_from_slice(&msg.data.data[..=2]);
+                    Some(u16::from_le_bytes(data))
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        }
+    }
+
+    fn request_info_string(&mut self, id: u8) -> Option<String> {
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+        // Send command
+        let res = self
+            .mailbox
+            .try_send_command(src, dst, HidIoCommandID::GetInfo, vec![id], true);
+
+        // Wait for ACK/NAK
+        match res {
+            Ok(msg) => {
+                if let Some(msg) = msg {
+                    match std::str::from_utf8(&msg.data.data) {
+                        Ok(val) => Some(val.to_string()),
+                        Err(_) => None,
+                    }
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        }
+    }
 }
 
 impl common_capnp::node::Server for KeyboardNodeImpl {}
@@ -1100,6 +1149,52 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 description: "Insufficient authorization level".to_string(),
             }),
         }
+    }
+
+    fn info(
+        &mut self,
+        _params: hidio_capnp::node::InfoParams,
+        mut results: hidio_capnp::node::InfoResults,
+    ) -> Promise<(), Error> {
+        let mut info = results.get().init_info();
+
+        // Get version info
+        if let Some(val) = self.request_info_u16(0x00) {
+            info.set_hidio_major_version(val)
+        }
+        if let Some(val) = self.request_info_u16(0x01) {
+            info.set_hidio_minor_version(val)
+        }
+        if let Some(val) = self.request_info_u16(0x02) {
+            info.set_hidio_patch_version(val)
+        }
+
+        // Get device info
+        if let Some(val) = self.request_info_string(0x03) {
+            info.set_device_name(&val)
+        }
+        if let Some(val) = self.request_info_string(0x04) {
+            info.set_device_serial(&val)
+        }
+        if let Some(val) = self.request_info_string(0x05) {
+            info.set_device_version(&val)
+        }
+        if let Some(val) = self.request_info_string(0x06) {
+            info.set_device_mcu(&val)
+        }
+        if let Some(val) = self.request_info_string(0x09) {
+            info.set_device_vendor(&val)
+        }
+
+        // Get firmware info
+        if let Some(val) = self.request_info_string(0x07) {
+            info.set_firmware_name(&val)
+        }
+        if let Some(val) = self.request_info_string(0x08) {
+            info.set_firmware_version(&val)
+        }
+
+        Promise::ok(())
     }
 }
 

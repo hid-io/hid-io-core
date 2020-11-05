@@ -215,6 +215,37 @@ interface Node extends(Common.Node) {
         }
     }
 
+    struct Info {
+        # Result of an info command
+
+        hidioMajorVersion @0 :UInt16;
+        hidioMinorVersion @1 :UInt16;
+        hidioPatchVersion @2 :UInt16;
+        # HID-IO Version information (supported version)
+
+        deviceName @3 :Text;
+        # Name of the device
+
+        deviceVendor @9 :Text;
+        # Name of the vendor of the device
+
+        deviceSerial @4 :Text;
+        # Serial number of the device
+
+        deviceVersion @5 :Text;
+        # Version of the device
+        # (this is sometimes used if different firmware is necessary for different generations of the same device)
+
+        deviceMcu @6 :Text;
+        # MCU of the device (there maybe be multiple)
+
+        firmwareName @7 :Text;
+        # Name of the firmware (e.g. kiibohd, QMK, etc.)
+
+        firmwareVersion @8 :Text;
+        # Firmware version
+    }
+
 
     cliCommand @0 (command :Text) -> ();
     # CLI command
@@ -228,4 +259,7 @@ interface Node extends(Common.Node) {
     manufacturingTest @3 (cmd :UInt16, arg :UInt16);
     # Send a device specific manufacturing test command
     # Must have full auth-level to use
+
+    info @4 () -> (info :Info);
+    # Retrieves HID-IO information from the device
 }

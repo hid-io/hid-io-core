@@ -258,6 +258,7 @@ Requests a property from the device.
 0x06 - Device MCU (ascii) (e.g. mk20dx256vlh7, atsam4s8b, atmega32u4)
 0x07 - Firmware Name (ascii) (e.g. kiibohd, QMK, etc.)
 0x08 - Firmware Version (ascii)
+0x09 - Device Vendor (ascii)
 
 +> <property>
 -> <invalid property value>
