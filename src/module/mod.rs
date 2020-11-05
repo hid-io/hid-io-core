@@ -23,7 +23,6 @@ use crate::api;
 use crate::device;
 use crate::mailbox;
 use crate::protocol::hidio::*;
-use std::sync::Arc;
 use tokio::stream::StreamExt;
 
 fn as_u8_slice(v: &[u16]) -> &[u8] {
@@ -40,9 +39,12 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
 pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
     let mut ids = vec![
         HidIoCommandID::GetProperties,
+        HidIoCommandID::HostMacro,
+        HidIoCommandID::KLLState,
         HidIoCommandID::OpenURL,
         HidIoCommandID::SupportedIDs,
-        HidIoCommandID::Terminal,
+        HidIoCommandID::TerminalCmd,
+        HidIoCommandID::TerminalOut,
     ];
     if recursive {
         ids.extend(displayserver::supported_ids().iter().cloned());
@@ -55,7 +57,7 @@ pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
 /// Each scanning thread will create a new thread per device found.
 /// The scanning thread is required in case devices are plugged/unplugged while running.
 /// If a device is unplugged, the Device thread will exit.
-pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing modules...");
 
     // Setup local thread
@@ -73,7 +75,7 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
                     msg.src != mailbox::Address::DropSubscription &&
                     msg.dst != mailbox::Address::CancelAllSubscriptions
                 )
-                .filter(|msg| msg.dst == mailbox::Address::Module)
+                .filter(|msg| msg.dst == mailbox::Address::Module || msg.dst == mailbox::Address::All)
                 .filter(|msg| supported_ids(false).contains(&msg.data.id))
                 .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
         }
@@ -88,6 +90,7 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
                         .iter()
                         .map(|x| *x as u16)
                         .collect::<Vec<u16>>();
+                    trace!("Acking SupportedIDs");
                     msg.send_ack(sender.clone(), as_u8_slice(&ids).to_vec());
                 }
                 HidIoCommandID::GetProperties => {
@@ -135,6 +138,7 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
                             msg.send_ack(sender.clone(), name.as_bytes().to_vec());
                         }
                     };
+                    trace!("Acking GetProperties");
                 }
                 HidIoCommandID::HostMacro => {
                     warn!("Host Macro not implemented");
@@ -148,7 +152,14 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
                     let s = String::from_utf8(mydata).unwrap();
                     println!("Open url: {}", s);
                     open::that(s).unwrap();
+                    trace!("Acking OpenURL");
                     msg.send_ack(sender.clone(), vec![]);
+                }
+                HidIoCommandID::TerminalOut => {
+                    if msg.data.ptype == HidIoPacketType::Data {
+                        trace!("Acking TerminalOut");
+                        msg.send_ack(sender.clone(), vec![]);
+                    }
                 }
                 _ => {}
             }
@@ -188,11 +199,11 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
     });
 
     let (_, _, _, _, _) = tokio::join!(
-        daemonnode::initialize(rt.clone(), mailbox.clone()),
-        displayserver::initialize(rt.clone(), mailbox.clone()),
+        daemonnode::initialize(mailbox.clone()),
+        displayserver::initialize(mailbox.clone()),
         naks,
         data,
-        vhid::initialize(rt.clone(), mailbox.clone()),
+        vhid::initialize(mailbox.clone()),
     );
 }
 

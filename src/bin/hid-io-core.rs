@@ -29,9 +29,12 @@ use hid_io_core::RUNNING;
 use std::sync::atomic::Ordering;
 
 use clap::App;
+use hid_io_core::api;
 use hid_io_core::built_info;
+use hid_io_core::device;
 use hid_io_core::logging;
 use hid_io_core::mailbox;
+use hid_io_core::module;
 use std::sync::Arc;
 
 #[cfg(windows)]
@@ -96,10 +99,17 @@ fn start() {
         info!("Initializing HID-IO daemon...");
 
         // Setup mailbox
-        let mailbox = mailbox::Mailbox::new();
+        let mailbox = mailbox::Mailbox::new(rt.clone());
 
-        // Start library
-        hid_io_core::initialize(rt.clone(), mailbox).await.unwrap();
+        // Wait until completion
+        let (_, _, _) = tokio::join!(
+            // Initialize Modules
+            module::initialize(mailbox.clone()),
+            // Initialize Device monitoring
+            device::initialize(mailbox.clone()),
+            // Initialize Cap'n'Proto API Server
+            api::initialize(mailbox),
+        );
 
         info!("-------------------------- HID-IO Core exiting! --------------------------");
     });

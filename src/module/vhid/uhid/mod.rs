@@ -24,7 +24,6 @@ use crate::protocol::hidio;
 use libc::{c_int, c_short, c_ulong, c_void};
 use std::io::{Error, ErrorKind};
 use std::os::unix::io::AsRawFd;
-use std::sync::Arc;
 
 /// Default OutputEvent handler
 /// Prints useful debug information when even when the events aren't normally used
@@ -573,7 +572,7 @@ impl Drop for SysCtrlConsControl {
 /// uhid initialization
 ///
 /// Sets up processing threads for uhid
-pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
     info!("Initializing vhid/uhid...");
 
     // Spawn watcher thread (tokio)
@@ -814,7 +813,9 @@ mod test {
     fn uhid_keyboard_nkro_test() {
         setup_logging_lite().ok();
         let name = "uhid-keyboard-nkro-test".to_string();
-        let mailbox = mailbox::Mailbox::new();
+        let mailbox = mailbox::Mailbox {
+            ..Default::default()
+        };
 
         // Adjust next uid to make it easier to debug parallel tests
         *mailbox.last_uid.write().unwrap() = 20;
@@ -952,7 +953,9 @@ mod test {
     fn uhid_keyboard_6kro_test() {
         setup_logging_lite().ok();
         let name = "uhid-keyboard-6kro-test".to_string();
-        let mailbox = mailbox::Mailbox::new();
+        let mailbox = mailbox::Mailbox {
+            ..Default::default()
+        };
 
         // Adjust next uid to make it easier to debug parallel tests
         *mailbox.last_uid.write().unwrap() = 30;

@@ -22,6 +22,7 @@ use capnp_rpc::{rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
 use hid_io_core::common_capnp::NodeType;
 use hid_io_core::hidio_capnp::hid_io_server;
+use hid_io_core::logging::setup_logging_lite;
 use rand::Rng;
 use std::fs;
 use std::net::ToSocketAddrs;
@@ -57,6 +58,7 @@ fn format_node(node: hid_io_core::common_capnp::destination::Reader<'_>) -> Stri
 
 #[tokio::main]
 pub async fn main() -> Result<(), ::capnp::Error> {
+    setup_logging_lite().ok();
     tokio::task::LocalSet::new().run_until(try_main()).await
 }
 

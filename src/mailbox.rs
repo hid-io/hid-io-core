@@ -85,10 +85,11 @@ pub struct Mailbox {
     pub lookup: Arc<RwLock<HashMap<String, Vec<u64>>>>,
     pub sender: broadcast::Sender<Message>,
     pub ack_timeout: Arc<RwLock<std::time::Duration>>,
+    pub rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl Mailbox {
-    pub fn new() -> Mailbox {
+    pub fn new(rt: Arc<tokio::runtime::Runtime>) -> Mailbox {
         // Create broadcast channel
         let (sender, _) = broadcast::channel::<Message>(CHANNEL_SLOTS);
         // Setup nodes list
@@ -106,6 +107,7 @@ impl Mailbox {
             lookup,
             sender,
             ack_timeout,
+            rt,
         }
     }
 
@@ -247,7 +249,7 @@ impl Mailbox {
             let stream = receiver.into_stream()
                 .filter(Result::is_ok)
                 .map(Result::unwrap)
-                .filter(|msg| msg.src == src && msg.dst == dst && msg.data.id == id);
+                .filter(|msg| msg.src == src && msg.dst == Address::All && msg.data.id == id);
         }
 
         // Wait on filtered messages
@@ -353,7 +355,8 @@ impl Mailbox {
             match receiver.try_recv() {
                 Ok(msg) => {
                     // Packet must have the same address as was sent, except reversed
-                    if msg.dst == src && msg.src == dst && msg.data.id == id {
+                    // The HIDIO device does not keep track of senders, so it will be all
+                    if msg.dst == Address::All && msg.src == dst && msg.data.id == id {
                         match msg.data.ptype {
                             hidio::HidIoPacketType::ACK => {
                                 return Ok(Some(msg));
@@ -415,7 +418,13 @@ impl Mailbox {
 
 impl Default for Mailbox {
     fn default() -> Self {
-        Self::new()
+        let rt: Arc<tokio::runtime::Runtime> = Arc::new(
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
+        Self::new(rt)
     }
 }
 

@@ -26,7 +26,6 @@ pub use crate::common_capnp;
 
 use crate::mailbox;
 use crate::protocol::hidio::HidIoCommandID;
-use std::sync::Arc;
 use std::time::Instant;
 
 // ----- Functions -----
@@ -386,9 +385,9 @@ pub fn supported_ids() -> Vec<HidIoCommandID> {
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Some API usages may require external authentication to validate trustworthiness
 #[cfg(feature = "api")]
-pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
-    capnp::initialize(rt, mailbox).await;
+pub async fn initialize(mailbox: mailbox::Mailbox) {
+    capnp::initialize(mailbox).await;
 }
 
 #[cfg(not(feature = "api"))]
-pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
+pub async fn initialize(_mailbox: mailbox::Mailbox) {}

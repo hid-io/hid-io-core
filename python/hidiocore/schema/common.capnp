@@ -51,6 +51,9 @@ enum NodeType {
 
     hidJoystick @6;
     # Generic HID Joystick
+
+    unknown @7;
+    # Unknown Type
 }
 # Node types, please extend this enum as necessary
 # Should be generic types, nothing specific, use the text field for that

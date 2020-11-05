@@ -164,7 +164,8 @@ fn match_device(device_info: &::hidapi::DeviceInfo) -> bool {
 /// The thread also handles reading/writing from connected interfaces
 ///
 /// XXX (HaaTa) hidapi is not thread-safe on all platforms, so don't try to create a thread per device
-async fn processing(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+/// TODO ^ Is this still valid?
+async fn processing(mailbox: mailbox::Mailbox) {
     info!("Spawning hidapi spawning thread...");
 
     // Initialize HID interface
@@ -174,6 +175,9 @@ async fn processing(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox)
     // List of allocated device uids
     let uids: Arc<RwLock<HashMap<u64, tokio::task::JoinHandle<()>>>> =
         Arc::new(RwLock::new(HashMap::new()));
+
+    // Prepare the runtime
+    let rt = mailbox.rt.clone();
 
     // Loop infinitely, the watcher only exits if the daemon is quit
     // TODO (HaaTa) - There should be a better way using hotplug events (e.g. udev) in a cross
@@ -333,15 +337,16 @@ async fn processing(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox)
 /// hidapi initialization
 ///
 /// Sets up a processing thread for hidapi.
-pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing device/hidapi...");
 
     // Spawn watcher thread (tokio)
+    let rt = mailbox.rt.clone();
     rt.clone()
         .spawn_blocking(move || {
             rt.block_on(async {
                 let local = tokio::task::LocalSet::new();
-                local.run_until(processing(rt.clone(), mailbox)).await;
+                local.run_until(processing(mailbox)).await;
             });
         })
         .await

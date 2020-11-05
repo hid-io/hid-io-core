@@ -37,7 +37,6 @@ use crate::protocol::hidio::*;
 use crate::RUNNING;
 use std::string::FromUtf8Error;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use tokio::stream::StreamExt;
 
 #[cfg(all(feature = "displayserver", target_os = "linux"))]
@@ -274,12 +273,13 @@ async fn process(mailbox: mailbox::Mailbox) {
 /// Display Server initialization
 /// The display server module selection the OS native display server to start.
 /// Depending on the native display server not all of the functionality may be available.
-pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+pub async fn initialize(mailbox: mailbox::Mailbox) {
     // Setup local thread
     // This confusing block spawns a dedicated thread, and then runs a task LocalSet inside of it
     // This is required to avoid the use of the Send trait.
     // hid-io-core requires multiple threads like this which can dead-lock each other if run from
     // the same thread (which is the default behaviour of task LocalSet spawn_local)
+    let rt = mailbox.rt.clone();
     rt.clone()
         .spawn_blocking(move || {
             rt.block_on(async {

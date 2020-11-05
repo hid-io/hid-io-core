@@ -90,10 +90,7 @@ lazy_static! {
 }
 
 /// Main entry-point for the hid-io-core library
-pub async fn initialize(
-    rt: Arc<tokio::runtime::Runtime>,
-    mailbox: mailbox::Mailbox,
-) -> Result<(), std::io::Error> {
+pub async fn initialize(mailbox: mailbox::Mailbox) -> Result<(), std::io::Error> {
     // Setup signal handler
     let r = RUNNING.clone();
     ctrlc::set_handler(move || {
@@ -105,11 +102,11 @@ pub async fn initialize(
     // Wait until completion
     let (_, _, _) = tokio::join!(
         // Initialize Modules
-        module::initialize(rt.clone(), mailbox.clone()),
+        module::initialize(mailbox.clone()),
         // Initialize Device monitoring
-        device::initialize(rt.clone(), mailbox.clone()),
+        device::initialize(mailbox.clone()),
         // Initialize Cap'n'Proto API Server
-        api::initialize(rt.clone(), mailbox),
+        api::initialize(mailbox),
     );
     Ok(())
 }

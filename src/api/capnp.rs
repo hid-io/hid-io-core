@@ -67,10 +67,28 @@ impl std::fmt::Display for common_capnp::NodeType {
             common_capnp::NodeType::HidKeyboard => write!(f, "HidKeyboard"),
             common_capnp::NodeType::HidMouse => write!(f, "HidMouse"),
             common_capnp::NodeType::HidJoystick => write!(f, "HidJoystick"),
+            common_capnp::NodeType::Unknown => write!(f, "Unknown"),
         }
     }
 }
 impl std::fmt::Debug for common_capnp::NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl std::fmt::Display for hidio_capnp::hid_io::packet::Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            hidio_capnp::hid_io::packet::Type::Data => write!(f, "Data"),
+            hidio_capnp::hid_io::packet::Type::Ack => write!(f, "ACK"),
+            hidio_capnp::hid_io::packet::Type::Nak => write!(f, "NAK"),
+            hidio_capnp::hid_io::packet::Type::NaData => write!(f, "NaData"),
+            hidio_capnp::hid_io::packet::Type::Unknown => write!(f, "Unknown"),
+        }
+    }
+}
+impl std::fmt::Debug for hidio_capnp::hid_io::packet::Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self)
     }
@@ -605,7 +623,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 match self.mailbox.try_send_command(
                     src,
                     dst,
-                    HidIoCommandID::Terminal,
+                    HidIoCommandID::TerminalCmd,
                     cmd.as_bytes().to_vec(),
                     //true,
                     false, // TODO ACK Should work (firmware bug?)
@@ -1532,7 +1550,7 @@ async fn server_subscriptions_keyboard(
                     );
             }
             // Filter: cli command
-            let mut stream = stream.filter(|msg| msg.data.id == HidIoCommandID::Terminal);
+            let mut stream = stream.filter(|msg| msg.data.id == HidIoCommandID::TerminalOut);
             // Filters: kll trigger
             //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::KLLState);
             // Filters: layer
@@ -1880,15 +1898,16 @@ async fn server_subscriptions(
 
 /// Supported Ids by this module
 pub fn supported_ids() -> Vec<HidIoCommandID> {
-    vec![HidIoCommandID::Terminal]
+    vec![HidIoCommandID::TerminalCmd, HidIoCommandID::TerminalOut]
 }
 
 /// Cap'n'Proto API Initialization
 /// Sets up a localhost socket to deal with localhost-only API usages
 /// Some API usages may require external authentication to validate trustworthiness
 #[cfg(feature = "api")]
-pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+pub async fn initialize(mailbox: mailbox::Mailbox) {
     info!("Initializing api...");
+    let rt = mailbox.clone().rt;
 
     // This confusing block spawns a dedicated thread, and then runs a task LocalSet inside of it
     // This is required to avoid the use of the Send trait.

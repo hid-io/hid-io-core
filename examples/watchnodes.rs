@@ -24,7 +24,10 @@ use futures::{AsyncReadExt, FutureExt};
 use hid_io_core::common_capnp::NodeType;
 use hid_io_core::hidio_capnp::hid_io;
 use hid_io_core::hidio_capnp::hid_io_server;
+use hid_io_core::protocol::hidio::HidIoCommandID;
 use rand::Rng;
+use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::fs;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
@@ -57,22 +60,87 @@ fn format_node(node: hid_io_core::common_capnp::destination::Reader<'_>) -> Stri
     )
 }
 
-fn format_packet(packet: hid_io::packet::Reader<'_>) -> String {
-    let mut datastr = "".to_string();
-    for b in packet.get_data().unwrap().iter() {
-        datastr += &format!("{:02x}", b);
-    }
-    format!(
-        "{}: {}->{} ({}): {}",
-        packet.get_type().unwrap() as u16,
-        packet.get_src(),
-        packet.get_dst(),
-        packet.get_id(),
-        datastr,
-    )
+struct Node {
+    type_: NodeType,
+    _name: String,
+    _serial: String,
 }
 
-struct NodesSubscriberImpl;
+struct NodesSubscriberImpl {
+    nodes_lookup: HashMap<u64, Node>,
+    start_time: std::time::Instant,
+}
+
+impl NodesSubscriberImpl {
+    fn new() -> NodesSubscriberImpl {
+        let nodes_lookup: HashMap<u64, Node> = HashMap::new();
+        let start_time = std::time::Instant::now();
+
+        NodesSubscriberImpl {
+            nodes_lookup,
+            start_time,
+        }
+    }
+
+    fn format_packet(&mut self, packet: hid_io::packet::Reader<'_>) -> String {
+        let mut datastr = "".to_string();
+        for b in packet.get_data().unwrap().iter() {
+            datastr += &format!("{:02x}", b);
+        }
+        let datalen = packet.get_data().unwrap().len();
+        let src = packet.get_src();
+        let src_node_type = if src == 0 {
+            "All".to_string()
+        } else {
+            if let Some(n) = self.nodes_lookup.get(&src) {
+                format!("{:?}", n.type_)
+            } else {
+                format!("{:?}", NodeType::Unknown)
+            }
+        };
+
+        let dst = packet.get_dst();
+        let dst_node_type = if dst == 0 {
+            "All".to_string()
+        } else {
+            if let Some(n) = self.nodes_lookup.get(&dst) {
+                format!("{:?}", n.type_)
+            } else {
+                format!("{:?}", NodeType::Unknown)
+            }
+        };
+
+        // TODO (HaaTa): decode packets to show fields
+        if datalen == 0 {
+            format!(
+                "{} - {:?}: {}:{}->{}:{} ({:?}:{}) Len:{}",
+                self.start_time.elapsed().as_millis(),
+                packet.get_type().unwrap(),
+                src,
+                src_node_type,
+                dst,
+                dst_node_type,
+                HidIoCommandID::try_from(packet.get_id()).unwrap_or(HidIoCommandID::Unused),
+                packet.get_id(),
+                datalen,
+            )
+        } else {
+            format!(
+                "{} - {:?}: {}:{}->{}:{} ({:?}:{}) Len:{}\n\t{}",
+                self.start_time.elapsed().as_millis(),
+                packet.get_type().unwrap(),
+                src,
+                src_node_type,
+                dst,
+                dst_node_type,
+                HidIoCommandID::try_from(packet.get_id()).unwrap_or(HidIoCommandID::Unused),
+                packet.get_id(),
+                datalen,
+                datastr,
+            )
+        }
+    }
+}
 
 impl hid_io::nodes_subscriber::Server for NodesSubscriberImpl {
     fn nodes_update(
@@ -80,9 +148,20 @@ impl hid_io::nodes_subscriber::Server for NodesSubscriberImpl {
         params: hid_io::nodes_subscriber::NodesUpdateParams,
         _results: hid_io::nodes_subscriber::NodesUpdateResults,
     ) -> Promise<(), capnp::Error> {
+        // Re-create nodes_lookup on each update
+        self.nodes_lookup = HashMap::new();
+
         println!("nodes_update: ");
         for n in capnp_rpc::pry!(capnp_rpc::pry!(params.get()).get_nodes()) {
             println!("{} - {}", n.get_id(), format_node(n));
+            self.nodes_lookup.insert(
+                n.get_id(),
+                Node {
+                    type_: n.get_type().unwrap(),
+                    _name: n.get_name().unwrap_or("").to_string(),
+                    _serial: n.get_serial().unwrap_or("").to_string(),
+                },
+            );
         }
         Promise::ok(())
     }
@@ -93,8 +172,8 @@ impl hid_io::nodes_subscriber::Server for NodesSubscriberImpl {
         _results: hid_io::nodes_subscriber::HidioWatcherResults,
     ) -> Promise<(), capnp::Error> {
         println!(
-            "watcher: {}",
-            format_packet(capnp_rpc::pry!(capnp_rpc::pry!(params.get()).get_packet()))
+            "{}",
+            self.format_packet(capnp_rpc::pry!(capnp_rpc::pry!(params.get()).get_packet()))
         );
         Promise::ok(())
     }
@@ -197,7 +276,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         };
 
         // Subscribe to nodeswatcher
-        let nodes_subscription = capnp_rpc::new_client(NodesSubscriberImpl);
+        let nodes_subscription = capnp_rpc::new_client(NodesSubscriberImpl::new());
         let mut request = hidio.subscribe_nodes_request();
         request.get().set_subscriber(nodes_subscription);
         let _callback = request.send().promise.await;

@@ -23,7 +23,6 @@ use crate::api::EvdevInfo;
 use crate::mailbox;
 use crate::module::vhid;
 use crate::protocol::hidio;
-use std::sync::Arc;
 
 // TODO This should be converted to use hid-io/layouts (may need a rust package to handle
 // conversion)
@@ -1222,7 +1221,7 @@ pub fn supported_ids() -> Vec<hidio::HidIoCommandID> {
 /// evdev initialization
 ///
 /// Sets up processing threads for udev and evdev.
-pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {
+pub async fn initialize(_mailbox: mailbox::Mailbox) {
     info!("Initializing device/evdev...");
 
     // Spawn watcher thread (tokio)
@@ -1279,7 +1278,9 @@ mod test {
         setup_logging_lite().ok();
         // Create uhid keyboard interface
         let name = "evdev-keyboard-nkro-test".to_string();
-        let mailbox = mailbox::Mailbox::new();
+        let mailbox = mailbox::Mailbox {
+            ..Default::default()
+        };
 
         // Adjust next uid to make it easier to debug parallel tests
         *mailbox.last_uid.write().unwrap() = 10;
