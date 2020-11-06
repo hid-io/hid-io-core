@@ -102,17 +102,18 @@ impl DisplayOutput for QuartzConnection {
         // Splice the string into chunks split by \n and \t which need to be handled
         // separately. macOS seems to handle double characters well with this method
         // so it's not necessary to take those into account (unlike x11).
-        let mut spos = 0;
-        for (i, c) in string.chars().enumerate() {
+        // Unfortunately, double UTF-8 emojis seem to die a horrible death so we need
+        // to implement chunking anyways for double characters...oh well.
+        let mut queue = vec![];
+        for c in string.chars() {
             match c {
                 '\n' | '\t' => {
                     // If there were characters before, print now
-                    if i - spos > 0 {
-                        self.type_utf8(&string[spos..i]);
+                    if !queue.is_empty() {
+                        let chunk: String = queue.into_iter().collect();
+                        self.type_utf8(&chunk);
+                        queue = vec![];
                     }
-
-                    // Update the new spos
-                    spos = i + 1;
 
                     // Lookup keycode
                     let keycode = match c {
@@ -127,13 +128,23 @@ impl DisplayOutput for QuartzConnection {
                     self.press_keycode(keycode, true);
                     self.press_keycode(keycode, false);
                 }
-                _ => {}
+                _ => {
+                    // Check if we've already queued up this symbol
+                    // Push the current queue if there's a duplicate
+                    if queue.contains(&c) {
+                        let chunk: String = queue.into_iter().collect();
+                        self.type_utf8(&chunk);
+                        queue = vec![];
+                    }
+                    queue.push(c);
+                }
             }
         }
 
         // Print final chunk of string
-        if spos < string.len() {
-            self.type_utf8(string);
+        if !queue.is_empty() {
+            let chunk: String = queue.into_iter().collect();
+            self.type_utf8(&chunk);
         }
 
         Ok(())
