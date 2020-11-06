@@ -392,7 +392,7 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
 }
 
 #[cfg(target_os = "macos")]
-pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {
     info!("Initializing module/vhid...");
 
     // Initialize the platform specific module
@@ -400,7 +400,7 @@ pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mai
 }
 
 #[cfg(target_os = "windows")]
-pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
+pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {
     info!("Initializing module/vhid...");
 
     // Initialize the platform specific module

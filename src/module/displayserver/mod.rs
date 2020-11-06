@@ -24,8 +24,8 @@ pub mod x11;
 pub mod winapi;
 
 #[cfg(target_os = "macos")]
-/// Osx quartz impementation
-pub mod osx;
+/// macOS quartz impementation
+pub mod quartz;
 
 use crate::mailbox;
 use crate::protocol::hidio::*;
@@ -41,7 +41,7 @@ use crate::module::displayserver::x11::*;
 use crate::module::displayserver::winapi::*;
 
 #[cfg(all(feature = "unicode", target_os = "macos"))]
-use crate::module::displayserver::osx::*;
+use crate::module::displayserver::quartz::*;
 
 /// Functions that can be called in a cross platform manner
 pub trait DisplayOutput {
@@ -116,7 +116,7 @@ fn get_display() -> Box<dyn DisplayOutput> {
 
 #[cfg(all(feature = "unicode", target_os = "macos"))]
 fn get_display() -> Box<dyn DisplayOutput> {
-    Box::new(OSXConnection::new())
+    Box::new(QuartzConnection::new())
 }
 
 impl Module {

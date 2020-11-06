@@ -224,12 +224,18 @@ impl HidIoController {
 
 /// Supported Ids by this module
 /// recursive option applies supported ids from child modules as well
+#[cfg(all(feature = "unicode", target_os = "linux"))]
 pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
     let mut ids: Vec<HidIoCommandID> = vec![];
     if recursive {
         ids.extend(evdev::supported_ids().iter().cloned());
     }
     ids
+}
+
+#[cfg(all(feature = "unicode", target_os = "macos"))]
+pub fn supported_ids(_recursive: bool) -> Vec<HidIoCommandID> {
+    vec![]
 }
 
 /// Module initialization

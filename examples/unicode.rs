@@ -19,7 +19,7 @@
 use hid_io_core::module::displayserver::x11::*;
 
 #[cfg(target_os = "macos")]
-use hid_io_core::module::displayserver::osx::*;
+use hid_io_core::module::displayserver::quartz::*;
 
 #[cfg(target_os = "windows")]
 use hid_io_core::module::displayserver::winapi::*;
@@ -32,7 +32,7 @@ pub fn main() {
     #[cfg(target_os = "linux")]
     let mut connection = XConnection::new();
     #[cfg(target_os = "macos")]
-    let mut connection = OSXConnection::new();
+    let mut connection = QuartzConnection::new();
     #[cfg(target_os = "windows")]
     let mut connection = DisplayConnection::new();
 
