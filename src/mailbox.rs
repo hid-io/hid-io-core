@@ -251,8 +251,9 @@ impl Mailbox {
         }
 
         // Wait on filtered messages
+        let ack_timeout = *self.ack_timeout.read().unwrap();
         loop {
-            match tokio::time::timeout(*self.ack_timeout.read().unwrap(), stream.next()).await {
+            match tokio::time::timeout(ack_timeout, stream.next()).await {
                 Ok(msg) => {
                     if let Some(msg) = msg {
                         match msg.data.ptype {
@@ -272,7 +273,7 @@ impl Mailbox {
                 Err(_) => {
                     warn!(
                         "Timeout ({:?}) receiving ACK for: {}",
-                        self.ack_timeout.read().unwrap(),
+                        ack_timeout,
                         data
                     );
                     return Err(AckWaitError::Timeout);

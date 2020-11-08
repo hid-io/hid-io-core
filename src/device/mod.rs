@@ -238,6 +238,11 @@ pub fn supported_ids(_recursive: bool) -> Vec<HidIoCommandID> {
     vec![]
 }
 
+#[cfg(all(feature = "unicode", target_os = "windows"))]
+pub fn supported_ids(_recursive: bool) -> Vec<HidIoCommandID> {
+    vec![]
+}
+
 /// Module initialization
 ///
 /// # Remarks

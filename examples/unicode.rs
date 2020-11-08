@@ -52,8 +52,9 @@ pub fn main() {
     #[cfg(target_os = "windows")]
     let mut connection = DisplayConnection::new();
 
+    log::info!("START");
     connection.type_string("💣💩🔥").unwrap(); // Test unicode
-    connection.type_string("abc💣💩🔥").unwrap(); // Test quickly repeated unicode
+    connection.type_string("abc💣💩🔥🔥").unwrap(); // Test quickly repeated unicode
     connection.type_string("\n").unwrap(); // Test enter
     connection.type_string("carg\t --help\n").unwrap(); // Test tab and command
 
@@ -63,4 +64,5 @@ pub fn main() {
     connection.set_held("gア").unwrap();
     std::thread::sleep(std::time::Duration::from_millis(1000)); // Test partial release
     connection.set_held("").unwrap();
+    log::info!("END");
 }

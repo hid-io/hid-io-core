@@ -183,7 +183,7 @@ mod service {
 
         let next_status = ServiceStatus {
             // Should match the one from system service registry
-            service_type: ServiceType::OwnProcess,
+            service_type: ServiceType::OWN_PROCESS,
             // The new state
             current_state: ServiceState::Running,
             // Accept stop events when running
@@ -194,6 +194,9 @@ mod service {
             checkpoint: 0,
             // Only used for pending states, otherwise must be zero
             wait_hint: Duration::default(),
+            // Process ID of the service (only used when querying the service)
+            // TODO Is this correct?
+            process_id: None,
         };
 
         // Tell the system that the service is running now
@@ -203,12 +206,13 @@ mod service {
 
         // Tell the system that service has stopped.
         status_handle.set_service_status(ServiceStatus {
-            service_type: ServiceType::OwnProcess,
+            service_type: ServiceType::OWN_PROCESS,
             current_state: ServiceState::Stopped,
             controls_accepted: ServiceControlAccept::empty(),
             exit_code: ServiceExitCode::Win32(0),
             checkpoint: 0,
             wait_hint: Duration::default(),
+            process_id: None, // TODO is this correct?
         })?;
 
         Ok(())
