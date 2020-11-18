@@ -19,6 +19,10 @@
 /// Xorg impementation
 pub mod x11;
 
+#[cfg(target_os = "linux")]
+/// Wayland impementation
+pub mod wayland;
+
 #[cfg(target_os = "windows")]
 /// Winapi impementation
 pub mod winapi;
@@ -30,12 +34,16 @@ pub mod quartz;
 use crate::mailbox;
 use crate::protocol::hidio::*;
 use crate::RUNNING;
+use std::string::FromUtf8Error;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::stream::StreamExt;
 
 #[cfg(all(feature = "unicode", target_os = "linux"))]
 use crate::module::displayserver::x11::*;
+
+#[cfg(all(feature = "unicode", target_os = "linux"))]
+use crate::module::displayserver::wayland::*;
 
 #[cfg(all(feature = "unicode", target_os = "windows"))]
 use crate::module::displayserver::winapi::*;
@@ -54,7 +62,37 @@ pub trait DisplayOutput {
 }
 
 #[derive(Debug)]
-pub struct DisplayOutputError {}
+pub enum DisplayOutputError {
+    AllocationFailed(char),
+    Connection(String),
+    Format(std::io::Error),
+    General(String),
+    LostConnection,
+    NoKeycode,
+    Unimplemented,
+    Utf(FromUtf8Error),
+}
+
+impl std::fmt::Display for DisplayOutputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DisplayOutputError::AllocationFailed(e) => write!(f, "Allocation failed: {}", e),
+            DisplayOutputError::Connection(e) => write!(f, "Connection: {}", e),
+            DisplayOutputError::Format(e) => write!(f, "Format: {}", e),
+            DisplayOutputError::General(e) => write!(f, "General: {}", e),
+            DisplayOutputError::LostConnection => write!(f, "Lost connection"),
+            DisplayOutputError::NoKeycode => write!(f, "No keycode mapped"),
+            DisplayOutputError::Unimplemented => write!(f, "Unimplemented"),
+            DisplayOutputError::Utf(e) => write!(f, "UTF: {}", e),
+        }
+    }
+}
+
+impl From<std::io::Error> for DisplayOutputError {
+    fn from(e: std::io::Error) -> Self {
+        DisplayOutputError::Format(e)
+    }
+}
 
 #[derive(Default)]
 /// Dummy impementation for unsupported platforms
@@ -66,31 +104,30 @@ impl StubOutput {
     }
 }
 
-// TODO add unimplemented errors
 impl DisplayOutput for StubOutput {
     fn get_layout(&self) -> Result<String, DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
     fn set_layout(&self, _layout: &str) -> Result<(), DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
     fn type_string(&mut self, _string: &str) -> Result<(), DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
     fn press_symbol(&mut self, _c: char, _state: bool) -> Result<(), DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
     fn get_held(&mut self) -> Result<Vec<char>, DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
     fn set_held(&mut self, _string: &str) -> Result<(), DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
 }
 
@@ -106,7 +143,12 @@ fn get_display() -> Box<dyn DisplayOutput> {
 
 #[cfg(all(feature = "unicode", target_os = "linux"))]
 fn get_display() -> Box<dyn DisplayOutput> {
-    Box::new(XConnection::new())
+    // First attempt to connect to Wayland
+    let wayland = WaylandConnection::new();
+    match wayland {
+        Ok(wayland) => Box::new(wayland),
+        Err(_) => Box::new(XConnection::new()),
+    }
 }
 
 #[cfg(all(feature = "unicode", target_os = "windows"))]

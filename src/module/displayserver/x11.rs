@@ -289,7 +289,7 @@ impl DisplayOutput for XConnection {
                 keycodes.push(keycode);
             } else {
                 error!("Could not allocate a keysym for unicode '{}'", c);
-                return Err(DisplayOutputError {});
+                return Err(DisplayOutputError::AllocationFailed(c));
             }
         }
 

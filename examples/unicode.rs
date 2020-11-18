@@ -18,6 +18,9 @@
 #[cfg(target_os = "linux")]
 use hid_io_core::module::displayserver::x11::*;
 
+#[cfg(target_os = "linux")]
+use hid_io_core::module::displayserver::wayland::*;
+
 #[cfg(target_os = "macos")]
 use hid_io_core::module::displayserver::quartz::*;
 
@@ -26,11 +29,24 @@ use hid_io_core::module::displayserver::winapi::*;
 
 use hid_io_core::module::displayserver::DisplayOutput;
 
+#[cfg(all(feature = "unicode", target_os = "linux"))]
+fn get_display() -> Box<dyn DisplayOutput> {
+    // First attempt to connect to Wayland
+    let wayland = WaylandConnection::new();
+    if wayland.is_ok() {
+        Box::new(wayland.unwrap())
+
+    // Then fallback to X11
+    } else {
+        Box::new(XConnection::new())
+    }
+}
+
 pub fn main() {
     hid_io_core::logging::setup_logging_lite().unwrap();
 
     #[cfg(target_os = "linux")]
-    let mut connection = XConnection::new();
+    let mut connection = get_display();
     #[cfg(target_os = "macos")]
     let mut connection = QuartzConnection::new();
     #[cfg(target_os = "windows")]

@@ -73,11 +73,14 @@ features=["linux-static-hidraw"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-evdev-rs  = "^0.4"
-udev      = "^0.5"
-uhid-virt = "0.0.5"
-xkbcommon = { version = "^0.4", features = ["x11"] }
-x11       = "^2.18"
+evdev-rs             = "^0.4"
+memmap               = "^0.7"
+udev                 = "^0.5"
+uhid-virt            = "0.0.5"
+wayland-client       = { version = "^0.28", features = ["use_system_lib"] }
+xkbcommon            = { version = "^0.4", features = ["x11"] }
+x11                  = "^2.18"
+zwp-virtual-keyboard = "^0.2"
 
 
 [target.'cfg(windows)'.dependencies]
