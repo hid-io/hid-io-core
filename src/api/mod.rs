@@ -1544,10 +1544,12 @@ async fn server_bind(
     subscriptions: Arc<RwLock<Subscriptions>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Open secured capnproto interface
+    trace!("Building address");
     let addr = LISTEN_ADDR
         .to_socket_addrs()?
         .next()
         .expect("could not parse address");
+    trace!("Address: {}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     println!("API: Listening on {}", addr);
 
@@ -1584,16 +1586,40 @@ async fn server_bind(
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             }
         });
+
         // Setup TLS stream
+        trace!("S1");
         let stream_abortable =
             futures::future::Abortable::new(listener.accept(), abort_registration);
+        trace!("S2");
         let (stream, _addr) = stream_abortable.await??;
+        trace!("S3");
         stream.set_nodelay(true)?;
         let acceptor = acceptor.clone();
-        let stream = acceptor.accept(stream).await?;
+        trace!("S4");
+
+        // Make sure to timeout if no https handshake is attempted
+        let stream = match tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            acceptor.accept(stream),
+        )
+        .await
+        {
+            Ok(stream) => match stream {
+                Ok(stream) => stream,
+                Err(_) => {
+                    continue;
+                }
+            },
+            Err(_) => {
+                continue;
+            }
+        };
+        trace!("S5");
 
         // Save connection address for later
         let addr = stream.get_ref().0.peer_addr().ok().unwrap();
+        trace!("S6");
 
         // Setup reader/writer stream pair
         let (reader, writer) = futures_util::io::AsyncReadExt::split(

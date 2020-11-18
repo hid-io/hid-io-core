@@ -173,7 +173,7 @@ impl DisplayOutput for DisplayConnection {
             Ok(_) => Ok(()),
             Err(_e) => {
                 error!("Could not set language");
-                Err(DisplayOutputError {})
+                Err(DisplayOutputError::SetLayoutFailed(layout.to_string()))
             }
         }
     }

@@ -271,11 +271,7 @@ impl Mailbox {
                     }
                 }
                 Err(_) => {
-                    warn!(
-                        "Timeout ({:?}) receiving ACK for: {}",
-                        ack_timeout,
-                        data
-                    );
+                    warn!("Timeout ({:?}) receiving ACK for: {}", ack_timeout, data);
                     return Err(AckWaitError::Timeout);
                 }
             }

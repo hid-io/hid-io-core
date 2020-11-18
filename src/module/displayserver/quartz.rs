@@ -88,12 +88,12 @@ impl Drop for QuartzConnection {
 impl DisplayOutput for QuartzConnection {
     fn get_layout(&self) -> Result<String, DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
 
     fn set_layout(&self, _layout: &str) -> Result<(), DisplayOutputError> {
         warn!("Unimplemented");
-        Err(DisplayOutputError {})
+        Err(DisplayOutputError::Unimplemented)
     }
 
     /// Types a UTF-8 string into the focused window

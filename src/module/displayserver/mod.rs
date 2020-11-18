@@ -69,6 +69,7 @@ pub enum DisplayOutputError {
     General(String),
     LostConnection,
     NoKeycode,
+    SetLayoutFailed(String),
     Unimplemented,
     Utf(FromUtf8Error),
 }
@@ -82,6 +83,7 @@ impl std::fmt::Display for DisplayOutputError {
             DisplayOutputError::General(e) => write!(f, "General: {}", e),
             DisplayOutputError::LostConnection => write!(f, "Lost connection"),
             DisplayOutputError::NoKeycode => write!(f, "No keycode mapped"),
+            DisplayOutputError::SetLayoutFailed(e) => write!(f, "set_layout() failed: {}", e),
             DisplayOutputError::Unimplemented => write!(f, "Unimplemented"),
             DisplayOutputError::Utf(e) => write!(f, "UTF: {}", e),
         }

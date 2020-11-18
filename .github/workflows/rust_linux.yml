@@ -2,6 +2,25 @@ name: Rust Linux
 
 on: [push, pull_request]
 
+env:
+  deb_packages: |
+    capnproto \
+    libclang-dev \
+    libevdev-dev \
+    libudev-dev \
+    libwayland-dev \
+    libxcb-xkb-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-dev \
+    libxtst-dev \
+    llvm \
+    ninja-build
+  mingw_w64_packages: |
+    capnproto \
+    mingw-w64 \
+    wine-stable \
+    wine-binfmt
+
 jobs:
   check:
     name: Check
@@ -14,7 +33,7 @@ jobs:
           override: true
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libxtst-dev libclang-dev libevdev-dev llvm capnproto libudev-dev -y
+          sudo apt-get install -y ${{ env.deb_packages }}
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -37,7 +56,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libxtst-dev libclang-dev libevdev-dev llvm capnproto libudev-dev -y
+          sudo apt-get install -y ${{ env.deb_packages }}
           python -m pip install --upgrade pip
       - uses: actions-rs/cargo@v1
         with:
@@ -48,6 +67,23 @@ jobs:
           python -m pip install cython
           CXXFLAGS=-fPIC CFLAGS=-fPIC python -m pip install -r requirements.txt
           python -m pytest -vvv
+
+  mingw_w64build:
+    name: mingw-w64 Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y ${{ env.mingw_w64_packages }}
+          python -m pip install --upgrade pip
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
 
   fmt:
     name: Rustfmt
@@ -75,9 +111,31 @@ jobs:
           override: true
       - name: Install dependencies
         run: |
-          sudo apt-get install ninja-build libxtst-dev libclang-dev libevdev-dev llvm capnproto libudev-dev -y
+          sudo apt-get install -y ${{ env.deb_packages }}
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings
+
+  deploydocs:
+    name: Deploy Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y ${{ env.deb_packages }}
+      - name: cargo doc
+        run: |
+          cargo doc
+      - name: GitHub Pages Deploy
+        if: github.ref == 'refs/heads/master'
+        uses: maxheld83/ghpages@v0.2.1
+        env:
+          BUILD_DIR: target/doc
+          GH_PAT: ${{ secrets.GH_PAT }}

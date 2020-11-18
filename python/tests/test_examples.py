@@ -31,7 +31,10 @@ import time
 python_dir = os.path.join(os.path.dirname(__file__))
 
 def run_subprocesses(client, args):
-    server = subprocess.Popen(['cargo', 'run'], cwd=os.path.join(python_dir, '..', '..'))
+    env = os.environ
+    env['RUST_LOG'] = 'info,hid_io_core::api=trace'
+    path = os.path.abspath(os.path.join(python_dir, '..', '..'))
+    server = subprocess.Popen(['cargo', 'run'], env=env, cwd=path)
 
     # Wait for server to start
     addr, port = ('localhost', 7185)
