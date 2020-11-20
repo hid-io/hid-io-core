@@ -16,7 +16,6 @@ env:
     llvm \
     ninja-build
   mingw_w64_packages: |
-    capnproto \
     mingw-w64 \
     wine-stable \
     wine-binfmt
@@ -79,8 +78,8 @@ jobs:
           override: true
       - name: Install dependencies
         run: |
+          sudo apt-get install -y ${{ env.deb_packages }}
           sudo apt-get install -y ${{ env.mingw_w64_packages }}
-          python -m pip install --upgrade pip
       - uses: actions-rs/cargo@v1
         with:
           command: test
