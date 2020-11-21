@@ -5,7 +5,7 @@ more-itertools==8.0.2
 packaging==20.0
 pluggy==0.13.1
 py==1.8.1
-pycapnp==1.0.0b1
+pycapnp==1.0.0
 pygtail==0.11.1
 pyparsing==2.4.6
 pytest==5.3.2
