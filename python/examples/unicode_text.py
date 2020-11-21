@@ -51,7 +51,7 @@ async def main(args):
     client = MyHidIoClient('Python unicode text example')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
+    _tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:

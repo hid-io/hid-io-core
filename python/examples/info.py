@@ -28,7 +28,6 @@ import asyncio
 import logging
 import os
 import sys
-import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import hidiocore.client
@@ -51,7 +50,7 @@ async def main(args):
     client = MyHidIoClient('Python info gathering example')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
+    _tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:
