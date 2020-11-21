@@ -75,6 +75,28 @@ jobs:
           CXXFLAGS=-fPIC CFLAGS=-fPIC python -m pip install -r requirements.txt
           python -m pytest -vvv
 
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ env.deb_packages }}
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --path . --bins --examples --root dist
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: linux_release_binaries
+          path: dist/bin
+
   mingw_w64build:
     name: mingw-w64 Build
     runs-on: ubuntu-latest

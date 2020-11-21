@@ -36,3 +36,24 @@ jobs:
           python -m pip install cython
           python -m pip install -r requirements.txt
           python -m pytest -vvv
+
+  build:
+    name: Build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - name: Install dependencies
+        run: |
+          choco install capnproto
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --path . --bins --examples --root dist
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: win_release_binaries
+          path: dist/bin
