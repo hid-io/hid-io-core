@@ -2,7 +2,7 @@
 HID-IO Python Library
 '''
 
-# Copyright (C) 2019 Jacob Alexander
+# Copyright (C) 2019-2020 Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,4 +23,3 @@ HID-IO Python Library
 # THE SOFTWARE.
 
 __version__ = '0.1.0'
-

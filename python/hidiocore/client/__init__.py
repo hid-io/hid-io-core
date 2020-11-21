@@ -22,17 +22,16 @@ HID-IO Python Client Library
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-## Imports
+# Imports
 import asyncio
 import logging
 import os
 import pygtail
 import random
-import sys
 import socket
 import ssl
 
-## Capnp Imports
+# Capnp Imports
 import capnp
 import hidiocore.schema.hidio_capnp as hidio_capnp
 
@@ -99,7 +98,6 @@ class HidIoClient:
         # Just a random number
         self.serial = "{} - pid:{}".format(random.getrandbits(64), os.getpid())
 
-
     def __del__(self):
         '''
         Forceably cancel all async tasks when deleting the object
@@ -108,7 +106,6 @@ class HidIoClient:
         if not self.loop:
             self.loop = asyncio.get_event_loop()
         asyncio.ensure_future(self.disconnect(), loop=self.loop)
-
 
     async def socketreader(self):
         '''
@@ -132,7 +129,6 @@ class HidIoClient:
         logger.debug("socketreader done.")
         return True
 
-
     async def socketwriter(self):
         '''
         Reads from pycapnp client interface and writes to asyncio socket
@@ -154,7 +150,6 @@ class HidIoClient:
                 return False
         logger.debug("socketwriter done.")
         return True
-
 
     async def socketwatcher(self):
         '''
@@ -180,7 +175,6 @@ class HidIoClient:
         logger.debug("socketwatcher done.")
         return True
 
-
     async def nodeswatcher(self):
         '''
         Processes node list updates
@@ -197,7 +191,6 @@ class HidIoClient:
         logger.debug("nodeswatcher done.")
         return True
 
-
     def reset_corelog_followposition(self):
         '''
         Resets the hid-io-core log position
@@ -207,7 +200,6 @@ class HidIoClient:
             os.remove(self.core_current_log_file_offset)
         except Exception as err:
             logger.warn("No hid-io-core log offset file: %s", err)
-
 
     async def corelogwatcher(self):
         '''
@@ -227,10 +219,8 @@ class HidIoClient:
                 await asyncio.sleep(0.5)
             else:
                 await asyncio.sleep(1)
-        os_remove(offset_path)
 
-
-    async def socketconnection(self):
+    async def socketconnection(self):  # noqa: C901
         '''
         Main socket connection function
         May be called repeatedly when trying to open a connection
@@ -263,7 +253,13 @@ class HidIoClient:
                     timeout=1.0,
                 )
             except (asyncio.TimeoutError, OSError):
-                logger.debug("Retrying port connection {}:{} auth level {}".format(self.addr, self.port, self.auth))
+                logger.debug(
+                    "Retrying port connection {}:{} auth level {}".format(
+                        self.addr,
+                        self.port,
+                        self.auth
+                    )
+                )
                 return False
 
         self.overalltasks = []
@@ -336,7 +332,8 @@ class HidIoClient:
                 with open(key_location, 'r') as myfile:
                     self.key = myfile.read()
             except OSError as err:
-                #logger.error("Could not read '%s'. This usually means insufficient permissions.", key_location) # XXX (HaaTa): Commented out as this info is sensitive
+                # XXX (HaaTa): Commented out as this info is sensitive
+                #  logger.error("Could not read '%s'. This usually means insufficient permissions.", key_location)
                 logger.error("Could not read keyfile. This usually means insufficient permissions.")
                 logger.error(err)
                 await self.disconnect()
@@ -361,7 +358,6 @@ class HidIoClient:
         while self.retry_task:
             await asyncio.sleep(1)
         logger.debug("socketconnection done.")
-
 
     async def connect(self, auth=AUTH_NONE, addr='localhost', port='7185'):
         '''
@@ -391,7 +387,6 @@ class HidIoClient:
         # Remove reference to loop once we finish
         self.loop = None
         logger.debug("Connection ended")
-
 
     async def disconnect(self, retry_connection=False):
         '''
@@ -432,7 +427,6 @@ class HidIoClient:
             return
         logger.debug("Stopping client.")
 
-
     async def on_connect(self, cap, cap_auth):
         '''
         This callback is meant to be overridden
@@ -444,7 +438,6 @@ class HidIoClient:
                          (May be set to None, if not authenticated)
         '''
 
-
     async def on_disconnect(self):
         '''
         This callback is meant to be overridden
@@ -452,13 +445,11 @@ class HidIoClient:
         This may occur if the server dies, or due to some network issue.
         '''
 
-
     def on_nodesupdate(self, nodes):
         '''
         This callback is an asynchronous event by HID-IO Core
         If connected, will return a list of nodes only when the list updates
         '''
-
 
     def on_core_log_entry(self, entry):
         '''
@@ -475,14 +466,12 @@ class HidIoClient:
         of problems starting/reconnecting with hid-io-core.
         '''
 
-
     def capability_hidioserver(self):
         '''
         Returns a reference to the capability
         This will be refreshed on each on_connect callback event.
         '''
         return self.cap
-
 
     def auth_promise(self):
         '''
@@ -506,7 +495,6 @@ class HidIoClient:
             return request.send()
         return None
 
-
     async def capability_authenticate(self):
         '''
         Returns a reference to the authenticated capability
@@ -525,7 +513,6 @@ class HidIoClient:
             return cap_auth
         return None
 
-
     def retry_connection_status(self):
         '''
         Returns whether or not connection retry is enabled
@@ -533,7 +520,6 @@ class HidIoClient:
         Use this to stop the event loop.
         '''
         return self.retry_connection
-
 
     def version(self):
         '''

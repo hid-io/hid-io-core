@@ -2,7 +2,7 @@
 Basic test cases for HID-IO Client Python Library
 '''
 
-# Copyright (C) 2019 Jacob Alexander
+# Copyright (C) 2019-2020 Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@ import sys
 import time
 
 python_dir = os.path.join(os.path.dirname(__file__))
+
 
 def run_subprocesses(client, args):
     env = os.environ

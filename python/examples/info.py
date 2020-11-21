@@ -30,7 +30,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-import hidiocore.client
+import hidiocore.client # noqa
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -41,7 +41,6 @@ class MyHidIoClient(hidiocore.client.HidIoClient):
         logger.info("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
 
-
     async def on_disconnect(self):
         logger.info("Disconnected!")
 
@@ -50,7 +49,12 @@ async def main(args):
     client = MyHidIoClient('Python info gathering example')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    _tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
+    _tasks = [  # noqa: F841
+        asyncio.gather(
+            *[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)],
+            return_exceptions=True
+        )
+    ]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:

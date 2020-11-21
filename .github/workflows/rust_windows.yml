@@ -31,8 +31,8 @@ jobs:
         env:
           CXXFLAGS: -fPIC
           CFLAGS: -fPIC
+        working-directory: ./python
         run: |
-          cd python
           python -m pip install cython
           python -m pip install -r requirements.txt
           python -m pytest -vvv

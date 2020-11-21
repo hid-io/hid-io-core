@@ -3,7 +3,7 @@
 Basic HID-IO Python Client Example
 '''
 
-# Copyright (C) 2019 Jacob Alexander
+# Copyright (C) 2019-2020 Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-import hidiocore.client
+import hidiocore.client # noqa
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -41,10 +41,8 @@ class MyHidIoClient(hidiocore.client.HidIoClient):
         logger.info("Connected!")
         print("Connected API Call", await cap.alive().a_wait())
 
-
     async def on_disconnect(self):
         logger.info("Disconnected!")
-
 
     def on_nodesupdate(self, nodes):
         print("Nodes Update", nodes)
@@ -54,7 +52,12 @@ async def main(args):
     client = MyHidIoClient('Python example.py')
     # Connect the client to the server using a background task
     # This will automatically reconnect
-    tasks = [asyncio.gather(*[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)], return_exceptions=True)]
+    _tasks = [  # noqa: F841
+        asyncio.gather(
+            *[client.connect(auth=hidiocore.client.HidIoClient.AUTH_BASIC)],
+            return_exceptions=True
+        )
+    ]
     while client.retry_connection_status():
         if client.capability_hidioserver():
             try:

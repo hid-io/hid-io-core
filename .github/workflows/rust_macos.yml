@@ -27,8 +27,8 @@ jobs:
         with:
           command: test
       - name: Install pycapnp dependencies and run test
+        working-directory: ./python
         run: |
-          cd python
           python -m pip install cython
           CXXFLAGS=-fPIC CFLAGS=-fPIC python -m pip install -r requirements.txt
           python -m pytest -vvv
