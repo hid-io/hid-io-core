@@ -3,21 +3,21 @@ name: Rust Linux
 on: [push, pull_request]
 
 env:
-  deb_packages: |
-    capnproto \
-    libclang-dev \
-    libevdev-dev \
-    libudev-dev \
-    libwayland-dev \
-    libxcb-xkb-dev \
-    libxkbcommon-dev \
-    libxkbcommon-x11-dev \
-    libxtst-dev \
-    llvm \
+  deb_packages: >-
+    capnproto
+    libclang-dev
+    libevdev-dev
+    libudev-dev
+    libwayland-dev
+    libxcb-xkb-dev
+    libxkbcommon-dev
+    libxkbcommon-x11-dev
+    libxtst-dev
+    llvm
     ninja-build
-  mingw_w64_packages: |
-    mingw-w64 \
-    wine-stable \
+  mingw_w64_packages: >-
+    mingw-w64
+    wine-stable
     wine-binfmt
 
 jobs:

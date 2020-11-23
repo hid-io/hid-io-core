@@ -54,6 +54,7 @@ dkms.conf
 ## Rust specific ##
 # Compiled files
 /target/
+/dist/
 
 # Remove Cargo.lock only for executable targets
 Cargo.lock
