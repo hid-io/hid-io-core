@@ -1,3 +1,4 @@
+#![cfg(feature = "displayserver")]
 /* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
@@ -39,16 +40,16 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tokio::stream::StreamExt;
 
-#[cfg(all(feature = "unicode", target_os = "linux"))]
+#[cfg(all(feature = "displayserver", target_os = "linux"))]
 use crate::module::displayserver::x11::*;
 
-#[cfg(all(feature = "unicode", target_os = "linux"))]
+#[cfg(all(feature = "displayserver", target_os = "linux"))]
 use crate::module::displayserver::wayland::*;
 
-#[cfg(all(feature = "unicode", target_os = "windows"))]
+#[cfg(all(feature = "displayserver", target_os = "windows"))]
 use crate::module::displayserver::winapi::*;
 
-#[cfg(all(feature = "unicode", target_os = "macos"))]
+#[cfg(all(feature = "displayserver", target_os = "macos"))]
 use crate::module::displayserver::quartz::*;
 
 /// Functions that can be called in a cross platform manner
@@ -138,12 +139,12 @@ struct Module {
     display: Box<dyn DisplayOutput>,
 }
 
-#[cfg(not(feature = "unicode"))]
+#[cfg(not(feature = "displayserver"))]
 fn get_display() -> Box<dyn DisplayOutput> {
     Box::new(StubOutput::new())
 }
 
-#[cfg(all(feature = "unicode", target_os = "linux"))]
+#[cfg(all(feature = "displayserver", target_os = "linux"))]
 fn get_display() -> Box<dyn DisplayOutput> {
     // First attempt to connect to Wayland
     let wayland = WaylandConnection::new();
@@ -153,12 +154,12 @@ fn get_display() -> Box<dyn DisplayOutput> {
     }
 }
 
-#[cfg(all(feature = "unicode", target_os = "windows"))]
+#[cfg(all(feature = "displayserver", target_os = "windows"))]
 fn get_display() -> Box<dyn DisplayOutput> {
     Box::new(DisplayConnection::new())
 }
 
-#[cfg(all(feature = "unicode", target_os = "macos"))]
+#[cfg(all(feature = "displayserver", target_os = "macos"))]
 fn get_display() -> Box<dyn DisplayOutput> {
     Box::new(QuartzConnection::new())
 }

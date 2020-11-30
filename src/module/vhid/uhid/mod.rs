@@ -15,9 +15,9 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::api::common_capnp;
 use crate::api::Endpoint;
 use crate::api::UhidInfo;
-use crate::common_capnp;
 use crate::mailbox;
 use crate::module::vhid;
 use crate::protocol::hidio;
@@ -206,20 +206,18 @@ impl KeyboardNKRO {
         let output_event = self.device.read();
 
         // Handle LED events
-        if let Ok(event) = &output_event {
-            if let uhid_virt::OutputEvent::Output { data } = event {
-                // NOTE: data is not processed and is sent as a bitfield
-                // Send message containing LED events
-                self.mailbox
-                    .try_send_command(
-                        mailbox::Address::DeviceHid { uid: self.uid },
-                        mailbox::Address::All,
-                        hidio::HidIoCommandID::HIDKeyboardLED,
-                        data.to_vec(),
-                        false,
-                    )
-                    .unwrap();
-            }
+        if let Ok(uhid_virt::OutputEvent::Output { data }) = &output_event {
+            // NOTE: data is not processed and is sent as a bitfield
+            // Send message containing LED events
+            self.mailbox
+                .try_send_command(
+                    mailbox::Address::DeviceHid { uid: self.uid },
+                    mailbox::Address::All,
+                    hidio::HidIoCommandID::HIDKeyboardLED,
+                    data.to_vec(),
+                    false,
+                )
+                .unwrap();
         }
 
         // Default event handler
@@ -340,20 +338,18 @@ impl Keyboard6KRO {
         let output_event = self.device.read();
 
         // Handle LED events
-        if let Ok(event) = &output_event {
-            if let uhid_virt::OutputEvent::Output { data } = event {
-                // NOTE: data is not processed and is sent as a bitfield
-                // Send message containing LED events
-                self.mailbox
-                    .try_send_command(
-                        mailbox::Address::DeviceHid { uid: self.uid },
-                        mailbox::Address::All,
-                        hidio::HidIoCommandID::HIDKeyboardLED,
-                        data.to_vec(),
-                        false,
-                    )
-                    .unwrap();
-            }
+        if let Ok(uhid_virt::OutputEvent::Output { data }) = &output_event {
+            // NOTE: data is not processed and is sent as a bitfield
+            // Send message containing LED events
+            self.mailbox
+                .try_send_command(
+                    mailbox::Address::DeviceHid { uid: self.uid },
+                    mailbox::Address::All,
+                    hidio::HidIoCommandID::HIDKeyboardLED,
+                    data.to_vec(),
+                    false,
+                )
+                .unwrap();
         }
 
         // Default event handler

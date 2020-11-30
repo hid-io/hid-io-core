@@ -49,24 +49,28 @@ pub mod built_info {
 }
 
 /// [AUTO GENERATED]
+#[cfg(feature = "api")]
 pub mod common_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/common_capnp.rs"));
 }
 
 /// [AUTO GENERATED]
+#[cfg(feature = "api")]
 pub mod daemon_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/daemon_capnp.rs"));
 }
 
 /// [AUTO GENERATED]
+#[cfg(feature = "api")]
 pub mod hidio_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/hidio_capnp.rs"));
 }
 
 /// [AUTO GENERATED]
+#[cfg(feature = "api")]
 pub mod keyboard_capnp {
     #![allow(clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/keyboard_capnp.rs"));

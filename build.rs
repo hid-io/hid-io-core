@@ -32,6 +32,7 @@ fn main() {
     built::write_built_file().expect("Failed to acquire build-time information");
 
     // Generate Cap'n Proto rust files
+    #[cfg(feature = "api")]
     capnpc::CompilerCommand::new()
         .src_prefix("python/hidiocore/schema")
         .file("python/hidiocore/schema/common.capnp")

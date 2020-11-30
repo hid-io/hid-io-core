@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(all(feature = "dev-capture", target_os = "linux"))]
 /* Copyright (C) 2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
@@ -15,9 +15,11 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// ----- Crates -----
+
+use crate::api::common_capnp;
 use crate::api::Endpoint;
 use crate::api::EvdevInfo;
-use crate::common_capnp;
 use crate::mailbox;
 use crate::module::vhid;
 use crate::protocol::hidio;
@@ -914,7 +916,7 @@ impl EvdevDevice {
                             }
                             _ => {
                                 panic!(
-                                    "Unknown type for EvdevDevice endpoint node: {}",
+                                    "Unknown type for EvdevDevice endpoint node: {:?}",
                                     self.endpoint.type_()
                                 );
                             }

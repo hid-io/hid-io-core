@@ -14,6 +14,7 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::api::common_capnp;
 /// HID-IO Core Daemon Node
 /// Handles API queries directly to HID-IO Core rather than to a specific device
 /// This is the standard way to interact with HID-IO Core modules from the capnp API
@@ -21,7 +22,6 @@
 /// For the most part, this is a dummy node used mainly for node accounting with the mailbox.
 /// The capnproto API should call the internal functions directly if possible.
 use crate::api::Endpoint;
-use crate::common_capnp;
 use crate::mailbox;
 use std::sync::Arc;
 

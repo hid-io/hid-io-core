@@ -194,3 +194,25 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
         vhid::initialize(rt.clone(), mailbox.clone()),
     );
 }
+
+/// Used when displayserver feature is disabled
+#[cfg(not(feature = "displayserver"))]
+mod displayserver {
+    use crate::mailbox;
+    use crate::protocol::hidio::*;
+    use std::sync::Arc;
+
+    pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
+    pub fn supported_ids() -> Vec<HidIoCommandID> {
+        vec![]
+    }
+}
+
+/// Used when displayserver feature is disabled
+#[cfg(not(feature = "dev-capture"))]
+mod vhid {
+    use crate::mailbox;
+    use std::sync::Arc;
+
+    pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
+}

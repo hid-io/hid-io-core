@@ -1,3 +1,4 @@
+#![cfg(feature = "hidapi-devices")]
 /* Copyright (C) 2017-2020 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
@@ -14,9 +15,11 @@
  * along with this file.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// ----- Crates -----
+
+use crate::api::common_capnp::NodeType;
 use crate::api::Endpoint;
 use crate::api::HIDAPIInfo;
-use crate::common_capnp::NodeType;
 use crate::device::*;
 use crate::RUNNING;
 use lazy_static::lazy_static;
@@ -177,6 +180,10 @@ async fn processing(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox)
     // platform way
     loop {
         if !RUNNING.load(Ordering::SeqCst) {
+            // When the capnproto api isn't enabled use this loop to cancel
+            // some of the hidio message filters that may be waiting
+            #[cfg(not(feature = "api"))]
+            mailbox.drop_all_subscribers();
             return;
         }
 

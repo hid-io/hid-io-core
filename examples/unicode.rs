@@ -1,3 +1,4 @@
+#![cfg(feature = "displayserver")]
 /* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
@@ -29,7 +30,7 @@ use hid_io_core::module::displayserver::winapi::*;
 
 use hid_io_core::module::displayserver::DisplayOutput;
 
-#[cfg(all(feature = "unicode", target_os = "linux"))]
+#[cfg(target_os = "linux")]
 fn get_display() -> Box<dyn DisplayOutput> {
     // First attempt to connect to Wayland
     let wayland = WaylandConnection::new();

@@ -1,3 +1,4 @@
+#![cfg(feature = "api")]
 /* Copyright (C) 2019-2020 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *

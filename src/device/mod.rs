@@ -224,21 +224,28 @@ impl HidIoController {
 
 /// Supported Ids by this module
 /// recursive option applies supported ids from child modules as well
-#[cfg(all(feature = "unicode", target_os = "linux"))]
+#[allow(unused_variables)]
+#[cfg(target_os = "linux")]
 pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
-    let mut ids: Vec<HidIoCommandID> = vec![];
-    if recursive {
-        ids.extend(evdev::supported_ids().iter().cloned());
+    #[cfg(feature = "dev-capture")]
+    {
+        let mut ids: Vec<HidIoCommandID> = vec![];
+        if recursive {
+            ids.extend(evdev::supported_ids().iter().cloned());
+        }
+        ids
     }
-    ids
+
+    #[cfg(not(feature = "dev-capture"))]
+    vec![]
 }
 
-#[cfg(all(feature = "unicode", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub fn supported_ids(_recursive: bool) -> Vec<HidIoCommandID> {
     vec![]
 }
 
-#[cfg(all(feature = "unicode", target_os = "windows"))]
+#[cfg(target_os = "windows")]
 pub fn supported_ids(_recursive: bool) -> Vec<HidIoCommandID> {
     vec![]
 }
@@ -251,10 +258,11 @@ pub fn supported_ids(_recursive: bool) -> Vec<HidIoCommandID> {
 /// Each device is repsonsible for accepting and responding to packet requests.
 /// It is also possible to send requests asynchronously back to any Modules.
 /// Each device may have it's own RPC API.
+#[allow(unused_variables)]
 pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mailbox) {
     info!("Initializing devices...");
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "hidapi-devices"))]
     tokio::join!(
         // Initialize hidapi watcher
         hidapi::initialize(rt.clone(), mailbox.clone()),
@@ -263,10 +271,18 @@ pub async fn initialize(rt: Arc<tokio::runtime::Runtime>, mailbox: mailbox::Mail
     );
 
     // Initialize hidapi watcher
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "hidapi-devices"))]
     hidapi::initialize(rt.clone(), mailbox.clone()).await;
 
     // Initialize hidapi watcher
-    #[cfg(target_os = "windows")]
+    #[cfg(all(target_os = "windows", feature = "hidapi-devices"))]
     hidapi::initialize(rt.clone(), mailbox.clone()).await;
+}
+
+#[cfg(not(feature = "dev-capture"))]
+mod evdev {
+    use crate::mailbox;
+    use std::sync::Arc;
+
+    pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
 }
