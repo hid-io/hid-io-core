@@ -20,8 +20,8 @@ use flexi_logger::Logger;
 use std::env;
 
 /// Logging setup
-pub fn setup_logging() {
-    Logger::with_env_or_str("")
+pub fn setup_logging() -> Result<(), std::io::Error> {
+    match Logger::with_env_or_str("")
         .log_to_file()
         //.format(flexi_logger::colored_detailed_format)
         .format(flexi_logger::colored_default_format)
@@ -34,9 +34,17 @@ pub fn setup_logging() {
         )
         .duplicate_to_stderr(flexi_logger::Duplicate::All)
         .start()
-        .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
-    info!("-------------------------- HID-IO Core starting! --------------------------");
-    info!("Log location -> {:?}", env::temp_dir());
+    {
+        Err(msg) => Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!("Could not start logger {}", msg),
+        )),
+        Ok(_) => {
+            info!("-------------------------- HID-IO Core starting! --------------------------");
+            info!("Log location -> {:?}", env::temp_dir());
+            Ok(())
+        }
+    }
 }
 
 /// Lite logging setup

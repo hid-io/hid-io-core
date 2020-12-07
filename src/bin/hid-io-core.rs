@@ -40,7 +40,7 @@ fn main() -> Result<(), std::io::Error> {
             Err(_e) => panic!("Service failed"),
         }
     } else {
-        logging::setup_logging();
+        logging::setup_logging()?;
         start();
     }
     Ok(())
@@ -48,7 +48,7 @@ fn main() -> Result<(), std::io::Error> {
 
 #[cfg(not(windows))]
 fn main() -> Result<(), std::io::Error> {
-    logging::setup_logging();
+    logging::setup_logging()?;
     start();
     Ok(())
 }

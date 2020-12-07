@@ -981,22 +981,20 @@ fn device_type(
 ) -> std::io::Result<common_capnp::NodeType> {
     use evdev_rs::enums::*;
 
-    Ok(
-        if device.has(&EventCode::EV_KEY(EV_KEY::KEY_F))
-            || device.has(&EventCode::EV_KEY(EV_KEY::KEY_J))
-        {
-            common_capnp::NodeType::HidKeyboard
-        } else if device.has(&EventCode::EV_KEY(EV_KEY::BTN_LEFT)) {
-            common_capnp::NodeType::HidMouse
-        } else if device.has(&EventCode::EV_KEY(EV_KEY::BTN_TRIGGER)) {
-            common_capnp::NodeType::HidJoystick
-        } else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                format!("{} is not a keyboard, mouse or joystick", fd_path),
-            ));
-        },
-    )
+    if device.has(&EventCode::EV_KEY(EV_KEY::KEY_F))
+        || device.has(&EventCode::EV_KEY(EV_KEY::KEY_J))
+    {
+        Ok(common_capnp::NodeType::HidKeyboard)
+    } else if device.has(&EventCode::EV_KEY(EV_KEY::BTN_LEFT)) {
+        Ok(common_capnp::NodeType::HidMouse)
+    } else if device.has(&EventCode::EV_KEY(EV_KEY::BTN_TRIGGER)) {
+        Ok(common_capnp::NodeType::HidJoystick)
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{} is not a keyboard, mouse or joystick", fd_path),
+        ))
+    }
 }
 
 /// evdev processing
