@@ -17,7 +17,6 @@ default-run   = "hid-io-core"
 
 
 [features]
-# XXX (HaaTa): cargo doesn't provide any way to disable default features when used as a dependency. This may be fixed in the future...
 default = ["api", "dev-capture", "displayserver", "hidapi-devices", "vhid"]
 # api handles socket interfaces for HID-IO
 # e.g. capnproto interface

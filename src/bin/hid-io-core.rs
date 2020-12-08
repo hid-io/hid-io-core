@@ -22,6 +22,12 @@ extern crate log;
 #[macro_use]
 extern crate windows_service;
 
+#[cfg(windows)]
+use hid_io_core::RUNNING;
+
+#[cfg(windows)]
+use std::sync::atomic::Ordering;
+
 use clap::App;
 use hid_io_core::built_info;
 use hid_io_core::logging;
