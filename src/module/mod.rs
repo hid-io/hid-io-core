@@ -39,9 +39,10 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
 /// recursive option applies supported ids from child modules as well
 pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
     let mut ids = vec![
-        HidIoCommandID::SupportedIDs,
         HidIoCommandID::GetProperties,
         HidIoCommandID::OpenURL,
+        HidIoCommandID::SupportedIDs,
+        HidIoCommandID::Terminal,
     ];
     if recursive {
         ids.extend(displayserver::supported_ids().iter().cloned());
