@@ -16,16 +16,9 @@ build         = "build.rs"
 default-run   = "hid-io-core"
 
 
-[[bin]]
-name = "hid-io-core"
-required-features = ["api", "dev-capture", "displayserver", "hidapi-devices", "vhid"]
-
-
 [features]
 # XXX (HaaTa): cargo doesn't provide any way to disable default features when used as a dependency. This may be fixed in the future...
-# Using required-features flag instead
-#default = ["api", "dev-capture", "displayserver", "hidapi-devices", "vhid"]
-default = []
+default = ["api", "dev-capture", "displayserver", "hidapi-devices", "vhid"]
 # api handles socket interfaces for HID-IO
 # e.g. capnproto interface
 # Disabling will reduce compile times

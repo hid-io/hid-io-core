@@ -22,6 +22,8 @@
 #[macro_use]
 extern crate log;
 
+use std::sync::atomic::Ordering;
+
 // ----- Modules -----
 
 /// capnp interface for other programs to hook into
@@ -85,4 +87,29 @@ use std::sync::Arc;
 lazy_static! {
     /// Any thread can set this to false to signal shutdown
     pub static ref RUNNING: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+}
+
+/// Main entry-point for the hid-io-core library
+pub async fn initialize(
+    rt: Arc<tokio::runtime::Runtime>,
+    mailbox: mailbox::Mailbox,
+) -> Result<(), std::io::Error> {
+    // Setup signal handler
+    let r = RUNNING.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })
+    .expect("Error setting Ctrl-C handler");
+    println!("Press Ctrl-C to exit...");
+
+    // Wait until completion
+    let (_, _, _) = tokio::join!(
+        // Initialize Modules
+        module::initialize(rt.clone(), mailbox.clone()),
+        // Initialize Device monitoring
+        device::initialize(rt.clone(), mailbox.clone()),
+        // Initialize Cap'n'Proto API Server
+        api::initialize(rt.clone(), mailbox),
+    );
+    Ok(())
 }

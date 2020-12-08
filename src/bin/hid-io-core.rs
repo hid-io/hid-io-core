@@ -23,11 +23,9 @@ extern crate log;
 extern crate windows_service;
 
 use clap::App;
+use hid_io_core::built_info;
 use hid_io_core::logging;
 use hid_io_core::mailbox;
-use hid_io_core::RUNNING;
-use hid_io_core::{api, built_info, device, module};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 #[cfg(windows)]
@@ -63,14 +61,6 @@ fn start() {
     );
 
     rt.block_on(async {
-        // Setup signal handler
-        let r = RUNNING.clone();
-        ctrlc::set_handler(move || {
-            r.store(false, Ordering::SeqCst);
-        })
-        .expect("Error setting Ctrl-C handler");
-        println!("Press Ctrl-C to exit...");
-
         let version_info = format!(
             "{}{} - {}",
             built_info::PKG_VERSION,
@@ -102,15 +92,8 @@ fn start() {
         // Setup mailbox
         let mailbox = mailbox::Mailbox::new();
 
-        // Wait until completion
-        let (_, _, _) = tokio::join!(
-            // Initialize Modules
-            module::initialize(rt.clone(), mailbox.clone()),
-            // Initialize Device monitoring
-            device::initialize(rt.clone(), mailbox.clone()),
-            // Initialize Cap'n'Proto API Server
-            api::initialize(rt.clone(), mailbox),
-        );
+        // Start library
+        hid_io_core::initialize(rt.clone(), mailbox).await.unwrap();
 
         info!("-------------------------- HID-IO Core exiting! --------------------------");
     });
