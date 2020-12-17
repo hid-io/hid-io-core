@@ -1,0 +1,48 @@
+[package]
+name          = "hid-io-protocol"
+version       = "0.1.0"
+authors       = ["Jacob Alexander <haata@kiibohd.com>"]
+license       = "MIT"
+description   = """
+HID-IO protocol implementation for both servers and devices.
+Devices are optimized for Cortex-M devices, but may work for other platforms.
+"""
+
+homepage      = "https://github.com/hid-io/hid-io-core"
+repository    = "https://github.com/hid-io/hid-io-core"
+# TODO setup separate doc section?
+documentation = "https://hid-io.github.io/hid-io-core/hid_io_core/"
+
+edition       = "2018"
+
+
+[lib]
+name = "hid_io_protocol"
+crate-type = ["staticlib"]
+
+
+[features]
+default = ["server"]
+
+# device feature is intended for embedded devices such as a Cortex-M4 device
+# Strictly no_std
+device = []
+
+# server feature is intended for use with full user-space applications
+# with access to std for loggging messages
+# Mostly no_std with some minor exceptions
+server = ["log", "bincode_core/std"]
+
+
+[dependencies]
+arraydeque      = { version = "^0.4", default-features = false }
+#bincode_core    = { git = "https://github.com/bincode-org/bincode-core.git" }
+bincode_core    = { git = "https://github.com/haata/bincode-core.git" }
+heapless        = { version = "^0.5" }
+log             = { version = "^0.4", default-features = false, optional = true }
+num_enum        = { version = "^0.5", default-features = false }
+serde           = { version = "^1.0", default-features = false }
+
+
+[dev-dependencies]
+flexi_logger    = "^0.16"

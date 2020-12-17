@@ -16,7 +16,7 @@ HID-IO Client Side Library and Daemon
 
 ### API Documentation
 
-* [master](https://hid-io.github.io/hid_io)
+* [master](https://hid-io.github.io/hid-io-core/hid_io_core/)
 
 
 ## Getting
