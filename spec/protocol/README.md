@@ -665,7 +665,7 @@ Various test commands used during manufacturing to validate the hardware.
 * 0x34..0x3F - **Unused**
 * 0x40 - (Host/Device) [HID Keyboard State](#hid-keyboard-state)
 * 0x41 - (Host/Device) [HID Keyboard LED State](#hid-keyboard-led-state)
-* 0x41 - (Host/Device) Reserved - HID Mouse State
-* 0x42 - (Host/Device) Reserved - HID Joystick State
-* 0x43..0x4F - **Unused**
+* 0x42 - (Host/Device) Reserved - HID Mouse State
+* 0x43 - (Host/Device) Reserved - HID Joystick State
+* 0x44..0x4F - **Unused**
 * 0x50 - (Host)        [Manufacturing Test](#manufacturing-test)
