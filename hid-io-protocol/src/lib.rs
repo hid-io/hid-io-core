@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -19,12 +19,16 @@
  * THE SOFTWARE.
  */
 
-// ----- Crates -----
+// ----- Modules -----
 
 #![no_std]
 #![feature(lang_items)]
+#![feature(associated_type_defaults)]
 
-// ----- Modules -----
+pub mod buffer;
+pub mod commands;
+
+// ----- Crates -----
 
 use bincode_core::{serialize, BufferWriter};
 use core::convert::TryFrom;
@@ -151,27 +155,6 @@ pub enum HostOSID {
     NetBSD = 0x09,
 }
 
-// ----- Structs -----
-
-/// HID-IO Packet Buffer Struct
-///
-/// # Remarks
-/// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
-#[repr(C)]
-#[derive(PartialEq, Clone, Debug)]
-pub struct HidIoPacketBuffer<N: ArrayLength<u8>> {
-    /// Type of packet (Continued is automatically set if needed)
-    pub ptype: HidIoPacketType,
-    /// Packet Id
-    pub id: HidIoCommandID,
-    /// Packet length for serialization (in bytes)
-    pub max_len: u32,
-    /// Payload data, chunking is done automatically by serializer
-    pub data: Vec<u8, N>,
-    /// Set False if buffer is not complete, True if it is
-    pub done: bool,
-}
-
 /// HID-IO Parse Error
 ///
 /// # Remarks
@@ -193,6 +176,27 @@ pub enum HidIoParseError {
     SerializationFailedResultTooSmall(usize),
     VecAddFailed,
     VecResizeFailed,
+}
+
+// ----- Structs -----
+
+/// HID-IO Packet Buffer Struct
+///
+/// # Remarks
+/// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
+#[repr(C)]
+#[derive(PartialEq, Clone, Debug)]
+pub struct HidIoPacketBuffer<H: ArrayLength<u8>> {
+    /// Type of packet (Continued is automatically set if needed)
+    pub ptype: HidIoPacketType,
+    /// Packet Id
+    pub id: HidIoCommandID,
+    /// Packet length for serialization (in bytes)
+    pub max_len: u32,
+    /// Payload data, chunking is done automatically by serializer
+    pub data: Vec<u8, H>,
+    /// Set False if buffer is not complete, True if it is
+    pub done: bool,
 }
 
 // ----- Utility Functions -----
@@ -460,27 +464,27 @@ pub fn hid_vec2bitmask(codes: &[u8]) -> Result<Vec<u8, U32>, HidIoParseError> {
 
 // ----- Implementations -----
 
-impl<N> Default for HidIoPacketBuffer<N>
+impl<H> Default for HidIoPacketBuffer<H>
 where
-    N: ArrayLength<u8>,
+    H: ArrayLength<u8>,
 {
     fn default() -> Self {
         HidIoPacketBuffer {
             ptype: HidIoPacketType::Data,
             id: HidIoCommandID::try_from(0).unwrap(),
-            max_len: 0,
+            max_len: 64, // Default size
             data: Vec::new(),
             done: false,
         }
     }
 }
 
-impl<N: ArrayLength<u8>> HidIoPacketBuffer<N> {
+impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
     /// Constructor for HidIoPacketBuffer
     ///
     /// # Remarks
     /// Initialize as blank
-    pub fn new() -> HidIoPacketBuffer<N> {
+    pub fn new() -> HidIoPacketBuffer<H> {
         HidIoPacketBuffer {
             ..Default::default()
         }
@@ -652,9 +656,9 @@ impl<N: ArrayLength<u8>> HidIoPacketBuffer<N> {
     }
 }
 
-impl<N> Serialize for HidIoPacketBuffer<N>
+impl<H> Serialize for HidIoPacketBuffer<H>
 where
-    N: ArrayLength<u8>,
+    H: ArrayLength<u8>,
 {
     /// Serializer for HidIoPacketBuffer
     ///
@@ -888,7 +892,7 @@ impl fmt::Display for HidIoPacketType {
     }
 }
 
-impl<N: ArrayLength<u8>> fmt::Display for HidIoPacketBuffer<N> {
+impl<H: ArrayLength<u8>> fmt::Display for HidIoPacketBuffer<H> {
     /// Display formatter for HidIoPacketBuffer
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -938,8 +942,8 @@ mod test {
 
     /// Loopback helper
     /// Serializes, deserializes, then checks if same as original
-    fn loopback_serializer<N: ArrayLength<u8> + core::cmp::PartialEq>(
-        mut buffer: HidIoPacketBuffer<N>,
+    fn loopback_serializer<H: ArrayLength<u8> + core::cmp::PartialEq>(
+        mut buffer: HidIoPacketBuffer<H>,
         data: &mut [u8],
     ) {
         // Serialize
