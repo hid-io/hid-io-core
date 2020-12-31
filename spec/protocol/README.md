@@ -203,7 +203,7 @@ No Acknowledgement Data Packet, 32 bit Id, Continued, 4 byte length (actual leng
 0xB8 0x04 0x0F 0x00 0x00 0x00
 ```
 
-__Continued Packet__
+__No Acknowledgement Continued Packet__
 ```
 <cont> <length> <Id> [payload]
 
