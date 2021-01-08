@@ -259,7 +259,7 @@ Requests a property from the device.
 0x07 - Firmware Name (ascii) (e.g. kiibohd, QMK, etc.)
 0x08 - Firmware Version (ascii)
 0x09 - Device Vendor (ascii)
-0xFF - Invalid/Error condition
+0xFF - Invalid/Error condition (none)
 
 +> <property>
 -> <invalid property value>
@@ -296,8 +296,8 @@ Requests a property from the host.
  * 0x05 - iOS
  * 0x06 - ChromeOS
 0x0B - OS Version (ascii)
-0x0C - Host software name
-0xFF - Invalid/Error condition
+0x0C - Host software name (ascii)
+0xFF - Invalid/Error condition (none)
 
 +> <property>
 -> <invalid property value>
