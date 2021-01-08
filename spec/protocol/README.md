@@ -249,17 +249,17 @@ Requests a list of supported Ids on the device. This includes required Ids. Use 
 
 Requests a property from the device.
 
-0x00 - HID-IO Major Version (16 bit)
-0x01 - HID-IO Minor Version (16 bit)
-0x02 - HID-IO Patch Version (16 bit)
-0x03 - Device Name (ascii)
-0x04 - Device Serial Number (ascii)
-0x05 - Device Version (ascii)
-0x06 - Device MCU (ascii) (e.g. mk20dx256vlh7, atsam4s8b, atmega32u4)
-0x07 - Firmware Name (ascii) (e.g. kiibohd, QMK, etc.)
-0x08 - Firmware Version (ascii)
-0x09 - Device Vendor (ascii)
-0xFF - Invalid/Error condition (none)
+0x00 - Unknown (none)
+0x01 - HID-IO Major Version (16 bit)
+0x02 - HID-IO Minor Version (16 bit)
+0x03 - HID-IO Patch Version (16 bit)
+0x04 - Device Name (ascii)
+0x05 - Device Serial Number (ascii)
+0x06 - Device Version (ascii)
+0x07 - Device MCU (ascii) (e.g. mk20dx256vlh7, atsam4s8b, atmega32u4)
+0x08 - Firmware Name (ascii) (e.g. kiibohd, QMK, etc.)
+0x09 - Firmware Version (ascii)
+0x0A - Device Vendor (ascii)
 
 +> <property>
 -> <invalid property value>
@@ -284,10 +284,11 @@ Requests a list of supported Ids on the host. This includes required Ids. Use th
 
 Requests a property from the host.
 
-0x00 - HID-IO Major Version (16 bit)
-0x01 - HID-IO Minor Version (16 bit)
-0x02 - HID-IO Patch Version (16 bit)
-0x0A - OS Type (8 bit)
+0x00 - Unknown (none)
+0x01 - HID-IO Major Version (16 bit)
+0x02 - HID-IO Minor Version (16 bit)
+0x03 - HID-IO Patch Version (16 bit)
+0x0B - OS Type (8 bit)
  * 0x00 - Unknown
  * 0x01 - Windows
  * 0x02 - Linux
@@ -295,9 +296,8 @@ Requests a property from the host.
  * 0x04 - macOS
  * 0x05 - iOS
  * 0x06 - ChromeOS
-0x0B - OS Version (ascii)
-0x0C - Host software name (ascii)
-0xFF - Invalid/Error condition (none)
+0x0C - OS Version (ascii)
+0x0D - Host software name (ascii)
 
 +> <property>
 -> <invalid property value>
