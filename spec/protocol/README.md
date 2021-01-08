@@ -286,7 +286,7 @@ Requests a property from the host.
 0x00 - HID-IO Major Version (16 bit)
 0x01 - HID-IO Minor Version (16 bit)
 0x02 - HID-IO Patch Version (16 bit)
-0x03 - OS Type (8 bit)
+0x0A - OS Type (8 bit)
  * 0x00 - Unknown
  * 0x01 - Windows
  * 0x02 - Linux
@@ -294,8 +294,8 @@ Requests a property from the host.
  * 0x04 - macOS
  * 0x05 - iOS
  * 0x06 - ChromeOS
-0x04 - OS Version (ascii)
-0x05 - Host software name
+0x0B - OS Version (ascii)
+0x0C - Host software name
 
 +> <property>
 -> <invalid property value>
