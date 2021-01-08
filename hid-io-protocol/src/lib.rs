@@ -127,34 +127,6 @@ pub enum HidIoCommandID {
     Unused = 0xFFFF,
 }
 
-#[repr(u8)]
-#[derive(PartialEq, Clone, Copy, Debug)]
-/// Requests for a specific piece of info
-pub enum HidIoPropertyID {
-    HidIoMajor = 0x00,
-    HidIoMinor = 0x01,
-    HidIoPatch = 0x02,
-    HostOS = 0x03,
-    OSVersion = 0x04,
-    HostName = 0x05,
-}
-
-#[repr(u8)]
-#[derive(PartialEq, Clone, Copy, Debug)]
-/// Platforms as a numeric id
-pub enum HostOSID {
-    Unknown = 0x00,
-    Windows = 0x01,
-    Linux = 0x02,
-    Android = 0x03,
-    Mac = 0x04,
-    IOS = 0x05,
-    ChromeOS = 0x06,
-    FreeBSD = 0x07,
-    OpenBSD = 0x08,
-    NetBSD = 0x09,
-}
-
 /// HID-IO Parse Error
 ///
 /// # Remarks

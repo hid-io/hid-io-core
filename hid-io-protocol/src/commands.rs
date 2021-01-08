@@ -24,8 +24,8 @@
 use super::*;
 use core::convert::TryInto;
 use core::ops::{Add, Mul};
-use heapless::consts::{U0, U4, U5};
-use heapless::Vec;
+use heapless::consts::{U0, U1, U256, U257, U262, U4, U5};
+use heapless::{String, Vec};
 use typenum::{Prod, Sum, Unsigned};
 
 #[cfg(feature = "server")]
@@ -39,11 +39,15 @@ use log::{debug, error, warn};
 
 #[derive(Debug)]
 pub enum CommandError {
+    DataVecTooSmall,
     IdNotImplemented(HidIoCommandID),
+    IdNotMatched(HidIoCommandID),
     IdNotSupported(HidIoCommandID),
     IdVecTooSmall,
     InvalidId(u32),
+    InvalidProperty8(u8),
     InvalidRxMessage(HidIoPacketType),
+    InvalidUtf8(core::str::Utf8Error),
     PacketDecodeError(HidIoParseError),
     SerializationFailed(HidIoParseError),
     TxBufferSendFailed,
@@ -51,19 +55,78 @@ pub enum CommandError {
 
 // ----- Command Structs -----
 
-pub struct H0000SupportedIdsCmd {}
+pub mod h0000 {
+    use super::super::HidIoCommandID;
+    use heapless::{ArrayLength, Vec};
 
-pub struct H0000SupportedIdsAck<ID: ArrayLength<HidIoCommandID>> {
-    pub ids: Vec<HidIoCommandID, ID>,
+    pub struct Cmd {}
+
+    pub struct Ack<ID: ArrayLength<HidIoCommandID>> {
+        pub ids: Vec<HidIoCommandID, ID>,
+    }
+
+    pub struct Nak {}
 }
 
-pub struct H0000SupportedIdsNak {}
+pub mod h0001 {
+    use heapless::consts::U256;
+    use heapless::String;
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    pub enum Property {
+        Unknown = 0x00,
+        MajorVersion = 0x01,
+        MinorVersion = 0x02,
+        PatchVersion = 0x03,
+        DeviceName = 0x04,
+        DeviceSerialNumber = 0x05,
+        DeviceVersion = 0x06,
+        DeviceMCU = 0x07,
+        FirmwareName = 0x08,
+        FirmwareVersion = 0x09,
+        DeviceVendor = 0x0A,
+        OsType = 0x0B,
+        OsVersion = 0x0C,
+        HostSoftwareName = 0x0D,
+    }
+
+    #[repr(u8)]
+    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    pub enum OSType {
+        Unknown = 0x00,
+        Windows = 0x01,
+        Linux = 0x02,
+        Android = 0x03,
+        MacOS = 0x04,
+        IOS = 0x05,
+        ChromeOS = 0x06,
+    }
+
+    pub struct Cmd {
+        pub property: Property,
+    }
+
+    pub struct Ack {
+        pub property: Property,
+
+        /// OS Type field
+        pub os: OSType,
+
+        /// Number is set when the given property specifies a number
+        pub number: u16,
+
+        /// String is set when the given property specifies a string
+        pub string: String<U256>,
+    }
+
+    pub struct Nak {
+        pub property: Property,
+    }
+}
 
 /*
-struct H0001InfoCmd {}
-
-struct H0001InfoAck {}
-
 struct H0002TestCmd {}
 
 struct H0002TestAck {}
@@ -226,6 +289,7 @@ trait Commands<
     ID: ArrayLength<HidIoCommandID> + ArrayLength<u8> + Mul<U4> + Add<U5>,
 > where
     <ID as Mul<U4>>::Output: Add<U5>,
+    H: core::fmt::Debug,
 {
     /// Special generic to handle the supported id serialization
     /// buffer
@@ -298,6 +362,7 @@ trait Commands<
         Ok(buffer_count)
     }
 
+    /// Simple empty ack
     fn empty_ack(&mut self) -> Result<(), CommandError> {
         // Build empty ACK
         let mut buf = HidIoPacketBuffer::<U0> {
@@ -318,6 +383,7 @@ trait Commands<
         self.send_buffer(&mut data, &mut buf)
     }
 
+    /// Simple empty nak
     fn empty_nak(&mut self) -> Result<(), CommandError> {
         // Build empty NAK
         let mut buf = HidIoPacketBuffer::<U0> {
@@ -335,6 +401,48 @@ trait Commands<
 
         // Serialize buffer
         let mut data = [0u8; 5];
+        self.send_buffer(&mut data, &mut buf)
+    }
+
+    /// Simple byte ack
+    fn byte_ack(&mut self, byte: u8) -> Result<(), CommandError> {
+        // Build ACK
+        let mut buf = HidIoPacketBuffer::<U1> {
+            // Data packet
+            ptype: HidIoPacketType::ACK,
+            // Packet id
+            id: self.rx_packetbuffer().id,
+            // Detect max size
+            max_len: <N as Unsigned>::to_u32(),
+            // Byte payload
+            data: Vec::from_slice(&[byte]).unwrap(),
+            // Ready to go
+            done: true,
+        };
+
+        // Serialize buffer
+        let mut data = [0u8; 6];
+        self.send_buffer(&mut data, &mut buf)
+    }
+
+    /// Simple byte nak
+    fn byte_nak(&mut self, byte: u8) -> Result<(), CommandError> {
+        // Build NAK
+        let mut buf = HidIoPacketBuffer::<U1> {
+            // Data packet
+            ptype: HidIoPacketType::NAK,
+            // Packet id
+            id: self.rx_packetbuffer().id,
+            // Detect max size
+            max_len: <N as Unsigned>::to_u32(),
+            // Byte payload
+            data: Vec::from_slice(&[byte]).unwrap(),
+            // Ready to go
+            done: true,
+        };
+
+        // Serialize buffer
+        let mut data = [0u8; 6];
         self.send_buffer(&mut data, &mut buf)
     }
 
@@ -388,11 +496,12 @@ trait Commands<
         // Match id
         match buf.id {
             HidIoCommandID::SupportedIDs => self.h0000_supported_ids_handler(),
-            _ => Err(CommandError::IdNotImplemented(buf.id)),
+            HidIoCommandID::GetInfo => self.h0001_info_handler(),
+            _ => Err(CommandError::IdNotMatched(buf.id)),
         }
     }
 
-    fn h0000_supported_ids(&mut self, _data: H0000SupportedIdsCmd) -> Result<(), CommandError> {
+    fn h0000_supported_ids(&mut self, _data: h0000::Cmd) -> Result<(), CommandError> {
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer::<U0> {
             // Test packet id
@@ -409,14 +518,13 @@ trait Commands<
         let mut data = [0u8; 5];
         self.send_buffer(&mut data, &mut buf)
     }
-    fn h0000_supported_ids_cmd(
-        &self,
-        data: H0000SupportedIdsCmd,
-    ) -> Result<H0000SupportedIdsAck<ID>, H0000SupportedIdsNak>;
-    fn h0000_supported_ids_ack(&self, _data: H0000SupportedIdsAck<ID>) -> Result<(), CommandError> {
+    fn h0000_supported_ids_cmd(&self, _data: h0000::Cmd) -> Result<h0000::Ack<ID>, h0000::Nak> {
+        Err(h0000::Nak {})
+    }
+    fn h0000_supported_ids_ack(&self, _data: h0000::Ack<ID>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
     }
-    fn h0000_supported_ids_nak(&self, _data: H0000SupportedIdsNak) -> Result<(), CommandError> {
+    fn h0000_supported_ids_nak(&self, _data: h0000::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
     }
     fn h0000_supported_ids_handler(&mut self) -> Result<(), CommandError>
@@ -428,9 +536,9 @@ trait Commands<
         // Handle packet type
         match buf.ptype {
             HidIoPacketType::Data | HidIoPacketType::NAData => {
-                match self.h0000_supported_ids_cmd(H0000SupportedIdsCmd {}) {
+                match self.h0000_supported_ids_cmd(h0000::Cmd {}) {
                     Ok(ack) => {
-                        // Build empty ACK
+                        // Build ACK
                         let mut buf = HidIoPacketBuffer::<Self::ID32> {
                             // Data packet
                             ptype: HidIoPacketType::ACK,
@@ -495,9 +603,199 @@ trait Commands<
                     }
                     pos += 4;
                 }
-                self.h0000_supported_ids_ack(H0000SupportedIdsAck { ids })
+                self.h0000_supported_ids_ack(h0000::Ack { ids })
             }
-            HidIoPacketType::NAK => self.h0000_supported_ids_nak(H0000SupportedIdsNak {}),
+            HidIoPacketType::NAK => self.h0000_supported_ids_nak(h0000::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0001_info(&mut self, data: h0001::Cmd) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer::<U1> {
+            // Test packet id
+            id: HidIoCommandID::GetInfo,
+            // Detect max size
+            max_len: <N as Unsigned>::to_u32(),
+            // Ready to go
+            done: true,
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Encode property
+        if buf.data.push(data.property as u8).is_err() {
+            return Err(CommandError::DataVecTooSmall);
+        }
+
+        // Serialize buffer
+        let mut data = [0u8; 6];
+        self.send_buffer(&mut data, &mut buf)
+    }
+    fn h0001_info_cmd(&self, _data: h0001::Cmd) -> Result<h0001::Ack, h0001::Nak> {
+        Err(h0001::Nak {
+            property: h0001::Property::Unknown,
+        })
+    }
+    fn h0001_info_ack(&self, _data: h0001::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+    }
+    fn h0001_info_nak(&self, _data: h0001::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+    }
+    fn h0001_info_handler(&mut self) -> Result<(), CommandError>
+    where
+        <Self as Commands<TX, RX, N, H, ID>>::ID32: ArrayLength<u8>,
+    {
+        let buf = self.rx_packetbuffer();
+
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data | HidIoPacketType::NAData => {
+                if buf.data.len() < 1 {
+                    return Err(CommandError::DataVecTooSmall);
+                }
+                // Attempt to read first byte
+                let property = match h0001::Property::try_from(buf.data[0]) {
+                    Ok(property) => property,
+                    Err(_) => {
+                        return Err(CommandError::InvalidProperty8(buf.data[0]));
+                    }
+                };
+                match self.h0001_info_cmd(h0001::Cmd { property }) {
+                    Ok(ack) => {
+                        // Build ACK (max string + 1)
+                        let mut buf = HidIoPacketBuffer::<U257> {
+                            // Data packet
+                            ptype: HidIoPacketType::ACK,
+                            // Packet id
+                            id: self.rx_packetbuffer().id,
+                            // Detect max size
+                            max_len: <N as Unsigned>::to_u32(),
+                            // Ready to go
+                            done: true,
+                            // Use defaults for other fields
+                            ..Default::default()
+                        };
+
+                        // Set property
+                        if buf.data.push(ack.property as u8).is_err() {
+                            return Err(CommandError::DataVecTooSmall);
+                        }
+
+                        // Depending on the property set the rest
+                        // of the data field
+                        match property {
+                            h0001::Property::Unknown => {}
+                            // Handle 16-bit number type
+                            h0001::Property::MajorVersion
+                            | h0001::Property::MinorVersion
+                            | h0001::Property::PatchVersion => {
+                                // Convert to byte le bytes
+                                for byte in &ack.number.to_le_bytes() {
+                                    if buf.data.push(*byte).is_err() {
+                                        return Err(CommandError::DataVecTooSmall);
+                                    }
+                                }
+                            }
+                            // Handle 8-bit os type
+                            h0001::Property::OsType => {
+                                if buf.data.push(ack.os as u8).is_err() {
+                                    return Err(CommandError::DataVecTooSmall);
+                                }
+                            }
+                            // Handle ascii values
+                            _ => {
+                                for byte in ack.string.into_bytes() {
+                                    if buf.data.push(byte).is_err() {
+                                        return Err(CommandError::DataVecTooSmall);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Allocate serialization buffer
+                        // 257 + 5 = 262
+                        // Only send necessary size though
+                        let mut data: Vec<u8, U262> = Vec::new();
+                        data.resize_default(buf.data.len() + 5).unwrap();
+
+                        // Serialize buffer
+                        self.send_buffer(&mut data, &mut buf)
+                    }
+                    Err(_nak) => self.byte_nak(property as u8),
+                }
+            }
+            HidIoPacketType::ACK => {
+                if buf.data.len() < 1 {
+                    return Err(CommandError::DataVecTooSmall);
+                }
+                // Attempt to read first byte
+                let property = match h0001::Property::try_from(buf.data[0]) {
+                    Ok(property) => property,
+                    Err(_) => {
+                        return Err(CommandError::InvalidProperty8(buf.data[0]));
+                    }
+                };
+
+                // Setup ack struct
+                let mut ack = h0001::Ack {
+                    property,
+                    os: h0001::OSType::Unknown,
+                    number: 0,
+                    string: String::new(),
+                };
+
+                // Depending on the property set the rest
+                // of the ack fields
+                match property {
+                    h0001::Property::Unknown => {}
+                    // Handle 16-bit number type
+                    h0001::Property::MajorVersion
+                    | h0001::Property::MinorVersion
+                    | h0001::Property::PatchVersion => {
+                        // Convert from le bytes
+                        ack.number = u16::from_le_bytes(buf.data[1..3].try_into().unwrap());
+                    }
+                    // Handle 8-bit os type
+                    h0001::Property::OsType => {
+                        let typenum = buf.data[1];
+                        ack.os = match h0001::OSType::try_from(typenum) {
+                            Ok(ostype) => ostype,
+                            Err(_) => {
+                                return Err(CommandError::InvalidProperty8(typenum));
+                            }
+                        };
+                    }
+                    // Handle ascii values
+                    _ => {
+                        // NOTE: This is annoyingly inefficient?
+                        let bytes: Vec<u8, U256> = Vec::from_slice(&buf.data[1..]).unwrap();
+                        let string = match String::from_utf8(bytes) {
+                            Ok(string) => string,
+                            Err(e) => {
+                                return Err(CommandError::InvalidUtf8(e));
+                            }
+                        };
+                        ack.string = string;
+                    }
+                }
+
+                self.h0001_info_ack(ack)
+            }
+            HidIoPacketType::NAK => {
+                if buf.data.len() < 1 {
+                    return Err(CommandError::DataVecTooSmall);
+                }
+                // Attempt to read first byte
+                let property = match h0001::Property::try_from(buf.data[0]) {
+                    Ok(property) => property,
+                    Err(_) => {
+                        return Err(CommandError::InvalidProperty8(buf.data[0]));
+                    }
+                };
+                self.h0001_info_nak(h0001::Nak { property })
+            }
             _ => Ok(()),
         }
     }
@@ -509,7 +807,7 @@ trait Commands<
 mod test {
     use super::*;
     use flexi_logger::Logger;
-    use heapless::consts::{U100, U3, U64, U8};
+    use heapless::consts::{U100, U2, U3, U64, U8};
 
     enum LogError {
         CouldNotStartLogger,
@@ -592,6 +890,7 @@ mod test {
         > Commands<TX, RX, N, H, ID> for CommandInterface<TX, RX, N, H, ID>
     where
         <ID as Mul<U4>>::Output: Add<U5>,
+        H: core::fmt::Debug,
     {
         fn tx_bytebuffer(&mut self) -> &mut buffer::Buffer<TX, N> {
             &mut self.tx_bytebuf
@@ -612,21 +911,46 @@ mod test {
             self.ids.iter().any(|&i| i == id)
         }
 
-        fn h0000_supported_ids_cmd(
-            &self,
-            _data: H0000SupportedIdsCmd,
-        ) -> Result<H0000SupportedIdsAck<ID>, H0000SupportedIdsNak> {
+        fn h0000_supported_ids_cmd(&self, _data: h0000::Cmd) -> Result<h0000::Ack<ID>, h0000::Nak> {
             // Build id list to send back
-            Ok(H0000SupportedIdsAck::<ID> {
+            Ok(h0000::Ack::<ID> {
                 ids: self.ids.clone(),
             })
         }
-        fn h0000_supported_ids_ack(
-            &self,
-            data: H0000SupportedIdsAck<ID>,
-        ) -> Result<(), CommandError> {
+        fn h0000_supported_ids_ack(&self, data: h0000::Ack<ID>) -> Result<(), CommandError> {
             assert!(data.ids == self.ids);
             Ok(())
+        }
+
+        fn h0001_info_cmd(&self, data: h0001::Cmd) -> Result<h0001::Ack, h0001::Nak> {
+            for entry in &ENTRIES {
+                if entry.property == data.property {
+                    return Ok(h0001::Ack {
+                        property: data.property,
+                        os: entry.os,
+                        number: entry.number,
+                        string: String::from(entry.string),
+                    });
+                }
+            }
+
+            Err(h0001::Nak {
+                property: data.property,
+            })
+        }
+        fn h0001_info_ack(&self, data: h0001::Ack) -> Result<(), CommandError> {
+            // Compare ack with entries
+            for entry in &ENTRIES {
+                if entry.property == data.property
+                    && entry.os == data.os
+                    && entry.number == data.number
+                    && entry.string == data.string
+                {
+                    return Ok(());
+                }
+            }
+
+            Err(CommandError::InvalidProperty8(data.property as u8))
         }
     }
 
@@ -654,7 +978,7 @@ mod test {
         let mut intf = CommandInterface::<U8, U8, U64, U100, U3>::new(&ids).unwrap();
 
         // Send command
-        let send = intf.h0000_supported_ids(H0000SupportedIdsCmd {});
+        let send = intf.h0000_supported_ids(h0000::Cmd {});
         assert!(send.is_ok(), "h0000_supported_ids => {:?}", send);
 
         // Flush tx->rx
@@ -662,25 +986,140 @@ mod test {
 
         // Process rx buffer
         let process = intf.process_rx(0);
-        assert!(process.is_ok(), "process_rx => {:?}", process);
+        assert!(process.is_ok(), "process_rx1 => {:?}", process);
 
         // Flush tx->rx
         intf.flush_tx2rx();
 
         // Process rx buffer
         let process = intf.process_rx(0);
-        assert!(process.is_ok(), "process_rx => {:?}", process);
+        assert!(process.is_ok(), "process_rx2 => {:?}", process);
     }
 
-    /*
+    // Build test entries
+    #[derive(Debug)]
+    struct H0001TestEntry<'a> {
+        property: h0001::Property,
+        os: h0001::OSType,
+        number: u16,
+        string: &'a str,
+    }
+    const ENTRIES: [H0001TestEntry; 13] = [
+        H0001TestEntry {
+            property: h0001::Property::MajorVersion,
+            os: h0001::OSType::Unknown,
+            number: 12,
+            string: "",
+        },
+        H0001TestEntry {
+            property: h0001::Property::MinorVersion,
+            os: h0001::OSType::Unknown,
+            number: 34,
+            string: "",
+        },
+        H0001TestEntry {
+            property: h0001::Property::PatchVersion,
+            os: h0001::OSType::Unknown,
+            number: 79,
+            string: "",
+        },
+        H0001TestEntry {
+            property: h0001::Property::DeviceName,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "My Device",
+        },
+        H0001TestEntry {
+            property: h0001::Property::DeviceSerialNumber,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "1234567890 - 0987654321",
+        },
+        H0001TestEntry {
+            property: h0001::Property::DeviceVersion,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "v9001",
+        },
+        H0001TestEntry {
+            property: h0001::Property::DeviceMCU,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "someMCUname",
+        },
+        H0001TestEntry {
+            property: h0001::Property::FirmwareName,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "SpecialDeviceFirmware",
+        },
+        H0001TestEntry {
+            property: h0001::Property::FirmwareVersion,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "v9999",
+        },
+        H0001TestEntry {
+            property: h0001::Property::DeviceVendor,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "HID-IO",
+        },
+        H0001TestEntry {
+            property: h0001::Property::OsType,
+            os: h0001::OSType::Linux,
+            number: 0,
+            string: "",
+        },
+        H0001TestEntry {
+            property: h0001::Property::OsVersion,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "Special Linux Version",
+        },
+        H0001TestEntry {
+            property: h0001::Property::HostSoftwareName,
+            os: h0001::OSType::Unknown,
+            number: 0,
+            string: "HID-IO Core Unit Test",
+        },
+    ];
+
     #[test]
     fn h0001_info_test() {
         setup_logging_lite().ok();
 
-        // TODO
-        assert!(false, "BLA");
+        // Build list of supported ids
+        let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
+
+        // Setup command interface
+        let mut intf = CommandInterface::<U8, U8, U64, U100, U2>::new(&ids).unwrap();
+
+        // Process each of the test entries
+        for entry in &ENTRIES {
+            // Send command
+            let send = intf.h0001_info(h0001::Cmd {
+                property: entry.property,
+            });
+            assert!(send.is_ok(), "h0001_info {:?} => {:?}", entry, send);
+
+            // Flush tx->rx
+            intf.flush_tx2rx();
+
+            // Process rx buffer
+            let process = intf.process_rx(0);
+            assert!(process.is_ok(), "process_rx1 {:?} => {:?}", entry, process);
+
+            // Flush tx->rx
+            intf.flush_tx2rx();
+
+            // Process rx buffer
+            let process = intf.process_rx(0);
+            assert!(process.is_ok(), "process_rx2 {:?} => {:?}", entry, process);
+        }
     }
 
+    /*
     #[test]
     fn h0002_test_test() {
         setup_logging_lite().ok();
