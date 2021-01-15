@@ -41,6 +41,8 @@ mod test;
 
 #[derive(Debug)]
 pub enum CommandError {
+    BufferInUse,
+    BufferNotReady,
     DataVecNoData,
     DataVecTooSmall,
     IdNotImplemented(HidIoCommandID),
@@ -430,6 +432,7 @@ trait Commands<
     fn rx_bytebuffer(&mut self) -> &mut buffer::Buffer<RX, N>;
     fn rx_packetbuffer(&self) -> &HidIoPacketBuffer<H>;
     fn rx_packetbuffer_mut(&mut self) -> &mut HidIoPacketBuffer<H>;
+    fn rx_packetbuffer_set(&mut self, buf: HidIoPacketBuffer<H>);
     fn rx_packetbuffer_clear(&mut self);
     fn supported_id(&self, id: HidIoCommandID) -> bool;
 
@@ -452,18 +455,15 @@ trait Commands<
                 // Decode chunk
                 match self.rx_packetbuffer_mut().decode_packet(&buf) {
                     Ok(_recv) => {
-                        buffer_count += 1;
+                        // Make sure buffer is ready
+                        if self.rx_packetbuffer().done {
+                            buffer_count += 1;
 
-                        // Handle packet type
-                        match self.rx_packetbuffer().ptype {
-                            HidIoPacketType::Sync => {
+                            // Handle sync packet type
+                            if let HidIoPacketType::Sync = self.rx_packetbuffer().ptype {
                                 debug!("Sync. Resetting buffer");
                                 self.rx_packetbuffer_clear();
                             }
-                            HidIoPacketType::ACK => {}
-                            HidIoPacketType::NAK => {}
-                            HidIoPacketType::Continued | HidIoPacketType::Data => {}
-                            HidIoPacketType::NAData | HidIoPacketType::NAContinued => {}
                         }
                     }
                     Err(e) => {
@@ -483,6 +483,74 @@ trait Commands<
         }
 
         Ok(buffer_count)
+    }
+
+    /// Generate a single HidIoPacketBuffer from the incoming byte
+    /// stream
+    /// Useful when byte and buffer processing are handled separately
+    /// If the buffer is not ready yet the buffer is processed
+    /// as much as possible and can be called again (when bytes are
+    /// ready).
+    fn process_bytes(&mut self) -> Result<&HidIoPacketBuffer<H>, CommandError> {
+        loop {
+            // Retrieve vec chunk
+            if let Some(buf) = self.rx_bytebuffer().dequeue() {
+                // Decode chunk
+                match self.rx_packetbuffer_mut().decode_packet(&buf) {
+                    Ok(_recv) => {
+                        // Only handle buffer if ready
+                        if self.rx_packetbuffer().done {
+                            // Handle sync packet type
+                            match self.rx_packetbuffer().ptype {
+                                HidIoPacketType::Sync => {
+                                    debug!("Sync. Resetting buffer");
+                                    self.rx_packetbuffer_clear();
+                                }
+                                _ => {
+                                    return Ok(self.rx_packetbuffer());
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Decode error: {:?} {:?}", e, buf);
+                        return Err(CommandError::PacketDecodeError(e));
+                    }
+                }
+            } else {
+                return Err(CommandError::BufferNotReady);
+            }
+        }
+    }
+
+    /// Process an already generate buffer
+    /// Useful in situations where buffers are passed around instead
+    /// of bytes buffers
+    fn process_buffer(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError>
+    where
+        <Self as Commands<TX, RX, N, H, ID>>::ID32: ArrayLength<u8>,
+    {
+        // Make sure existing buffer is empty and unused
+        let pbuf = self.rx_packetbuffer();
+        if pbuf.done || pbuf.data.len() > 0 {
+            return Err(CommandError::BufferInUse);
+        }
+
+        // Incoming buffer is not ready
+        if !buf.done {
+            return Err(CommandError::BufferNotReady);
+        }
+
+        // Set buffer
+        self.rx_packetbuffer_set(buf);
+
+        // Process buffer
+        self.rx_message_handling()?;
+
+        // Clear buffer
+        self.rx_packetbuffer_clear();
+
+        Ok(())
     }
 
     /// Simple empty ack

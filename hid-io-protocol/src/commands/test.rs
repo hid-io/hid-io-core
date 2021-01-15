@@ -128,6 +128,15 @@ where
     fn rx_packetbuffer_mut(&mut self) -> &mut HidIoPacketBuffer<H> {
         &mut self.rx_packetbuf
     }
+    fn rx_packetbuffer_set(&mut self, buf: HidIoPacketBuffer<H>) {
+        self.rx_packetbuf = HidIoPacketBuffer {
+            ptype: buf.ptype,
+            id: buf.id,
+            max_len: buf.max_len,
+            data: buf.data,
+            done: buf.done,
+        };
+    }
     fn rx_packetbuffer_clear(&mut self) {
         self.rx_packetbuf = HidIoPacketBuffer::new();
     }

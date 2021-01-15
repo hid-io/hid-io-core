@@ -44,9 +44,6 @@ pub mod module;
 /// parsing for different data types
 pub mod protocol;
 
-//pub mod hid_io_protocol;
-//use hid_io_protocol;
-
 /// Compile time information
 pub mod built_info {
     // This file is generated at build time using build.rs
