@@ -196,6 +196,16 @@ where
             Err(h0002::Nak {})
         }
     }
+    fn h0002_test_nacmd(&self, data: h0002::Cmd<U256>) -> Result<(), CommandError> {
+        // Use first payload byte to lookup test entry
+        // Then validate length
+        let entry = &H0002ENTRIES[data.data[0] as usize];
+        if entry.len == data.data.len() {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
     fn h0002_test_ack(&self, data: h0002::Ack<U256>) -> Result<(), CommandError> {
         // Use first payload byte to lookup test entry
         // Then validate length
@@ -416,13 +426,14 @@ fn h0002_test_test() {
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U3>::new(&ids).unwrap();
 
+    // Normal data packets
     for entry in &H0002ENTRIES {
         // Send command
         let mut cmd = h0002::Cmd { data: Vec::new() };
         for elem in 0..entry.len {
             cmd.data.push(entry.data[elem]).unwrap();
         }
-        let send = intf.h0002_test(cmd);
+        let send = intf.h0002_test(cmd, false);
         assert!(send.is_ok(), "h0002_test {:?} => {:?}", entry, send);
 
         // Flush tx->rx
@@ -439,6 +450,59 @@ fn h0002_test_test() {
         let process = intf.process_rx(0);
         assert!(process.is_ok(), "process_rx2 {:?} => {:?}", entry, process);
     }
+
+    // NA (no-ack) data packets
+    for entry in &H0002ENTRIES {
+        // Send command
+        let mut cmd = h0002::Cmd { data: Vec::new() };
+        for elem in 0..entry.len {
+            cmd.data.push(entry.data[elem]).unwrap();
+        }
+        let send = intf.h0002_test(cmd, true);
+        assert!(send.is_ok(), "h0002_test(na) {:?} => {:?}", entry, send);
+
+        // Flush tx->rx
+        intf.flush_tx2rx();
+
+        // Process rx buffer
+        let process = intf.process_rx(0);
+        assert!(process.is_ok(), "process_rx3 {:?} => {:?}", entry, process);
+    }
+}
+
+#[test]
+fn h0002_invalid_test() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U2>::new(&ids).unwrap();
+
+    // Send command
+    let cmd = h0002::Cmd { data: Vec::new() };
+    let send = intf.h0002_test(cmd, false);
+    assert!(send.is_ok(), "h0002_invalid => {:?}", send);
+
+    // Flush tx->rx
+    intf.flush_tx2rx();
+
+    // Process rx buffer (look for error)
+    let process = intf.process_rx(0);
+    assert!(process.is_err(), "process_rx1 => {:?}", process);
+
+    // Send NA command
+    let cmd = h0002::Cmd { data: Vec::new() };
+    let send = intf.h0002_test(cmd, true);
+    assert!(send.is_ok(), "h0002_invalid(na) => {:?}", send);
+
+    // Flush tx->rx
+    intf.flush_tx2rx();
+
+    // Process rx buffer
+    let process = intf.process_rx(0);
+    assert!(process.is_err(), "process_rx2 => {:?}", process);
 }
 
 /*
@@ -474,26 +538,3 @@ fn h0034_terminalout_test() {
     assert!(false, "BLA");
 }
 */
-
-#[test]
-fn h0002_invalid_test() {
-    setup_logging_lite().ok();
-
-    // Build list of supported ids
-    let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
-
-    // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U2>::new(&ids).unwrap();
-
-    // Send command
-    let cmd = h0002::Cmd { data: Vec::new() };
-    let send = intf.h0002_test(cmd);
-    assert!(send.is_ok(), "h0002_invalid => {:?}", send);
-
-    // Flush tx->rx
-    intf.flush_tx2rx();
-
-    // Process rx buffer (look for error)
-    let process = intf.process_rx(0);
-    assert!(process.is_err(), "process_rx1 => {:?}", process);
-}

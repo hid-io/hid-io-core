@@ -45,11 +45,12 @@ pub enum CommandError {
     BufferNotReady,
     DataVecNoData,
     DataVecTooSmall,
-    IdNotImplemented(HidIoCommandID),
+    IdNotImplemented(HidIoCommandID, HidIoPacketType),
     IdNotMatched(HidIoCommandID),
     IdNotSupported(HidIoCommandID),
     IdVecTooSmall,
     InvalidId(u32),
+    InvalidPacketBufferType(HidIoPacketType),
     InvalidProperty8(u8),
     InvalidRxMessage(HidIoPacketType),
     InvalidUtf8(core::str::Utf8Error),
@@ -686,7 +687,11 @@ trait Commands<
 
         // Make sure we're processing a supported id
         if !self.supported_id(buf.id) {
-            return Err(CommandError::IdNotSupported(buf.id));
+            let id = buf.id;
+
+            // Clear buffer as it's invalid and cannot be processed
+            self.rx_packetbuffer_clear();
+            return Err(CommandError::IdNotSupported(id));
         }
 
         // Check for invalid packet types
@@ -729,10 +734,16 @@ trait Commands<
         Err(h0000::Nak {})
     }
     fn h0000_supported_ids_ack(&self, _data: h0000::Ack<ID>) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::SupportedIDs,
+            HidIoPacketType::ACK,
+        ))
     }
     fn h0000_supported_ids_nak(&self, _data: h0000::Nak) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::SupportedIDs,
+            HidIoPacketType::NAK,
+        ))
     }
     fn h0000_supported_ids_handler(&mut self) -> Result<(), CommandError>
     where
@@ -742,7 +753,7 @@ trait Commands<
 
         // Handle packet type
         match buf.ptype {
-            HidIoPacketType::Data | HidIoPacketType::NAData => {
+            HidIoPacketType::Data => {
                 match self.h0000_supported_ids_cmd(h0000::Cmd {}) {
                     Ok(ack) => {
                         // Build ACK
@@ -784,6 +795,7 @@ trait Commands<
                     Err(_nak) => self.empty_nak(),
                 }
             }
+            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
             HidIoPacketType::ACK => {
                 // Retrieve list of ids
                 let mut ids: Vec<HidIoCommandID, ID> = Vec::new();
@@ -845,17 +857,23 @@ trait Commands<
         })
     }
     fn h0001_info_ack(&self, _data: h0001::Ack) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::GetInfo,
+            HidIoPacketType::ACK,
+        ))
     }
     fn h0001_info_nak(&self, _data: h0001::Nak) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::GetInfo,
+            HidIoPacketType::NAK,
+        ))
     }
     fn h0001_info_handler(&mut self) -> Result<(), CommandError> {
         let buf = self.rx_packetbuffer();
 
         // Handle packet type
         match buf.ptype {
-            HidIoPacketType::Data | HidIoPacketType::NAData => {
+            HidIoPacketType::Data => {
                 if buf.data.len() < 1 {
                     return Err(CommandError::DataVecNoData);
                 }
@@ -930,6 +948,7 @@ trait Commands<
                     Err(_nak) => self.byte_nak(property as u8),
                 }
             }
+            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
             HidIoPacketType::ACK => {
                 if buf.data.len() < 1 {
                     return Err(CommandError::DataVecNoData);
@@ -1004,7 +1023,7 @@ trait Commands<
         }
     }
 
-    fn h0002_test(&mut self, data: h0002::Cmd<U256>) -> Result<(), CommandError> {
+    fn h0002_test(&mut self, data: h0002::Cmd<U256>, na: bool) -> Result<(), CommandError> {
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer::<U256> {
             // Test packet id
@@ -1014,6 +1033,11 @@ trait Commands<
             // Use defaults for other fields
             ..Default::default()
         };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NAData;
+        }
 
         // Build payload
         if !buf.append_payload(&data.data) {
@@ -1030,18 +1054,30 @@ trait Commands<
     fn h0002_test_cmd(&self, _data: h0002::Cmd<U256>) -> Result<h0002::Ack<U256>, h0002::Nak> {
         Err(h0002::Nak {})
     }
+    fn h0002_test_nacmd(&self, _data: h0002::Cmd<U256>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TestPacket,
+            HidIoPacketType::NAData,
+        ))
+    }
     fn h0002_test_ack(&self, _data: h0002::Ack<U256>) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TestPacket,
+            HidIoPacketType::ACK,
+        ))
     }
     fn h0002_test_nak(&self, _data: h0002::Nak) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TestPacket,
+            HidIoPacketType::NAK,
+        ))
     }
     fn h0002_test_handler(&mut self) -> Result<(), CommandError> {
         let buf = self.rx_packetbuffer();
 
         // Handle packet type
         match buf.ptype {
-            HidIoPacketType::Data | HidIoPacketType::NAData => {
+            HidIoPacketType::Data => {
                 // Copy data into struct
                 let cmd = h0002::Cmd::<U256> {
                     data: match Vec::from_slice(&buf.data) {
@@ -1083,6 +1119,19 @@ trait Commands<
                     Err(_nak) => self.empty_nak(),
                 }
             }
+            HidIoPacketType::NAData => {
+                // Copy data into struct
+                let cmd = h0002::Cmd::<U256> {
+                    data: match Vec::from_slice(&buf.data) {
+                        Ok(data) => data,
+                        Err(_) => {
+                            return Err(CommandError::DataVecTooSmall);
+                        }
+                    },
+                };
+
+                self.h0002_test_nacmd(cmd)
+            }
             HidIoPacketType::ACK => {
                 // Copy data into struct
                 let ack = h0002::Ack::<U256> {
@@ -1122,22 +1171,27 @@ trait Commands<
         Err(h0003::Nak {})
     }
     fn h0003_resethidio_ack(&self, _data: h0003::Ack) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::ResetHidIo,
+            HidIoPacketType::ACK,
+        ))
     }
     fn h0003_resethidio_nak(&self, _data: h0003::Nak) -> Result<(), CommandError> {
-        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::ResetHidIo,
+            HidIoPacketType::NAK,
+        ))
     }
     fn h0003_resethidio_handler(&mut self) -> Result<(), CommandError> {
         let buf = self.rx_packetbuffer();
 
         // Handle packet type
         match buf.ptype {
-            HidIoPacketType::Data | HidIoPacketType::NAData => {
-                match self.h0003_resethidio_cmd(h0003::Cmd {}) {
-                    Ok(_ack) => self.empty_ack(),
-                    Err(_nak) => self.empty_nak(),
-                }
-            }
+            HidIoPacketType::Data => match self.h0003_resethidio_cmd(h0003::Cmd {}) {
+                Ok(_ack) => self.empty_ack(),
+                Err(_nak) => self.empty_nak(),
+            },
+            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
             HidIoPacketType::ACK => self.h0003_resethidio_ack(h0003::Ack {}),
             HidIoPacketType::NAK => self.h0003_resethidio_nak(h0003::Nak {}),
             _ => Ok(()),
