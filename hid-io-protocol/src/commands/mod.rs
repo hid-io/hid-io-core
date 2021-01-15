@@ -29,7 +29,7 @@ use heapless::{String, Vec};
 use typenum::{Prod, Sum, Unsigned};
 
 #[cfg(feature = "server")]
-use log::{debug, error, warn};
+use log::{debug, error};
 
 // ----- Modules -----
 
@@ -142,6 +142,12 @@ pub mod h0002 {
         pub data: Vec<u8, D>,
     }
 
+    pub struct Nak {}
+}
+
+pub mod h0003 {
+    pub struct Cmd {}
+    pub struct Ack {}
     pub struct Nak {}
 }
 /*
@@ -914,6 +920,49 @@ trait Commands<
                 self.h0002_test_ack(ack)
             }
             HidIoPacketType::NAK => self.h0002_test_nak(h0002::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0003_resethidio(&mut self, _data: h0003::Cmd) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer::<U0> {
+            // Test packet id
+            id: HidIoCommandID::ResetHidIo,
+            // Detect max size
+            max_len: <N as Unsigned>::to_u32(),
+            // Ready
+            done: true,
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Serialize buffer
+        let mut data = [0u8; 5];
+        self.send_buffer(&mut data, &mut buf)
+    }
+    fn h0003_resethidio_cmd(&self, _data: h0003::Cmd) -> Result<h0003::Ack, h0003::Nak> {
+        Err(h0003::Nak {})
+    }
+    fn h0003_resethidio_ack(&self, _data: h0003::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+    }
+    fn h0003_resethidio_nak(&self, _data: h0003::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(HidIoCommandID::SupportedIDs))
+    }
+    fn h0003_resethidio_handler(&mut self) -> Result<(), CommandError> {
+        let buf = self.rx_packetbuffer();
+
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data | HidIoPacketType::NAData => {
+                match self.h0003_resethidio_cmd(h0003::Cmd {}) {
+                    Ok(_ack) => self.empty_ack(),
+                    Err(_nak) => self.empty_nak(),
+                }
+            }
+            HidIoPacketType::ACK => self.h0003_resethidio_ack(h0003::Ack {}),
+            HidIoPacketType::NAK => self.h0003_resethidio_nak(h0003::Nak {}),
             _ => Ok(()),
         }
     }
