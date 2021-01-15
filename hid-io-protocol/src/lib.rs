@@ -499,7 +499,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         let payload_len = self.payload_len();
 
         let fullpackets = (data_len / payload_len) * (payload_len + u32::from(hdr_len));
-        let partialpacket = if data_len % payload_len > 0 {
+        let partialpacket = if data_len % payload_len > 0 || data_len == 0 {
             data_len % payload_len + u32::from(hdr_len)
         } else {
             0

@@ -60,6 +60,7 @@ pub enum CommandError {
 
 // ----- Command Structs -----
 
+/// Supported Ids
 pub mod h0000 {
     use super::super::HidIoCommandID;
     use heapless::{ArrayLength, Vec};
@@ -73,6 +74,7 @@ pub mod h0000 {
     pub struct Nak {}
 }
 
+/// Info Query
 pub mod h0001 {
     use heapless::consts::U256;
     use heapless::String;
@@ -131,6 +133,7 @@ pub mod h0001 {
     }
 }
 
+/// Test Message
 pub mod h0002 {
     use heapless::{ArrayLength, Vec};
 
@@ -145,124 +148,229 @@ pub mod h0002 {
     pub struct Nak {}
 }
 
+/// Reset HID-IO
+/// TODO
 pub mod h0003 {
     pub struct Cmd {}
     pub struct Ack {}
     pub struct Nak {}
 }
-/*
-struct H0003ResetHIDIOCmd {}
 
-struct H0003ResetHIDIOAck {}
+/// Get Properties
+/// TODO
+pub mod h0010 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0010GetPropertiesCmd {}
+/// USB Key State
+/// TODO
+pub mod h0011 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0010GetPropertiesAck {}
+/// Keyboard Layout
+/// TODO
+pub mod h0012 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0011USBKeyStateCmd {}
+/// Button Layout
+/// TODO
+pub mod h0013 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0011USBKeyStateAck {}
+/// Keycap Types
+/// TODO
+pub mod h0014 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0012KeyboardLayoutCmd {}
+/// LED Layout
+/// TODO
+pub mod h0015 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0012KeyboardLayoutAck {}
+/// Flash Mode
+/// TODO
+pub mod h0016 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0013ButtonLayoutCmd {}
+/// UTF-8 Character Stream
+/// TODO
+pub mod h0017 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0013ButtonLayoutAck {}
+/// UTF-8 State
+/// TODO
+pub mod h0018 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0014KeycapTypesCmd {}
+/// Trigger Host Macro
+/// TODO
+pub mod h0019 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0014KeycapTypesAck {}
+/// Sleep Mode
+/// TODO
+pub mod h001a {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0015LEDLayoutCmd {}
+/// KLL Trigger State
+/// TODO
+pub mod h0020 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0015LEDLayoutAck {}
+/// Pixel Settings
+/// TODO
+pub mod h0021 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0016FlashModeCmd {}
+/// Pixel Set (1ch, 8bit)
+/// TODO
+pub mod h0022 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0016FlashModeAck {}
+/// Pixel Set (3ch, 8bit)
+/// TODO
+pub mod h0023 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0017UTF8CharacterStreamCmd {}
+/// Pixel Set (1ch, 16bit)
+/// TODO
+pub mod h0024 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0017UTF8CharacterStreamAck {}
+/// Pixel Set (3ch, 16bit)
+/// TODO
+pub mod h0025 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0018UTF8StateCmd {}
+/// Open URL
+/// TODO
+pub mod h0030 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0018UTF8StateAck {}
+/// Terminal Command
+/// TODO
+pub mod h0031 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0019TriggerHostMacroCmd {}
+/// Get OS Layout
+/// TODO
+pub mod h0032 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0019TriggerHostMacroAck {}
+/// Set OS Layout
+/// TODO
+pub mod h0033 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H001ASleepModeCmd {}
+/// Terminal Output
+/// TODO
+pub mod h0034 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H001ASleepModeAck {}
+/// HID Keyboard State
+/// TODO
+pub mod h0040 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0020KLLTriggerStateCmd {}
+/// HID Keyboard LED State
+/// TODO
+pub mod h0041 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0020KLLTriggerStateAck {}
+/// HID Mouse State
+/// TODO
+pub mod h0042 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0021PixelSettingCmd {}
+/// HID Joystick State
+/// TODO
+pub mod h0043 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
-struct H0021PixelSettingAck {}
-
-struct HOO22PixelSet1c8bCmd {}
-
-struct HOO22PixelSet1c8bAck {}
-
-struct H0023PixelSet3c8bCmd {}
-
-struct H0023PixelSet3c8bAck {}
-
-struct H0024PixelSet1c16bCmd {}
-
-struct H0024PixelSet1c16bAck {}
-
-struct H0025PixelSet3c16bCmd {}
-
-struct H0025PixelSet3c16bAck {}
-
-struct H0030OpenURLCmd {}
-
-struct H0030OpenURLAck {}
-
-struct H0031TerminalCmdCmd {}
-
-struct H0031TerminalCmdAck {}
-
-struct H0032GetOSLayoutCmd {}
-
-struct H0032GetOSLayoutAck {}
-
-struct H0033SetOSLayoutCmd {}
-
-struct H0033SetOSLayoutAck {}
-
-struct H0034TerminalOutCmd {}
-
-struct H0034TerminalOutAck {}
-
-struct H0040HIDKeyboardStateCmd {}
-
-struct H0040HIDKeyboardStateAck {}
-
-struct H0041HIDKeyboardLEDStateCmd {}
-
-struct H0041HIDKeyboardLEDStateAck {}
-
-struct H0042HIDMouseStateCmd {}
-
-struct H0042HIDMouseStateAck {}
-
-struct H0043HIDJoystickStateCmd {}
-
-struct H0043HIDJoystickStateAck {}
-
-struct H0050ManufacturingTestCmd {}
-
-struct H0050ManufacturingTestAck {}
-*/
+/// Manufacturing Test
+/// TODO
+pub mod h0050 {
+    pub struct Cmd {}
+    pub struct Ack {}
+    pub struct Nak {}
+}
 
 // ----- Traits -----
 
@@ -845,8 +953,9 @@ trait Commands<
         }
         buf.done = true;
 
-        // Serialize buffer
-        let mut data: Vec<u8, U256> = Vec::new();
+        // 256 + 5 = 261
+        // Only send necessary size though
+        let mut data: Vec<u8, U261> = Vec::new();
         data.resize_default(buf.serialized_len() as usize).unwrap();
         self.send_buffer(&mut data, &mut buf)
     }

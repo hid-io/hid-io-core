@@ -25,7 +25,7 @@
 
 use super::*;
 use flexi_logger::Logger;
-use heapless::consts::{U100, U199, U2, U3, U64, U8};
+use heapless::consts::{U100, U150, U2, U3, U64, U8};
 
 // ----- Enumerations -----
 
@@ -405,7 +405,7 @@ fn h0002_test_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U199, U3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U3>::new(&ids).unwrap();
 
     for entry in &H0002ENTRIES {
         // Send command
@@ -464,12 +464,27 @@ fn h0034_terminalout_test() {
     // TODO
     assert!(false, "BLA");
 }
+*/
 
 #[test]
-fn hFFFF_invalid_test() {
+fn h0002_invalid_test() {
     setup_logging_lite().ok();
 
-    // TODO
-    assert!(false, "BLA");
+    // Build list of supported ids
+    let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U2>::new(&ids).unwrap();
+
+    // Send command
+    let cmd = h0002::Cmd { data: Vec::new() };
+    let send = intf.h0002_test(cmd);
+    assert!(send.is_ok(), "h0002_invalid => {:?}", send);
+
+    // Flush tx->rx
+    intf.flush_tx2rx();
+
+    // Process rx buffer (look for error)
+    let process = intf.process_rx(0);
+    assert!(process.is_err(), "process_rx1 => {:?}", process);
 }
-*/
