@@ -462,6 +462,53 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         }
     }
 
+    /// Determine id_width
+    fn id_width(&self) -> u8 {
+        match self.id as u32 {
+            0x00..=0xFFFF => 0,           // 16 bit Id
+            0x01_0000..=0xFFFF_FFFF => 1, // 32 bit Id
+        }
+    }
+
+    /// Determine id_width_len
+    fn id_width_len(&self) -> u8 {
+        match self.id_width() {
+            0 => 2, // 2 bytes - 16 bit Id
+            1 => 4, // 4 bytes - 32 bit Id
+            _ => 0,
+        }
+    }
+
+    /// Determine total header length, initial and continued packets (always 2 bytes)
+    /// 1 byte for header, 1 byte for len, id_width_len for Id
+    fn hdr_len(&self) -> u8 {
+        2 + self.id_width_len()
+    }
+
+    /// Determine payload max length, initial and continued packets
+    fn payload_len(&self) -> u32 {
+        self.max_len - u32::from(self.hdr_len())
+    }
+
+    /// Serialized length of buffer
+    /// Returns the currently computed serialized length of the
+    /// buffer. Can change based on the struct fields.
+    pub fn serialized_len(&self) -> u32 {
+        let hdr_len = self.hdr_len();
+        let data_len = (&self.data).len() as u32;
+        let payload_len = self.payload_len();
+
+        let fullpackets = (data_len / payload_len) * (payload_len + u32::from(hdr_len));
+        let partialpacket = if data_len % payload_len > 0 {
+            data_len % payload_len + u32::from(hdr_len)
+        } else {
+            0
+        };
+
+        // TODO Find how extra 1 byte is used by serializer
+        fullpackets + partialpacket + 1
+    }
+
     /// Append payload data
     ///
     /// # Arguments
@@ -471,7 +518,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
     /// Appends payload to HidIoPacketBuffer.
     pub fn append_payload(&mut self, new_data: &[u8]) -> bool {
         // Check if buffer was already finished
-        if !self.done {
+        if self.done {
             warn!("HidIoPacketBuffer is already 'done'");
             return false;
         }
@@ -661,23 +708,13 @@ where
         // --- First Packet ---
 
         // Determine id_width
-        let id_width: u8 = match self.id as u32 {
-            0x00..=0xFFFF => 0,           // 16 bit Id
-            0x01_0000..=0xFFFF_FFFF => 1, // 32 bit Id
-        };
+        let id_width = self.id_width();
 
         // Determine id_width_len
-        let id_width_len: u8 = match id_width {
-            0 => 2, // 2 bytes - 16 bit Id
-            1 => 4, // 4 bytes - 32 bit Id
-            _ => 0,
-        };
-
-        // Determine total header length, initial and continued packets (always 2 bytes)
-        let hdr_len = 2 + id_width_len; // 1 byte for header, 1 byte for len, id_width_len for Id
+        let id_width_len = self.id_width_len();
 
         // Determine payload max length, initial and continued packets
-        let payload_len = self.max_len - u32::from(hdr_len);
+        let payload_len = self.payload_len();
 
         // Data length
         let data_len = (&self.data).len() as u32;
@@ -734,8 +771,7 @@ where
             (upper_len & 0x3);
 
         // Calculate total length of serialized output
-        let serialized_len =
-            (data_len / payload_len) * payload_len + data_len % payload_len + u32::from(hdr_len);
+        let serialized_len = self.serialized_len();
 
         // Serialize as a sequence
         let mut state = serializer.serialize_seq(Some(serialized_len as usize))?;
