@@ -25,7 +25,10 @@
 
 use super::*;
 use flexi_logger::Logger;
-use heapless::consts::{U100, U150, U2, U3, U64, U8};
+use heapless::consts::{U100, U110, U150, U165, U2, U3, U64, U8};
+
+#[cfg(feature = "server")]
+use log::debug;
 
 // ----- Enumerations -----
 
@@ -56,12 +59,17 @@ struct CommandInterface<
     RX: ArrayLength<Vec<u8, N>>,
     N: ArrayLength<u8>,
     H: ArrayLength<u8>,
-    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8> + Mul<U4> + Add<U5>,
-> {
+    S: ArrayLength<u8>,
+    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+> where
+    H: core::fmt::Debug,
+    H: Sub<B1>,
+{
     ids: Vec<HidIoCommandID, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
     rx_packetbuf: HidIoPacketBuffer<H>,
     tx_bytebuf: buffer::Buffer<TX, N>,
+    serial_buf: Vec<u8, S>,
 }
 
 impl<
@@ -69,10 +77,14 @@ impl<
         RX: ArrayLength<Vec<u8, N>>,
         N: ArrayLength<u8>,
         H: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8> + Mul<U4> + Add<U5>,
-    > CommandInterface<TX, RX, N, H, ID>
+        S: ArrayLength<u8>,
+        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+    > CommandInterface<TX, RX, N, H, S, ID>
+where
+    H: core::fmt::Debug,
+    H: Sub<B1>,
 {
-    fn new(ids: &[HidIoCommandID]) -> Result<CommandInterface<TX, RX, N, H, ID>, CommandError> {
+    fn new(ids: &[HidIoCommandID]) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
         let ids = match Vec::from_slice(ids) {
             Ok(ids) => ids,
@@ -83,11 +95,13 @@ impl<
         let tx_bytebuf = buffer::Buffer::new();
         let rx_bytebuf = buffer::Buffer::new();
         let rx_packetbuf = HidIoPacketBuffer::new();
+        let serial_buf = Vec::new();
         Ok(CommandInterface {
             ids,
             rx_bytebuf,
             rx_packetbuf,
             tx_bytebuf,
+            serial_buf,
         })
     }
 
@@ -100,6 +114,61 @@ impl<
             }
         }
     }
+
+    /// Decode rx_bytebuf into a HidIoPacketBuffer
+    /// Returns true if buffer ready, false if not
+    fn rx_packetbuffer_decode(&mut self) -> Result<bool, CommandError> {
+        loop {
+            // Retrieve vec chunk
+            if let Some(buf) = self.rx_bytebuf.dequeue() {
+                // Decode chunk
+                match self.rx_packetbuf.decode_packet(&buf) {
+                    Ok(_recv) => {
+                        // Only handle buffer if ready
+                        if self.rx_packetbuf.done {
+                            // Handle sync packet type
+                            match self.rx_packetbuf.ptype {
+                                HidIoPacketType::Sync => {
+                                    debug!("Sync. Resetting buffer");
+                                    self.rx_packetbuf.clear();
+                                }
+                                _ => {
+                                    return Ok(true);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!("Decode error: {:?} {:?}", e, buf);
+                        return Err(CommandError::PacketDecodeError(e));
+                    }
+                }
+            } else {
+                return Ok(false);
+            }
+        }
+    }
+
+    /// Process rx buffer until empty
+    /// Handles flushing tx->rx, decoding, then processing buffers
+    fn process_rx(&mut self) -> Result<(), CommandError>
+    where
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
+    {
+        // Flush tx->rx
+        self.flush_tx2rx();
+
+        // Decode bytes into buffer
+        while self.rx_packetbuffer_decode()? {
+            // Process rx buffer
+            self.rx_message_handling()?;
+
+            // Clear buffer
+            self.rx_packetbuf.clear();
+        }
+
+        Ok(())
+    }
 }
 
 /// CommandInterface for Commands
@@ -110,35 +179,50 @@ impl<
         RX: ArrayLength<Vec<u8, N>>,
         N: ArrayLength<u8>,
         H: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8> + Mul<U4> + Add<U5>,
-    > Commands<TX, RX, N, H, ID> for CommandInterface<TX, RX, N, H, ID>
+        S: ArrayLength<u8>,
+        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+    > Commands<N, H, S, ID> for CommandInterface<TX, RX, N, H, S, ID>
 where
-    <ID as Mul<U4>>::Output: Add<U5>,
-    H: core::fmt::Debug,
+    H: core::fmt::Debug + Sub<B1>,
 {
-    fn tx_bytebuffer(&mut self) -> &mut buffer::Buffer<TX, N> {
-        &mut self.tx_bytebuf
-    }
-    fn rx_bytebuffer(&mut self) -> &mut buffer::Buffer<RX, N> {
-        &mut self.rx_bytebuf
-    }
     fn rx_packetbuffer(&self) -> &HidIoPacketBuffer<H> {
         &self.rx_packetbuf
     }
     fn rx_packetbuffer_mut(&mut self) -> &mut HidIoPacketBuffer<H> {
         &mut self.rx_packetbuf
     }
-    fn rx_packetbuffer_set(&mut self, buf: HidIoPacketBuffer<H>) {
-        self.rx_packetbuf = HidIoPacketBuffer {
-            ptype: buf.ptype,
-            id: buf.id,
-            max_len: buf.max_len,
-            data: buf.data,
-            done: buf.done,
+    fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        let size = buf.serialized_len() as usize;
+        if self.serial_buf.resize_default(size).is_err() {
+            return Err(CommandError::SerializationVecTooSmall);
+        }
+        let data = match buf.serialize_buffer(&mut self.serial_buf) {
+            Ok(data) => data,
+            Err(err) => {
+                return Err(CommandError::SerializationFailed(err));
+            }
         };
-    }
-    fn rx_packetbuffer_clear(&mut self) {
-        self.rx_packetbuf = HidIoPacketBuffer::new();
+
+        // Add serialized data to buffer
+        // May need to enqueue multiple packets depending how much
+        // was serialized
+        for pos in (0..data.len()).step_by(<N as Unsigned>::to_usize()) {
+            let len = core::cmp::min(<N as Unsigned>::to_usize(), data.len() - pos);
+            match self
+                .tx_bytebuf
+                .enqueue(match Vec::from_slice(&data[pos..len + pos]) {
+                    Ok(vec) => vec,
+                    Err(_) => {
+                        return Err(CommandError::TxBufferVecTooSmall);
+                    }
+                }) {
+                Ok(_) => {}
+                Err(_) => {
+                    return Err(CommandError::TxBufferSendFailed);
+                }
+            }
+        }
+        Ok(())
     }
     fn supported_id(&self, id: HidIoCommandID) -> bool {
         self.ids.iter().any(|&i| i == id)
@@ -155,7 +239,10 @@ where
         Ok(())
     }
 
-    fn h0001_info_cmd(&self, data: h0001::Cmd) -> Result<h0001::Ack, h0001::Nak> {
+    fn h0001_info_cmd(&self, data: h0001::Cmd) -> Result<h0001::Ack<Sub1<H>>, h0001::Nak>
+    where
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
+    {
         for entry in &H0001ENTRIES {
             if entry.property == data.property {
                 return Ok(h0001::Ack {
@@ -171,7 +258,10 @@ where
             property: data.property,
         })
     }
-    fn h0001_info_ack(&self, data: h0001::Ack) -> Result<(), CommandError> {
+    fn h0001_info_ack(&self, data: h0001::Ack<Sub1<H>>) -> Result<(), CommandError>
+    where
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
+    {
         // Compare ack with entries
         for entry in &H0001ENTRIES {
             if entry.property == data.property
@@ -186,7 +276,7 @@ where
         Err(CommandError::InvalidProperty8(data.property as u8))
     }
 
-    fn h0002_test_cmd(&self, data: h0002::Cmd<U256>) -> Result<h0002::Ack<U256>, h0002::Nak> {
+    fn h0002_test_cmd(&self, data: h0002::Cmd<H>) -> Result<h0002::Ack<H>, h0002::Nak> {
         // Use first payload byte to lookup test entry
         // Then validate length
         let entry = &H0002ENTRIES[data.data[0] as usize];
@@ -196,7 +286,7 @@ where
             Err(h0002::Nak {})
         }
     }
-    fn h0002_test_nacmd(&self, data: h0002::Cmd<U256>) -> Result<(), CommandError> {
+    fn h0002_test_nacmd(&self, data: h0002::Cmd<H>) -> Result<(), CommandError> {
         // Use first payload byte to lookup test entry
         // Then validate length
         let entry = &H0002ENTRIES[data.data[0] as usize];
@@ -206,7 +296,7 @@ where
             Err(CommandError::TestFailure)
         }
     }
-    fn h0002_test_ack(&self, data: h0002::Ack<U256>) -> Result<(), CommandError> {
+    fn h0002_test_ack(&self, data: h0002::Ack<H>) -> Result<(), CommandError> {
         // Use first payload byte to lookup test entry
         // Then validate length
         let entry = &H0002ENTRIES[data.data[0] as usize];
@@ -239,24 +329,20 @@ fn h0000_supported_ids_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U100, U3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<U8, U8, U64, U100, U110, U3>::new(&ids).unwrap();
 
     // Send command
     let send = intf.h0000_supported_ids(h0000::Cmd {});
     assert!(send.is_ok(), "h0000_supported_ids => {:?}", send);
 
     // Flush tx->rx
-    intf.flush_tx2rx();
-
     // Process rx buffer
-    let process = intf.process_rx(0);
+    let process = intf.process_rx();
     assert!(process.is_ok(), "process_rx1 => {:?}", process);
 
     // Flush tx->rx
-    intf.flush_tx2rx();
-
     // Process rx buffer
-    let process = intf.process_rx(0);
+    let process = intf.process_rx();
     assert!(process.is_ok(), "process_rx2 => {:?}", process);
 }
 
@@ -357,7 +443,7 @@ fn h0001_info_test() {
     let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U100, U2>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<U8, U8, U64, U100, U110, U2>::new(&ids).unwrap();
 
     // Process each of the test entries
     for entry in &H0001ENTRIES {
@@ -368,17 +454,13 @@ fn h0001_info_test() {
         assert!(send.is_ok(), "h0001_info {:?} => {:?}", entry, send);
 
         // Flush tx->rx
-        intf.flush_tx2rx();
-
         // Process rx buffer
-        let process = intf.process_rx(0);
+        let process = intf.process_rx();
         assert!(process.is_ok(), "process_rx1 {:?} => {:?}", entry, process);
 
         // Flush tx->rx
-        intf.flush_tx2rx();
-
         // Process rx buffer
-        let process = intf.process_rx(0);
+        let process = intf.process_rx();
         assert!(process.is_ok(), "process_rx2 {:?} => {:?}", entry, process);
     }
 }
@@ -424,7 +506,7 @@ fn h0002_test_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U3>::new(&ids).unwrap();
 
     // Normal data packets
     for entry in &H0002ENTRIES {
@@ -437,17 +519,13 @@ fn h0002_test_test() {
         assert!(send.is_ok(), "h0002_test {:?} => {:?}", entry, send);
 
         // Flush tx->rx
-        intf.flush_tx2rx();
-
         // Process rx buffer
-        let process = intf.process_rx(0);
+        let process = intf.process_rx();
         assert!(process.is_ok(), "process_rx1 {:?} => {:?}", entry, process);
 
         // Flush tx->rx
-        intf.flush_tx2rx();
-
         // Process rx buffer
-        let process = intf.process_rx(0);
+        let process = intf.process_rx();
         assert!(process.is_ok(), "process_rx2 {:?} => {:?}", entry, process);
     }
 
@@ -462,10 +540,8 @@ fn h0002_test_test() {
         assert!(send.is_ok(), "h0002_test(na) {:?} => {:?}", entry, send);
 
         // Flush tx->rx
-        intf.flush_tx2rx();
-
         // Process rx buffer
-        let process = intf.process_rx(0);
+        let process = intf.process_rx();
         assert!(process.is_ok(), "process_rx3 {:?} => {:?}", entry, process);
     }
 }
@@ -478,7 +554,7 @@ fn h0002_invalid_test() {
     let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U2>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U2>::new(&ids).unwrap();
 
     // Send command
     let cmd = h0002::Cmd { data: Vec::new() };
@@ -486,10 +562,8 @@ fn h0002_invalid_test() {
     assert!(send.is_ok(), "h0002_invalid => {:?}", send);
 
     // Flush tx->rx
-    intf.flush_tx2rx();
-
     // Process rx buffer (look for error)
-    let process = intf.process_rx(0);
+    let process = intf.process_rx();
     assert!(process.is_err(), "process_rx1 => {:?}", process);
 
     // Send NA command
@@ -498,10 +572,8 @@ fn h0002_invalid_test() {
     assert!(send.is_ok(), "h0002_invalid(na) => {:?}", send);
 
     // Flush tx->rx
-    intf.flush_tx2rx();
-
     // Process rx buffer
-    let process = intf.process_rx(0);
+    let process = intf.process_rx();
     assert!(process.is_err(), "process_rx2 => {:?}", process);
 }
 

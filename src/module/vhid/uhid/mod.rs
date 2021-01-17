@@ -1,5 +1,5 @@
 #![cfg(target_os = "linux")]
-/* Copyright (C) 2020 by Jacob Alexander
+/* Copyright (C) 2020-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@ use crate::api::Endpoint;
 use crate::api::UhidInfo;
 use crate::mailbox;
 use crate::module::vhid;
-use crate::protocol::hidio;
+use hid_io_protocol::HidIoCommandID;
 use libc::{c_int, c_short, c_ulong, c_void};
 use std::io::{Error, ErrorKind};
 use std::os::unix::io::AsRawFd;
@@ -212,7 +212,7 @@ impl KeyboardNKRO {
                 .try_send_command(
                     mailbox::Address::DeviceHid { uid: self.uid },
                     mailbox::Address::All,
-                    hidio::HidIoCommandID::HIDKeyboardLED,
+                    HidIoCommandID::HIDKeyboardLED,
                     data.to_vec(),
                     false,
                 )
@@ -344,7 +344,7 @@ impl Keyboard6KRO {
                 .try_send_command(
                     mailbox::Address::DeviceHid { uid: self.uid },
                     mailbox::Address::All,
-                    hidio::HidIoCommandID::HIDKeyboardLED,
+                    HidIoCommandID::HIDKeyboardLED,
                     data.to_vec(),
                     false,
                 )
@@ -548,7 +548,7 @@ impl SysCtrlConsControl {
                     self.mailbox.send_command(
                         mailbox::Address::DeviceHid { uid: self.uid },
                         mailbox::Address::All,
-                        hidio::HidIoCommandID::HIDKeyboardLED,
+                        HidIoCommandID::HIDKeyboardLED,
                         data.to_vec(),
                     );
                 }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,10 @@ pub mod vhid;
 use crate::api;
 use crate::device;
 use crate::mailbox;
-use crate::protocol::hidio::*;
+use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
 use tokio::stream::StreamExt;
 
+/* TODO Removeme?
 fn as_u8_slice(v: &[u16]) -> &[u8] {
     unsafe {
         std::slice::from_raw_parts(
@@ -33,6 +34,7 @@ fn as_u8_slice(v: &[u16]) -> &[u8] {
         )
     }
 }
+*/
 
 /// Supported Ids by this module
 /// recursive option applies supported ids from child modules as well
@@ -82,8 +84,9 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
 
         // Process filtered message stream
         while let Some(msg) = stream.next().await {
-            let mydata = msg.data.data.clone();
+            let _mydata = msg.data.data.clone();
             debug!("Processing command: {:?}", msg.data.id);
+            /* TODO
             match msg.data.id {
                 HidIoCommandID::SupportedIDs => {
                     let ids = supported_ids(false)
@@ -163,6 +166,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                 }
                 _ => {}
             }
+                */
         }
     });
 
@@ -211,7 +215,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
 #[cfg(not(feature = "displayserver"))]
 mod displayserver {
     use crate::mailbox;
-    use crate::protocol::hidio::*;
+    use hid_io_protocol::HidIoCommandID;
     use std::sync::Arc;
 
     pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}

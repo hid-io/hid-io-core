@@ -23,13 +23,10 @@
 
 use super::*;
 use core::convert::TryInto;
-use core::ops::{Add, Mul};
-use heapless::consts::{U0, U1, U256, U257, U261, U262, U4, U5};
+use core::ops::Sub;
+use heapless::consts::B1;
 use heapless::{String, Vec};
-use typenum::{Prod, Sum, Unsigned};
-
-#[cfg(feature = "server")]
-use log::{debug, error};
+use typenum::{Sub1, Unsigned};
 
 // ----- Modules -----
 
@@ -56,6 +53,7 @@ pub enum CommandError {
     InvalidUtf8(core::str::Utf8Error),
     PacketDecodeError(HidIoParseError),
     SerializationFailed(HidIoParseError),
+    SerializationVecTooSmall,
     TestFailure,
     TxBufferSendFailed,
     TxBufferVecTooSmall,
@@ -79,8 +77,7 @@ pub mod h0000 {
 
 /// Info Query
 pub mod h0001 {
-    use heapless::consts::U256;
-    use heapless::String;
+    use heapless::{ArrayLength, String};
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
@@ -118,7 +115,7 @@ pub mod h0001 {
         pub property: Property,
     }
 
-    pub struct Ack {
+    pub struct Ack<S: ArrayLength<u8>> {
         pub property: Property,
 
         /// OS Type field
@@ -128,7 +125,8 @@ pub mod h0001 {
         pub number: u16,
 
         /// String is set when the given property specifies a string
-        pub string: String<U256>,
+        /// Should be 1 byte less than the max hidio data buffer size
+        pub string: String<S>,
     }
 
     pub struct Nak {
@@ -412,152 +410,26 @@ pub mod h0050 {
 /// embedded MCUs.
 /// Try to avoid making server implementations too constrained as
 /// devices will likely have a wide range of buffer limits.
-trait Commands<
-    TX: ArrayLength<Vec<u8, N>>,
-    RX: ArrayLength<Vec<u8, N>>,
+pub trait Commands<
     N: ArrayLength<u8>,
     H: ArrayLength<u8>,
-    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8> + Mul<U4> + Add<U5>,
+    S: ArrayLength<u8>,
+    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
 > where
-    <ID as Mul<U4>>::Output: Add<U5>,
-    H: core::fmt::Debug,
+    H: core::fmt::Debug + Sub<B1>,
 {
-    /// Special generic to handle the supported id serialization
-    /// buffer
-    /// ID * 4 + 5
-    /// CommandIds are sent as 32-bit unsigned and 5 additional bytes
-    /// are needed for the header
-    type ID32 = Sum<Prod<ID, U4>, U5>;
-
-    fn tx_bytebuffer(&mut self) -> &mut buffer::Buffer<TX, N>;
-    fn rx_bytebuffer(&mut self) -> &mut buffer::Buffer<RX, N>;
     fn rx_packetbuffer(&self) -> &HidIoPacketBuffer<H>;
     fn rx_packetbuffer_mut(&mut self) -> &mut HidIoPacketBuffer<H>;
-    fn rx_packetbuffer_set(&mut self, buf: HidIoPacketBuffer<H>);
-    fn rx_packetbuffer_clear(&mut self);
+
+    /// Given a HidIoPacketBuffer serialize (and resulting send bytes)
+    fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError>;
+
     fn supported_id(&self, id: HidIoCommandID) -> bool;
-
-    /// Process incoming rx byte buffer
-    /// buffer_limit defines the maximum number of HidIoPacketBuffer s
-    /// to process before returning Ok.
-    /// This is useful on resource constrained single threaded MCUs.
-    /// Set buffer_limit to 0 to process until rx byte buffer is empty
-    ///
-    /// The number of processed buffers is returned if successful.
-    /// If non-zero, indicates that the link is not idle
-    fn process_rx(&mut self, buffer_limit: u8) -> Result<u8, CommandError>
-    where
-        <Self as Commands<TX, RX, N, H, ID>>::ID32: ArrayLength<u8>,
-    {
-        let mut buffer_count = 0;
-        while buffer_limit == 0 || buffer_count < buffer_limit {
-            // Retrieve vec chunk
-            if let Some(buf) = self.rx_bytebuffer().dequeue() {
-                // Decode chunk
-                match self.rx_packetbuffer_mut().decode_packet(&buf) {
-                    Ok(_recv) => {
-                        // Make sure buffer is ready
-                        if self.rx_packetbuffer().done {
-                            buffer_count += 1;
-
-                            // Handle sync packet type
-                            if let HidIoPacketType::Sync = self.rx_packetbuffer().ptype {
-                                debug!("Sync. Resetting buffer");
-                                self.rx_packetbuffer_clear();
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Decode error: {:?} {:?}", e, buf);
-                        return Err(CommandError::PacketDecodeError(e));
-                    }
-                }
-
-                // Handle buffer if ready
-                if self.rx_packetbuffer().done {
-                    self.rx_message_handling()?;
-                    self.rx_packetbuffer_clear();
-                }
-            } else {
-                break;
-            }
-        }
-
-        Ok(buffer_count)
-    }
-
-    /// Generate a single HidIoPacketBuffer from the incoming byte
-    /// stream
-    /// Useful when byte and buffer processing are handled separately
-    /// If the buffer is not ready yet the buffer is processed
-    /// as much as possible and can be called again (when bytes are
-    /// ready).
-    fn process_bytes(&mut self) -> Result<&HidIoPacketBuffer<H>, CommandError> {
-        loop {
-            // Retrieve vec chunk
-            if let Some(buf) = self.rx_bytebuffer().dequeue() {
-                // Decode chunk
-                match self.rx_packetbuffer_mut().decode_packet(&buf) {
-                    Ok(_recv) => {
-                        // Only handle buffer if ready
-                        if self.rx_packetbuffer().done {
-                            // Handle sync packet type
-                            match self.rx_packetbuffer().ptype {
-                                HidIoPacketType::Sync => {
-                                    debug!("Sync. Resetting buffer");
-                                    self.rx_packetbuffer_clear();
-                                }
-                                _ => {
-                                    return Ok(self.rx_packetbuffer());
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        error!("Decode error: {:?} {:?}", e, buf);
-                        return Err(CommandError::PacketDecodeError(e));
-                    }
-                }
-            } else {
-                return Err(CommandError::BufferNotReady);
-            }
-        }
-    }
-
-    /// Process an already generate buffer
-    /// Useful in situations where buffers are passed around instead
-    /// of bytes buffers
-    fn process_buffer(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError>
-    where
-        <Self as Commands<TX, RX, N, H, ID>>::ID32: ArrayLength<u8>,
-    {
-        // Make sure existing buffer is empty and unused
-        let pbuf = self.rx_packetbuffer();
-        if pbuf.done || pbuf.data.len() > 0 {
-            return Err(CommandError::BufferInUse);
-        }
-
-        // Incoming buffer is not ready
-        if !buf.done {
-            return Err(CommandError::BufferNotReady);
-        }
-
-        // Set buffer
-        self.rx_packetbuffer_set(buf);
-
-        // Process buffer
-        self.rx_message_handling()?;
-
-        // Clear buffer
-        self.rx_packetbuffer_clear();
-
-        Ok(())
-    }
 
     /// Simple empty ack
     fn empty_ack(&mut self) -> Result<(), CommandError> {
         // Build empty ACK
-        let mut buf = HidIoPacketBuffer::<U0> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
             ptype: HidIoPacketType::ACK,
             // Packet id
@@ -568,17 +440,13 @@ trait Commands<
             done: true,
             // Use defaults for other fields
             ..Default::default()
-        };
-
-        // Serialize buffer
-        let mut data = [0u8; 5];
-        self.send_buffer(&mut data, &mut buf)
+        })
     }
 
     /// Simple empty nak
     fn empty_nak(&mut self) -> Result<(), CommandError> {
         // Build empty NAK
-        let mut buf = HidIoPacketBuffer::<U0> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
             ptype: HidIoPacketType::NAK,
             // Packet id
@@ -589,17 +457,13 @@ trait Commands<
             done: true,
             // Use defaults for other fields
             ..Default::default()
-        };
-
-        // Serialize buffer
-        let mut data = [0u8; 5];
-        self.send_buffer(&mut data, &mut buf)
+        })
     }
 
     /// Simple byte ack
     fn byte_ack(&mut self, byte: u8) -> Result<(), CommandError> {
         // Build ACK
-        let mut buf = HidIoPacketBuffer::<U1> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
             ptype: HidIoPacketType::ACK,
             // Packet id
@@ -610,17 +474,13 @@ trait Commands<
             data: Vec::from_slice(&[byte]).unwrap(),
             // Ready to go
             done: true,
-        };
-
-        // Serialize buffer
-        let mut data = [0u8; 6];
-        self.send_buffer(&mut data, &mut buf)
+        })
     }
 
     /// Simple byte nak
     fn byte_nak(&mut self, byte: u8) -> Result<(), CommandError> {
         // Build NAK
-        let mut buf = HidIoPacketBuffer::<U1> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
             ptype: HidIoPacketType::NAK,
             // Packet id
@@ -631,57 +491,14 @@ trait Commands<
             data: Vec::from_slice(&[byte]).unwrap(),
             // Ready to go
             done: true,
-        };
-
-        // Serialize buffer
-        let mut data = [0u8; 6];
-        self.send_buffer(&mut data, &mut buf)
-    }
-
-    /// Serialize and send buffer
-    ///
-    /// data must be an array that can fit the serialized output
-    /// from buf
-    fn send_buffer<L: ArrayLength<u8>>(
-        &mut self,
-        data: &mut [u8],
-        buf: &mut HidIoPacketBuffer<L>,
-    ) -> Result<(), CommandError> {
-        // Serialize
-        let data = match buf.serialize_buffer(data) {
-            Ok(data) => data,
-            Err(err) => {
-                return Err(CommandError::SerializationFailed(err));
-            }
-        };
-
-        // Add serialized data to buffer
-        // May need to enqueue multiple packets depending how much
-        // was serialized
-        for pos in (0..data.len()).step_by(<N as Unsigned>::to_usize()) {
-            let len = core::cmp::min(<N as Unsigned>::to_usize(), data.len() - pos);
-            match self
-                .tx_bytebuffer()
-                .enqueue(match Vec::from_slice(&data[pos..len + pos]) {
-                    Ok(vec) => vec,
-                    Err(_) => {
-                        return Err(CommandError::TxBufferVecTooSmall);
-                    }
-                }) {
-                Ok(_) => {}
-                Err(_) => {
-                    return Err(CommandError::TxBufferSendFailed);
-                }
-            }
-        }
-        Ok(())
+        })
     }
 
     /// Process specific packet types
     /// Handles matching to interface functions
     fn rx_message_handling(&mut self) -> Result<(), CommandError>
     where
-        <Self as Commands<TX, RX, N, H, ID>>::ID32: ArrayLength<u8>,
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
     {
         let buf = self.rx_packetbuffer();
 
@@ -690,7 +507,7 @@ trait Commands<
             let id = buf.id;
 
             // Clear buffer as it's invalid and cannot be processed
-            self.rx_packetbuffer_clear();
+            self.rx_packetbuffer_mut().clear();
             return Err(CommandError::IdNotSupported(id));
         }
 
@@ -714,8 +531,7 @@ trait Commands<
     }
 
     fn h0000_supported_ids(&mut self, _data: h0000::Cmd) -> Result<(), CommandError> {
-        // Create appropriately sized buffer
-        let mut buf = HidIoPacketBuffer::<U0> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Test packet id
             id: HidIoCommandID::SupportedIDs,
             // Detect max size
@@ -724,11 +540,7 @@ trait Commands<
             done: true,
             // Use defaults for other fields
             ..Default::default()
-        };
-
-        // Serialize buffer
-        let mut data = [0u8; 5];
-        self.send_buffer(&mut data, &mut buf)
+        })
     }
     fn h0000_supported_ids_cmd(&self, _data: h0000::Cmd) -> Result<h0000::Ack<ID>, h0000::Nak> {
         Err(h0000::Nak {})
@@ -745,10 +557,7 @@ trait Commands<
             HidIoPacketType::NAK,
         ))
     }
-    fn h0000_supported_ids_handler(&mut self) -> Result<(), CommandError>
-    where
-        <Self as Commands<TX, RX, N, H, ID>>::ID32: ArrayLength<u8>,
-    {
+    fn h0000_supported_ids_handler(&mut self) -> Result<(), CommandError> {
         let buf = self.rx_packetbuffer();
 
         // Handle packet type
@@ -757,7 +566,7 @@ trait Commands<
                 match self.h0000_supported_ids_cmd(h0000::Cmd {}) {
                     Ok(ack) => {
                         // Build ACK
-                        let mut buf = HidIoPacketBuffer::<Self::ID32> {
+                        let mut buf = HidIoPacketBuffer {
                             // Data packet
                             ptype: HidIoPacketType::ACK,
                             // Packet id
@@ -780,17 +589,7 @@ trait Commands<
                                 return Err(CommandError::IdVecTooSmall);
                             }
                         }
-
-                        // Allocate serialization buffer
-                        // This is a bit complicated as the list
-                        // of IDs is variable at compile time
-                        // See type ID32 for the specific size
-                        let mut data: Vec<u8, Self::ID32> = Vec::new();
-                        data.resize_default(<Self::ID32 as Unsigned>::to_usize())
-                            .unwrap();
-
-                        // Serialize buffer
-                        self.send_buffer(&mut data, &mut buf)
+                        self.tx_packetbuffer_send(&mut buf)
                     }
                     Err(_nak) => self.empty_nak(),
                 }
@@ -831,7 +630,7 @@ trait Commands<
 
     fn h0001_info(&mut self, data: h0001::Cmd) -> Result<(), CommandError> {
         // Create appropriately sized buffer
-        let mut buf = HidIoPacketBuffer::<U1> {
+        let mut buf = HidIoPacketBuffer {
             // Test packet id
             id: HidIoCommandID::GetInfo,
             // Detect max size
@@ -847,16 +646,20 @@ trait Commands<
             return Err(CommandError::DataVecTooSmall);
         }
 
-        // Serialize buffer
-        let mut data = [0u8; 6];
-        self.send_buffer(&mut data, &mut buf)
+        self.tx_packetbuffer_send(&mut buf)
     }
-    fn h0001_info_cmd(&self, _data: h0001::Cmd) -> Result<h0001::Ack, h0001::Nak> {
+    fn h0001_info_cmd(&self, _data: h0001::Cmd) -> Result<h0001::Ack<Sub1<H>>, h0001::Nak>
+    where
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
+    {
         Err(h0001::Nak {
             property: h0001::Property::Unknown,
         })
     }
-    fn h0001_info_ack(&self, _data: h0001::Ack) -> Result<(), CommandError> {
+    fn h0001_info_ack(&self, _data: h0001::Ack<Sub1<H>>) -> Result<(), CommandError>
+    where
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
+    {
         Err(CommandError::IdNotImplemented(
             HidIoCommandID::GetInfo,
             HidIoPacketType::ACK,
@@ -868,7 +671,10 @@ trait Commands<
             HidIoPacketType::NAK,
         ))
     }
-    fn h0001_info_handler(&mut self) -> Result<(), CommandError> {
+    fn h0001_info_handler(&mut self) -> Result<(), CommandError>
+    where
+        <H as Sub<B1>>::Output: ArrayLength<u8>,
+    {
         let buf = self.rx_packetbuffer();
 
         // Handle packet type
@@ -886,8 +692,8 @@ trait Commands<
                 };
                 match self.h0001_info_cmd(h0001::Cmd { property }) {
                     Ok(ack) => {
-                        // Build ACK (max string + 1)
-                        let mut buf = HidIoPacketBuffer::<U257> {
+                        // Build ACK
+                        let mut buf = HidIoPacketBuffer {
                             // Data packet
                             ptype: HidIoPacketType::ACK,
                             // Packet id
@@ -936,14 +742,7 @@ trait Commands<
                             }
                         }
 
-                        // Allocate serialization buffer
-                        // 257 + 5 = 262
-                        // Only send necessary size though
-                        let mut data: Vec<u8, U262> = Vec::new();
-                        data.resize_default(buf.serialized_len() as usize).unwrap();
-
-                        // Serialize buffer
-                        self.send_buffer(&mut data, &mut buf)
+                        self.tx_packetbuffer_send(&mut buf)
                     }
                     Err(_nak) => self.byte_nak(property as u8),
                 }
@@ -993,7 +792,7 @@ trait Commands<
                     // Handle ascii values
                     _ => {
                         // NOTE: This is annoyingly inefficient?
-                        let bytes: Vec<u8, U256> = Vec::from_slice(&buf.data[1..]).unwrap();
+                        let bytes: Vec<u8, Sub1<H>> = Vec::from_slice(&buf.data[1..]).unwrap();
                         let string = match String::from_utf8(bytes) {
                             Ok(string) => string,
                             Err(e) => {
@@ -1023,9 +822,9 @@ trait Commands<
         }
     }
 
-    fn h0002_test(&mut self, data: h0002::Cmd<U256>, na: bool) -> Result<(), CommandError> {
+    fn h0002_test(&mut self, data: h0002::Cmd<H>, na: bool) -> Result<(), CommandError> {
         // Create appropriately sized buffer
-        let mut buf = HidIoPacketBuffer::<U256> {
+        let mut buf = HidIoPacketBuffer {
             // Test packet id
             id: HidIoCommandID::TestPacket,
             // Detect max size
@@ -1045,22 +844,18 @@ trait Commands<
         }
         buf.done = true;
 
-        // 256 + 5 = 261
-        // Only send necessary size though
-        let mut data: Vec<u8, U261> = Vec::new();
-        data.resize_default(buf.serialized_len() as usize).unwrap();
-        self.send_buffer(&mut data, &mut buf)
+        self.tx_packetbuffer_send(&mut buf)
     }
-    fn h0002_test_cmd(&self, _data: h0002::Cmd<U256>) -> Result<h0002::Ack<U256>, h0002::Nak> {
+    fn h0002_test_cmd(&self, _data: h0002::Cmd<H>) -> Result<h0002::Ack<H>, h0002::Nak> {
         Err(h0002::Nak {})
     }
-    fn h0002_test_nacmd(&self, _data: h0002::Cmd<U256>) -> Result<(), CommandError> {
+    fn h0002_test_nacmd(&self, _data: h0002::Cmd<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
             HidIoCommandID::TestPacket,
             HidIoPacketType::NAData,
         ))
     }
-    fn h0002_test_ack(&self, _data: h0002::Ack<U256>) -> Result<(), CommandError> {
+    fn h0002_test_ack(&self, _data: h0002::Ack<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
             HidIoCommandID::TestPacket,
             HidIoPacketType::ACK,
@@ -1079,7 +874,7 @@ trait Commands<
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0002::Cmd::<U256> {
+                let cmd = h0002::Cmd::<H> {
                     data: match Vec::from_slice(&buf.data) {
                         Ok(data) => data,
                         Err(_) => {
@@ -1091,7 +886,7 @@ trait Commands<
                 match self.h0002_test_cmd(cmd) {
                     Ok(ack) => {
                         // Build ACK (max test data size)
-                        let mut buf = HidIoPacketBuffer::<U256> {
+                        let mut buf = HidIoPacketBuffer {
                             // Data packet
                             ptype: HidIoPacketType::ACK,
                             // Packet id
@@ -1106,22 +901,14 @@ trait Commands<
                             return Err(CommandError::DataVecTooSmall);
                         }
                         buf.done = true;
-
-                        // Allocate serialization buffer
-                        // 256 + 5 = 261
-                        // Only send necessary size though
-                        let mut data: Vec<u8, U261> = Vec::new();
-                        data.resize_default(buf.serialized_len() as usize).unwrap();
-
-                        // Serialize buffer
-                        self.send_buffer(&mut data, &mut buf)
+                        self.tx_packetbuffer_send(&mut buf)
                     }
                     Err(_nak) => self.empty_nak(),
                 }
             }
             HidIoPacketType::NAData => {
                 // Copy data into struct
-                let cmd = h0002::Cmd::<U256> {
+                let cmd = h0002::Cmd::<H> {
                     data: match Vec::from_slice(&buf.data) {
                         Ok(data) => data,
                         Err(_) => {
@@ -1134,7 +921,7 @@ trait Commands<
             }
             HidIoPacketType::ACK => {
                 // Copy data into struct
-                let ack = h0002::Ack::<U256> {
+                let ack = h0002::Ack::<H> {
                     data: match Vec::from_slice(&buf.data) {
                         Ok(data) => data,
                         Err(_) => {
@@ -1151,8 +938,7 @@ trait Commands<
     }
 
     fn h0003_resethidio(&mut self, _data: h0003::Cmd) -> Result<(), CommandError> {
-        // Create appropriately sized buffer
-        let mut buf = HidIoPacketBuffer::<U0> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Test packet id
             id: HidIoCommandID::ResetHidIo,
             // Detect max size
@@ -1161,11 +947,7 @@ trait Commands<
             done: true,
             // Use defaults for other fields
             ..Default::default()
-        };
-
-        // Serialize buffer
-        let mut data = [0u8; 5];
-        self.send_buffer(&mut data, &mut buf)
+        })
     }
     fn h0003_resethidio_cmd(&self, _data: h0003::Cmd) -> Result<h0003::Ack, h0003::Nak> {
         Err(h0003::Nak {})

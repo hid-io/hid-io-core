@@ -1,5 +1,5 @@
 #![cfg(feature = "displayserver")]
-/* Copyright (C) 2019-2020 by Jacob Alexander
+/* Copyright (C) 2019-2021 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -33,8 +33,8 @@ pub mod winapi;
 pub mod quartz;
 
 use crate::mailbox;
-use crate::protocol::hidio::*;
 use crate::RUNNING;
+use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
 use std::string::FromUtf8Error;
 use std::sync::atomic::Ordering;
 use tokio::stream::StreamExt;
@@ -213,7 +213,7 @@ async fn process(mailbox: mailbox::Mailbox) {
         debug!("Processing command: {:?}", msg.data.id);
         match msg.data.id {
             HidIoCommandID::UnicodeText => {
-                let s = String::from_utf8(mydata).unwrap();
+                let s = String::from_utf8(mydata.to_vec()).unwrap();
                 debug!("UnicodeText (start): {}", s);
                 match module.display.type_string(&s) {
                     Ok(_) => {
@@ -227,7 +227,7 @@ async fn process(mailbox: mailbox::Mailbox) {
                 debug!("UnicodeText (done): {}", s);
             }
             HidIoCommandID::UnicodeKey => {
-                let s = String::from_utf8(mydata).unwrap();
+                let s = String::from_utf8(mydata.to_vec()).unwrap();
                 debug!("UnicodeKey (start): {}", s);
                 match module.display.set_held(&s) {
                     Ok(_) => {
@@ -255,7 +255,7 @@ async fn process(mailbox: mailbox::Mailbox) {
                 debug!("GetInputLayout (done)");
             }
             HidIoCommandID::SetInputLayout => {
-                let s = String::from_utf8(mydata).unwrap();
+                let s = String::from_utf8(mydata.to_vec()).unwrap();
                 debug!("SetInputLayout (start): {}", s);
                 /* TODO - Setting layout is more complicated for X11 (and Wayland)
                 info!("Setting language to {}", s);

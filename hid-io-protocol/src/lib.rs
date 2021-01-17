@@ -462,6 +462,22 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         }
     }
 
+    /// Clear Data
+    /// Sets done to false and resizes payload to 0
+    pub fn clear(&mut self) {
+        self.done = false;
+        self.data.resize_default(0).unwrap();
+    }
+
+    /// Set Data
+    pub fn set(&mut self, buf: HidIoPacketBuffer<H>) {
+        self.ptype = buf.ptype;
+        self.id = buf.id;
+        self.max_len = buf.max_len;
+        self.data = buf.data;
+        self.done = buf.done;
+    }
+
     /// Determine id_width
     fn id_width(&self) -> u8 {
         match self.id as u32 {

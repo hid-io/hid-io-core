@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,9 +40,6 @@ pub mod mailbox;
 
 /// built-in features and command handlers
 pub mod module;
-
-/// parsing for different data types
-pub mod protocol;
 
 /// Compile time information
 pub mod built_info {

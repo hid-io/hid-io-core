@@ -1,4 +1,4 @@
-/* Copyright (C) 2020 by Jacob Alexander
+/* Copyright (C) 2020-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,11 +19,16 @@
 /// Uses a broadcast channel to handle communication
 // ----- Modules -----
 use crate::api::Endpoint;
-use crate::protocol::hidio;
+use heapless::consts::U500;
+use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::stream::StreamExt;
 use tokio::sync::broadcast;
+
+// ----- Types -----
+
+pub type HidIoPacketBuffer = hid_io_protocol::HidIoPacketBuffer<U500>;
 
 // ----- Enumerations -----
 
@@ -191,26 +196,26 @@ impl Mailbox {
         &self,
         src: Address,
         dst: Address,
-        id: hidio::HidIoCommandID,
+        id: HidIoCommandID,
         data: Vec<u8>,
         ack: bool,
     ) -> Result<Option<Message>, AckWaitError> {
         // Select packet type
         /* TODO Add firmware support for NAData
         let ptype = if ack {
-            hidio::HidIoPacketType::Data
+            HidIoPacketType::Data
         } else {
-            hidio::HidIoPacketType::NAData
+            HidIoPacketType::NAData
         };
         */
-        let ptype = hidio::HidIoPacketType::Data;
+        let ptype = HidIoPacketType::Data;
 
         // Construct command packet
-        let data = hidio::HidIoPacketBuffer {
+        let data = HidIoPacketBuffer {
             ptype,
             id,
             max_len: 64, //..Defaults
-            data,
+            data: heapless::Vec::from_slice(&data).unwrap(),
             done: true,
         };
 
@@ -259,11 +264,12 @@ impl Mailbox {
                 Ok(msg) => {
                     if let Some(msg) = msg {
                         match msg.data.ptype {
-                            hidio::HidIoPacketType::ACK => {
+                            HidIoPacketType::ACK => {
                                 return Ok(Some(msg));
                             }
                             // We may still want the message data from a NAK
-                            hidio::HidIoPacketType::NAK => {
+                            HidIoPacketType::NAK => {
+                                let msg = Box::new(msg);
                                 return Err(AckWaitError::NAKReceived { msg });
                             }
                             _ => {}
@@ -288,26 +294,26 @@ impl Mailbox {
         &self,
         src: Address,
         dst: Address,
-        id: hidio::HidIoCommandID,
+        id: HidIoCommandID,
         data: Vec<u8>,
         ack: bool,
     ) -> Result<Option<Message>, AckWaitError> {
         // Select packet type
         /* TODO Add firmware support for NAData
         let ptype = if ack {
-            hidio::HidIoPacketType::Data
+            HidIoPacketType::Data
         } else {
-            hidio::HidIoPacketType::NAData
+            HidIoPacketType::NAData
         };
         */
-        let ptype = hidio::HidIoPacketType::Data;
+        let ptype = HidIoPacketType::Data;
 
         // Construct command packet
-        let data = hidio::HidIoPacketBuffer {
+        let data = HidIoPacketBuffer {
             ptype,
             id,
             max_len: 64, //..Defaults
-            data,
+            data: heapless::Vec::from_slice(&data).unwrap(),
             done: true,
         };
 
@@ -358,11 +364,12 @@ impl Mailbox {
                     // The HIDIO device does not keep track of senders, so it will be all
                     if msg.dst == Address::All && msg.src == dst && msg.data.id == id {
                         match msg.data.ptype {
-                            hidio::HidIoPacketType::ACK => {
+                            HidIoPacketType::ACK => {
                                 return Ok(Some(msg));
                             }
                             // We may still want the message data from a NAK
-                            hidio::HidIoPacketType::NAK => {
+                            HidIoPacketType::NAK => {
+                                let msg = Box::new(msg);
                                 return Err(AckWaitError::NAKReceived { msg });
                             }
                             _ => {}
@@ -385,7 +392,7 @@ impl Mailbox {
 
     pub fn drop_subscriber(&self, uid: u64, sid: u64) {
         // Construct a dummy message
-        let data = hidio::HidIoPacketBuffer::default();
+        let data = HidIoPacketBuffer::default();
 
         // Construct command message and broadcast
         let result = self.sender.send(Message {
@@ -401,7 +408,7 @@ impl Mailbox {
 
     pub fn drop_all_subscribers(&self) {
         // Construct a dummy message
-        let data = hidio::HidIoPacketBuffer::default();
+        let data = HidIoPacketBuffer::default();
 
         // Construct command message and broadcast
         let result = self.sender.send(Message {
@@ -435,11 +442,11 @@ impl Default for Mailbox {
 pub struct Message {
     pub src: Address,
     pub dst: Address,
-    pub data: hidio::HidIoPacketBuffer,
+    pub data: HidIoPacketBuffer,
 }
 
 impl Message {
-    pub fn new(src: Address, dst: Address, data: hidio::HidIoPacketBuffer) -> Message {
+    pub fn new(src: Address, dst: Address, data: HidIoPacketBuffer) -> Message {
         Message { src, dst, data }
     }
 
@@ -449,11 +456,11 @@ impl Message {
         let dst = self.src;
 
         // Construct ack packet
-        let data = hidio::HidIoPacketBuffer {
-            ptype: hidio::HidIoPacketType::ACK,
+        let data = HidIoPacketBuffer {
+            ptype: HidIoPacketType::ACK,
             id: self.data.id, // id,
             max_len: 64,      // Default
-            data,
+            data: heapless::Vec::from_slice(&data).unwrap(),
             done: true,
         };
 
@@ -471,11 +478,11 @@ impl Message {
         let dst = self.src;
 
         // Construct ack packet
-        let data = hidio::HidIoPacketBuffer {
-            ptype: hidio::HidIoPacketType::NAK,
+        let data = HidIoPacketBuffer {
+            ptype: HidIoPacketType::NAK,
             id: self.data.id, // id,
             max_len: 64,      // Default
-            data,
+            data: heapless::Vec::from_slice(&data).unwrap(),
             done: true,
         };
 
@@ -491,7 +498,7 @@ impl Message {
 #[derive(Debug)]
 pub enum AckWaitError {
     TooManySyncs,
-    NAKReceived { msg: Message },
+    NAKReceived { msg: Box<Message> },
     Invalid,
     NoActiveReceivers,
     Timeout,

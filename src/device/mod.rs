@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ pub mod hidapi;
 ///
 /// Works with both USB and BLE HID devices
 use crate::mailbox;
-use crate::protocol::hidio::*;
+use hid_io_protocol::*;
 use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::time::Instant;
@@ -48,13 +48,16 @@ impl HidIoEndpoint {
         }
     }
 
-    pub fn recv_chunk(&mut self, buffer: &mut HidIoPacketBuffer) -> Result<usize, std::io::Error> {
+    pub fn recv_chunk(
+        &mut self,
+        buffer: &mut mailbox::HidIoPacketBuffer,
+    ) -> Result<usize, std::io::Error> {
         let mut rbuf = [0; MAX_RECV_SIZE];
         match self.socket.read(&mut rbuf) {
             Ok(len) => {
                 if len > 0 {
                     let slice = &rbuf[0..len];
-                    let ret = buffer.decode_packet(&mut slice.to_vec());
+                    let ret = buffer.decode_packet(&slice.to_vec());
                     if let Err(e) = ret {
                         error!("recv_chunk({}) {:?}", len, e);
                         println!("received: {:?}", slice);
@@ -71,15 +74,20 @@ impl HidIoEndpoint {
         }
     }
 
-    pub fn create_buffer(&self) -> HidIoPacketBuffer {
+    pub fn create_buffer(&self) -> mailbox::HidIoPacketBuffer {
         let mut buffer = HidIoPacketBuffer::new();
         buffer.max_len = self.max_packet_len;
         buffer
     }
 
-    pub fn send_packet(&mut self, mut packet: HidIoPacketBuffer) -> Result<(), std::io::Error> {
+    pub fn send_packet(
+        &mut self,
+        mut packet: mailbox::HidIoPacketBuffer,
+    ) -> Result<(), std::io::Error> {
         debug!("Sending {:x?}", packet);
-        let buf: Vec<u8> = packet.serialize_buffer().unwrap();
+        let mut buf: Vec<u8> = Vec::new();
+        buf.resize_with(packet.serialized_len() as usize, Default::default);
+        let buf = packet.serialize_buffer(&mut buf).unwrap().to_vec();
         for chunk in buf
             .chunks(self.max_packet_len as usize)
             .collect::<Vec<&[u8]>>()
@@ -91,24 +99,13 @@ impl HidIoEndpoint {
     }
 
     pub fn send_sync(&mut self) -> Result<(), std::io::Error> {
-        self.send_packet(HidIoPacketBuffer {
+        self.send_packet(mailbox::HidIoPacketBuffer {
             ptype: HidIoPacketType::Sync,
             id: HidIoCommandID::try_from(0).unwrap(),
             max_len: 64, //..Defaults
-            data: vec![],
+            data: heapless::Vec::new(),
             done: true,
         })
-    }
-
-    pub fn send_ack(&mut self, id: HidIoCommandID, data: Vec<u8>) {
-        self.send_packet(HidIoPacketBuffer {
-            ptype: HidIoPacketType::ACK,
-            id,
-            max_len: 64, //..Defaults
-            data,
-            done: true,
-        })
-        .unwrap();
     }
 }
 
@@ -122,7 +119,7 @@ pub struct HidIoController {
     mailbox: mailbox::Mailbox,
     uid: u64,
     device: HidIoEndpoint,
-    received: HidIoPacketBuffer,
+    received: mailbox::HidIoPacketBuffer,
     receiver: broadcast::Receiver<mailbox::Message>,
     last_sync: Instant,
 }
@@ -151,23 +148,9 @@ impl HidIoController {
                     io_events += 1;
                     self.last_sync = Instant::now();
 
-                    match &self.received.ptype {
-                        HidIoPacketType::Sync => {
-                            self.received = self.device.create_buffer();
-                        }
-                        HidIoPacketType::ACK => {
-                            // Don't ack an ack
-                        }
-                        HidIoPacketType::NAK => {
-                            println!("NACK. Resetting buffer");
-                            self.received = self.device.create_buffer();
-                        }
-                        HidIoPacketType::Continued | HidIoPacketType::Data => {}
-                        HidIoPacketType::NAData | HidIoPacketType::NAContinued => {}
-                    }
-
-                    if self.received.done {
-                        self.device.send_ack(self.received.id, vec![]);
+                    // Handle sync packets
+                    if let HidIoPacketType::Sync = &self.received.ptype {
+                        self.received = self.device.create_buffer();
                     }
                 }
             }

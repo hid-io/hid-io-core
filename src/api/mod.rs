@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ mod capnp;
 pub use crate::common_capnp;
 
 use crate::mailbox;
-use crate::protocol::hidio::HidIoCommandID;
+use hid_io_protocol::HidIoCommandID;
 use std::time::Instant;
 
 // ----- Functions -----

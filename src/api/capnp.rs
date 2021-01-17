@@ -1,5 +1,5 @@
 #![cfg(feature = "api")]
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,14 +25,13 @@ pub use crate::keyboard_capnp;
 use crate::api::*;
 use crate::built_info;
 use crate::mailbox;
-use crate::protocol::hidio::HidIoCommandID;
-use crate::protocol::hidio::HidIoPacketType;
 use crate::RUNNING;
 use ::capnp::capability::Promise;
 use ::capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{FutureExt, TryFutureExt};
 use glob::glob;
+use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
 use rcgen::generate_simple_self_signed;
 use std::collections::HashMap;
 use std::env;
