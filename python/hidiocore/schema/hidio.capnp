@@ -215,6 +215,14 @@ interface Node extends(Common.Node) {
         }
     }
 
+    struct ManufacturingStatus {
+        # Result of manufacturing test command
+        union {
+            success @0 :List(UInt8);
+            error @1 :List(UInt8);
+        }
+    }
+
     struct Info {
         # Result of an info command
 
@@ -256,7 +264,7 @@ interface Node extends(Common.Node) {
     flashMode @2 () -> (status :FlashModeStatus);
     # Attempt to have the device enter flash mode
 
-    manufacturingTest @3 (cmd :UInt16, arg :UInt16);
+    manufacturingTest @3 (cmd :UInt16, arg :UInt16) -> (status :ManufacturingStatus);
     # Send a device specific manufacturing test command
     # Must have full auth-level to use
 

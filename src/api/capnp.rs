@@ -29,8 +29,11 @@ use crate::RUNNING;
 use ::capnp::capability::Promise;
 use ::capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
+use core::ops::Sub;
 use futures::{FutureExt, TryFutureExt};
 use glob::glob;
+use heapless::consts::U0;
+use hid_io_protocol::commands::*;
 use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
 use rcgen::generate_simple_self_signed;
 use std::collections::HashMap;
@@ -554,55 +557,6 @@ impl KeyboardNodeImpl {
             subscriptions,
         }
     }
-
-    fn request_info_u16(&mut self, id: u8) -> Option<u16> {
-        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
-        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
-
-        // Send command
-        let res = self
-            .mailbox
-            .try_send_command(src, dst, HidIoCommandID::GetInfo, vec![id], true);
-
-        // Wait for ACK/NAK
-        match res {
-            Ok(msg) => {
-                if let Some(msg) = msg {
-                    let mut data = [0u8; 2];
-                    data.clone_from_slice(&msg.data.data[..=2]);
-                    Some(u16::from_le_bytes(data))
-                } else {
-                    None
-                }
-            }
-            Err(_) => None,
-        }
-    }
-
-    fn request_info_string(&mut self, id: u8) -> Option<String> {
-        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
-        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
-
-        // Send command
-        let res = self
-            .mailbox
-            .try_send_command(src, dst, HidIoCommandID::GetInfo, vec![id], true);
-
-        // Wait for ACK/NAK
-        match res {
-            Ok(msg) => {
-                if let Some(msg) = msg {
-                    match std::str::from_utf8(&msg.data.data) {
-                        Ok(val) => Some(val.to_string()),
-                        Err(_) => None,
-                    }
-                } else {
-                    None
-                }
-            }
-            Err(_) => None,
-        }
-    }
 }
 
 impl common_capnp::node::Server for KeyboardNodeImpl {}
@@ -800,42 +754,93 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn manufacturing_test(
         &mut self,
         params: hidio_capnp::node::ManufacturingTestParams,
-        mut _results: hidio_capnp::node::ManufacturingTestResults,
+        mut results: hidio_capnp::node::ManufacturingTestResults,
     ) -> Promise<(), Error> {
         match self.auth {
             AuthLevel::Secure | AuthLevel::Debug => {
+                let params = params.get().unwrap();
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
 
-                let params = params.get().unwrap();
-                let mut data = params.get_cmd().to_le_bytes().to_vec();
-                data.append(&mut params.get_arg().to_le_bytes().to_vec());
-
-                // Send command
-                let res = self.mailbox.try_send_command(
+                // CommandInterface for ManufacturingTest
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    result: Result<
+                        h0050::Ack<mailbox::HidIoPacketBufferDataSize>,
+                        h0050::Nak<mailbox::HidIoPacketBufferDataSize>,
+                    >,
+                }
+                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h0050_manufacturing_ack(
+                        &mut self,
+                        data: h0050::Ack<mailbox::HidIoPacketBufferDataSize>,
+                    ) -> Result<(), CommandError> {
+                        self.result = Ok(data);
+                        Ok(())
+                    }
+                    fn h0050_manufacturing_nak(
+                        &mut self,
+                        data: h0050::Nak<mailbox::HidIoPacketBufferDataSize>,
+                    ) -> Result<(), CommandError> {
+                        self.result = Err(data);
+                        Ok(())
+                    }
+                }
+                let mut intf = CommandInterface {
                     src,
                     dst,
-                    HidIoCommandID::ManufacturingTest,
-                    data,
-                    true,
-                );
+                    mailbox: self.mailbox.clone(),
+                    result: Err(h0050::Nak {
+                        data: heapless::Vec::new(),
+                    }),
+                };
 
-                // Wait for ACK/NAK
-                match res {
-                    Ok(msg) => {
-                        if let Some(_msg) = msg {
-                            Promise::ok(())
-                        } else {
-                            Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: "Error no ACK (manufacturing_test)".to_string(),
-                            })
-                        }
-                    }
-                    Err(e) => Promise::err(capnp::Error {
+                // Send command
+                if let Err(e) = intf.h0050_manufacturing(h0050::Cmd {
+                    command: params.get_cmd(),
+                    argument: params.get_arg(),
+                }) {
+                    return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
                         description: format!("Error (manufacturing_test): {:?}", e),
-                    }),
+                    });
+                }
+
+                // Handle ACK/NAK
+                let status = results.get().init_status();
+                match intf.result {
+                    Ok(data) => {
+                        // TODO is there a more efficient way to set this?
+                        let mut result = status.init_success(data.data.len() as u32);
+                        for (i, f) in data.data.iter().enumerate() {
+                            result.set(i as u32, *f);
+                        }
+                        Promise::ok(())
+                    }
+                    Err(data) => {
+                        // TODO is there a more efficient way to set this?
+                        let mut result = status.init_error(data.data.len() as u32);
+                        for (i, f) in data.data.iter().enumerate() {
+                            result.set(i as u32, *f);
+                        }
+                        Promise::ok(())
+                    }
                 }
             }
             _ => Promise::err(capnp::Error {
@@ -851,43 +856,137 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
         mut results: hidio_capnp::node::InfoResults,
     ) -> Promise<(), Error> {
         let mut info = results.get().init_info();
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+        // CommandInterface for GetInfo
+        struct CommandInterface {
+            src: mailbox::Address,
+            dst: mailbox::Address,
+            mailbox: mailbox::Mailbox,
+            result: Result<h0001::Ack<Sub1<mailbox::HidIoPacketBufferDataSize>>, h0001::Nak>,
+        }
+        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+            fn tx_packetbuffer_send(
+                &mut self,
+                buf: &mut mailbox::HidIoPacketBuffer,
+            ) -> Result<(), CommandError> {
+                if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                    src: self.src,
+                    dst: self.dst,
+                    data: buf.clone(),
+                })? {
+                    // Handle ack/nak
+                    self.rx_message_handling(rcvmsg.data)?;
+                }
+                Ok(())
+            }
+
+            fn h0001_info_ack(
+                &mut self,
+                data: h0001::Ack<Sub1<mailbox::HidIoPacketBufferDataSize>>,
+            ) -> Result<(), CommandError>
+            where
+                <mailbox::HidIoPacketBufferDataSize as Sub<B1>>::Output: ArrayLength<u8>,
+            {
+                self.result = Ok(data);
+                Ok(())
+            }
+        }
+        let mut intf = CommandInterface {
+            src,
+            dst,
+            mailbox: self.mailbox.clone(),
+            result: Err(h0001::Nak {
+                property: h0001::Property::Unknown,
+            }),
+        };
 
         // Get version info
-        if let Some(val) = self.request_info_u16(0x00) {
-            info.set_hidio_major_version(val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::MajorVersion,
+            })
+            .is_ok()
+        {
+            info.set_hidio_major_version(intf.result.clone().unwrap().number);
         }
-        if let Some(val) = self.request_info_u16(0x01) {
-            info.set_hidio_minor_version(val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::MinorVersion,
+            })
+            .is_ok()
+        {
+            info.set_hidio_minor_version(intf.result.clone().unwrap().number);
         }
-        if let Some(val) = self.request_info_u16(0x02) {
-            info.set_hidio_patch_version(val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::PatchVersion,
+            })
+            .is_ok()
+        {
+            info.set_hidio_patch_version(intf.result.clone().unwrap().number);
         }
 
         // Get device info
-        if let Some(val) = self.request_info_string(0x03) {
-            info.set_device_name(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::DeviceName,
+            })
+            .is_ok()
+        {
+            info.set_device_name(&intf.result.clone().unwrap().string);
         }
-        if let Some(val) = self.request_info_string(0x04) {
-            info.set_device_serial(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::DeviceSerialNumber,
+            })
+            .is_ok()
+        {
+            info.set_device_serial(&intf.result.clone().unwrap().string);
         }
-        if let Some(val) = self.request_info_string(0x05) {
-            info.set_device_version(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::DeviceVersion,
+            })
+            .is_ok()
+        {
+            info.set_device_version(&intf.result.clone().unwrap().string);
         }
-        if let Some(val) = self.request_info_string(0x06) {
-            info.set_device_mcu(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::DeviceMCU,
+            })
+            .is_ok()
+        {
+            info.set_device_mcu(&intf.result.clone().unwrap().string);
         }
-        if let Some(val) = self.request_info_string(0x09) {
-            info.set_device_vendor(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::DeviceVendor,
+            })
+            .is_ok()
+        {
+            info.set_device_vendor(&intf.result.clone().unwrap().string);
         }
 
         // Get firmware info
-        if let Some(val) = self.request_info_string(0x07) {
-            info.set_firmware_name(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::FirmwareName,
+            })
+            .is_ok()
+        {
+            info.set_firmware_name(&intf.result.clone().unwrap().string);
         }
-        if let Some(val) = self.request_info_string(0x08) {
-            info.set_firmware_version(&val)
+        if intf
+            .h0001_info(h0001::Cmd {
+                property: h0001::Property::FirmwareVersion,
+            })
+            .is_ok()
+        {
+            info.set_firmware_version(&intf.result.unwrap().string);
         }
-
         Promise::ok(())
     }
 }

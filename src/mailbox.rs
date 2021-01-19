@@ -20,6 +20,7 @@
 // ----- Modules -----
 use crate::api::Endpoint;
 use heapless::consts::U500;
+use hid_io_protocol::commands::CommandError;
 use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -28,7 +29,8 @@ use tokio::sync::broadcast;
 
 // ----- Types -----
 
-pub type HidIoPacketBuffer = hid_io_protocol::HidIoPacketBuffer<U500>;
+pub type HidIoPacketBufferDataSize = U500;
+pub type HidIoPacketBuffer = hid_io_protocol::HidIoPacketBuffer<HidIoPacketBufferDataSize>;
 
 // ----- Enumerations -----
 
@@ -281,6 +283,79 @@ impl Mailbox {
                 Err(_) => {
                     warn!("Timeout ({:?}) receiving ACK for: {}", ack_timeout, data);
                     return Err(AckWaitError::Timeout);
+                }
+            }
+        }
+    }
+
+    /// Convenience function to send a HidIoPacketBuffer using the mailbox
+    /// Returns the ACK message if available and applicable
+    pub fn try_send_message(&self, msg: Message) -> Result<Option<Message>, CommandError> {
+        // Check receiver count
+        if self.sender.receiver_count() == 0 {
+            error!("send_command (no active receivers)");
+            return Err(CommandError::TxNoActiveReceivers);
+        }
+
+        // Subscribe to messages before sending message, but this means we have to check the
+        // receiver count earlier
+        let mut receiver = self.sender.subscribe();
+
+        // Construct command message and broadcast
+        let result = self.sender.send(msg.clone());
+
+        if let Err(e) = result {
+            error!(
+                "send_command failed, something is odd, should not get here... {:?}",
+                e
+            );
+            return Err(CommandError::TxNoActiveReceivers);
+        }
+
+        // Only wait for a response if this is a Data packet
+        if msg.data.ptype != HidIoPacketType::Data {
+            return Ok(None);
+        }
+
+        // Loop until we find the message we want
+        let start_time = std::time::Instant::now();
+        loop {
+            // Check for timeout
+            if start_time.elapsed() >= *self.ack_timeout.read().unwrap() {
+                warn!(
+                    "Timeout ({:?}) receiving ACK for command: src:{:?} dst:{:?}",
+                    *self.ack_timeout.read().unwrap(),
+                    msg.src,
+                    msg.dst
+                );
+                return Err(CommandError::RxTimeout);
+            }
+
+            // Attempt to receive message
+            match receiver.try_recv() {
+                Ok(rcvmsg) => {
+                    // Packet must have the same address as was sent, except reversed
+                    if rcvmsg.dst == msg.src
+                        && rcvmsg.src == msg.dst
+                        && rcvmsg.data.id == msg.data.id
+                    {
+                        match rcvmsg.data.ptype {
+                            HidIoPacketType::ACK | HidIoPacketType::NAK => {
+                                return Ok(Some(rcvmsg));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Err(broadcast::error::TryRecvError::Empty) => {
+                    // Sleep while queue is empty
+                    std::thread::yield_now();
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(broadcast::error::TryRecvError::Lagged(_skipped)) => {} // TODO (HaaTa): Should probably warn if lagging
+                Err(broadcast::error::TryRecvError::Closed) => {
+                    // Channel has closed, this is very bad
+                    return Err(CommandError::TxBufferSendFailed);
                 }
             }
         }

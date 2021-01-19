@@ -25,7 +25,8 @@
 
 use super::*;
 use flexi_logger::Logger;
-use heapless::consts::{U100, U110, U150, U165, U2, U3, U64, U8};
+use heapless::consts::{U1, U100, U110, U150, U165, U2, U3, U64, U8};
+use typenum::Unsigned;
 
 #[cfg(feature = "server")]
 use log::debug;
@@ -161,7 +162,7 @@ where
         // Decode bytes into buffer
         while self.rx_packetbuffer_decode()? {
             // Process rx buffer
-            self.rx_message_handling()?;
+            self.rx_message_handling(self.rx_packetbuf.clone())?;
 
             // Clear buffer
             self.rx_packetbuf.clear();
@@ -174,6 +175,12 @@ where
 /// CommandInterface for Commands
 /// NOTE: tx_bytebuf is a loopback buffer
 ///       rx_bytebuf just reads in tx_buf
+/// TX - tx byte buffer size (in multiples of N)
+/// RX - tx byte buffer size (in multiples of N)
+/// N - Max payload length (HidIoPacketBuffer), used for default values
+/// H - Max data payload length (HidIoPacketBuffer)
+/// S - Serialization buffer size
+/// ID - Max number of HidIoCommandIDs
 impl<
         TX: ArrayLength<Vec<u8, N>>,
         RX: ArrayLength<Vec<u8, N>>,
@@ -181,16 +188,14 @@ impl<
         H: ArrayLength<u8>,
         S: ArrayLength<u8>,
         ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
-    > Commands<N, H, S, ID> for CommandInterface<TX, RX, N, H, S, ID>
+    > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
 where
     H: core::fmt::Debug + Sub<B1>,
 {
-    fn rx_packetbuffer(&self) -> &HidIoPacketBuffer<H> {
-        &self.rx_packetbuf
+    fn default_packet_chunk(&self) -> u32 {
+        <N as Unsigned>::to_u32()
     }
-    fn rx_packetbuffer_mut(&mut self) -> &mut HidIoPacketBuffer<H> {
-        &mut self.rx_packetbuf
-    }
+
     fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError> {
         let size = buf.serialized_len() as usize;
         if self.serial_buf.resize_default(size).is_err() {
@@ -228,18 +233,18 @@ where
         self.ids.iter().any(|&i| i == id)
     }
 
-    fn h0000_supported_ids_cmd(&self, _data: h0000::Cmd) -> Result<h0000::Ack<ID>, h0000::Nak> {
+    fn h0000_supported_ids_cmd(&mut self, _data: h0000::Cmd) -> Result<h0000::Ack<ID>, h0000::Nak> {
         // Build id list to send back
         Ok(h0000::Ack::<ID> {
             ids: self.ids.clone(),
         })
     }
-    fn h0000_supported_ids_ack(&self, data: h0000::Ack<ID>) -> Result<(), CommandError> {
+    fn h0000_supported_ids_ack(&mut self, data: h0000::Ack<ID>) -> Result<(), CommandError> {
         assert!(data.ids == self.ids);
         Ok(())
     }
 
-    fn h0001_info_cmd(&self, data: h0001::Cmd) -> Result<h0001::Ack<Sub1<H>>, h0001::Nak>
+    fn h0001_info_cmd(&mut self, data: h0001::Cmd) -> Result<h0001::Ack<Sub1<H>>, h0001::Nak>
     where
         <H as Sub<B1>>::Output: ArrayLength<u8>,
     {
@@ -258,7 +263,7 @@ where
             property: data.property,
         })
     }
-    fn h0001_info_ack(&self, data: h0001::Ack<Sub1<H>>) -> Result<(), CommandError>
+    fn h0001_info_ack(&mut self, data: h0001::Ack<Sub1<H>>) -> Result<(), CommandError>
     where
         <H as Sub<B1>>::Output: ArrayLength<u8>,
     {
@@ -276,7 +281,7 @@ where
         Err(CommandError::InvalidProperty8(data.property as u8))
     }
 
-    fn h0002_test_cmd(&self, data: h0002::Cmd<H>) -> Result<h0002::Ack<H>, h0002::Nak> {
+    fn h0002_test_cmd(&mut self, data: h0002::Cmd<H>) -> Result<h0002::Ack<H>, h0002::Nak> {
         // Use first payload byte to lookup test entry
         // Then validate length
         let entry = &H0002ENTRIES[data.data[0] as usize];
@@ -286,7 +291,7 @@ where
             Err(h0002::Nak {})
         }
     }
-    fn h0002_test_nacmd(&self, data: h0002::Cmd<H>) -> Result<(), CommandError> {
+    fn h0002_test_nacmd(&mut self, data: h0002::Cmd<H>) -> Result<(), CommandError> {
         // Use first payload byte to lookup test entry
         // Then validate length
         let entry = &H0002ENTRIES[data.data[0] as usize];
@@ -296,11 +301,40 @@ where
             Err(CommandError::TestFailure)
         }
     }
-    fn h0002_test_ack(&self, data: h0002::Ack<H>) -> Result<(), CommandError> {
+    fn h0002_test_ack(&mut self, data: h0002::Ack<H>) -> Result<(), CommandError> {
         // Use first payload byte to lookup test entry
         // Then validate length
         let entry = &H0002ENTRIES[data.data[0] as usize];
         if entry.len == data.data.len() {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+
+    fn h0050_manufacturing_cmd(
+        &mut self,
+        data: h0050::Cmd,
+    ) -> Result<h0050::Ack<H>, h0050::Nak<H>> {
+        if data.command == 0 && data.argument == 0 {
+            Ok(h0050::Ack {
+                data: Vec::from_slice(&[1, 2, 3]).unwrap(),
+            })
+        } else {
+            Err(h0050::Nak {
+                data: Vec::from_slice(&[4, 5, 6]).unwrap(),
+            })
+        }
+    }
+    fn h0050_manufacturing_ack(&mut self, data: h0050::Ack<H>) -> Result<(), CommandError> {
+        if data.data == Vec::<u8, H>::from_slice(&[1, 2, 3]).unwrap() {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0050_manufacturing_nak(&mut self, data: h0050::Nak<H>) -> Result<(), CommandError> {
+        if data.data == Vec::<u8, H>::from_slice(&[4, 5, 6]).unwrap() {
             Ok(())
         } else {
             Err(CommandError::TestFailure)
@@ -436,7 +470,7 @@ const H0001ENTRIES: [H0001TestEntry; 13] = [
 ];
 
 #[test]
-fn h0001_info_test() {
+fn h0001_info() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
@@ -495,7 +529,7 @@ const H0002ENTRIES: [H0002TestEntry; 4] = [
 ];
 
 #[test]
-fn h0002_test_test() {
+fn h0002_test() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
@@ -547,7 +581,7 @@ fn h0002_test_test() {
 }
 
 #[test]
-fn h0002_invalid_test() {
+fn h0002_invalid() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
@@ -566,6 +600,9 @@ fn h0002_invalid_test() {
     let process = intf.process_rx();
     assert!(process.is_err(), "process_rx1 => {:?}", process);
 
+    // Cleanup after failure
+    intf.rx_packetbuf.clear();
+
     // Send NA command
     let cmd = h0002::Cmd { data: Vec::new() };
     let send = intf.h0002_test(cmd, true);
@@ -579,7 +616,7 @@ fn h0002_invalid_test() {
 
 /*
 #[test]
-fn h0016_flashmode_test() {
+fn h0016_flashmode() {
     setup_logging_lite().ok();
 
     // TODO
@@ -587,7 +624,7 @@ fn h0016_flashmode_test() {
 }
 
 #[test]
-fn h001A_sleepmode_test() {
+fn h001A_sleepmode() {
     setup_logging_lite().ok();
 
     // TODO
@@ -595,7 +632,7 @@ fn h001A_sleepmode_test() {
 }
 
 #[test]
-fn h0031_terminalcmd_test() {
+fn h0031_terminalcmd() {
     setup_logging_lite().ok();
 
     // TODO
@@ -603,10 +640,57 @@ fn h0031_terminalcmd_test() {
 }
 
 #[test]
-fn h0034_terminalout_test() {
+fn h0034_terminalout() {
     setup_logging_lite().ok();
 
     // TODO
     assert!(false, "BLA");
 }
 */
+
+#[test]
+fn h0050_manufacturing() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandID::ManufacturingTest];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Send valid command (expect ack)
+    let cmd = h0050::Cmd {
+        command: 0,
+        argument: 0,
+    };
+    let send = intf.h0050_manufacturing(cmd);
+    assert!(send.is_ok(), "h0050_manufacturing(ack) => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 => {:?}", process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 => {:?}", process);
+
+    // Send invalid command (expect nak)
+    let cmd = h0050::Cmd {
+        command: 1200,
+        argument: 5,
+    };
+    let send = intf.h0050_manufacturing(cmd);
+    assert!(send.is_ok(), "h0050_manufacturing(nak) => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx3 => {:?}", process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx4 => {:?}", process);
+}
