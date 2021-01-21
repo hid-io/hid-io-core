@@ -1,0 +1,10 @@
+header = "// SPDX-License-Identifier: MIT"
+sys_includes = ["stddef.h", "stdint.h", "stdlib.h"]
+no_includes = true
+include_guard = "HID_IO_KIIBOHD_H"
+tab_width = 4
+style = "Type"
+language = "C"
+
+[enum]
+prefix_with_name = true

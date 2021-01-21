@@ -18,6 +18,7 @@ default-run   = "hid-io-core"
 
 [workspace]
 members = [
+  "hid-io-kiibohd",
   "hid-io-protocol",
 ]
 
