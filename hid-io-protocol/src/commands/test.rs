@@ -312,6 +312,96 @@ where
         }
     }
 
+    fn h0016_flashmode_cmd(&mut self, _data: h0016::Cmd) -> Result<h0016::Ack, h0016::Nak> {
+        Ok(h0016::Ack { scancode: 15 })
+    }
+    fn h0016_flashmode_ack(&mut self, data: h0016::Ack) -> Result<(), CommandError> {
+        if data.scancode == 15 {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+
+    fn h0017_unicodetext_cmd(&mut self, data: h0017::Cmd<H>) -> Result<h0017::Ack, h0017::Nak> {
+        if data.string == "My UTF-8 string" {
+            Ok(h0017::Ack {})
+        } else {
+            Err(h0017::Nak {})
+        }
+    }
+    fn h0017_unicodetext_nacmd(&mut self, data: h0017::Cmd<H>) -> Result<(), CommandError> {
+        if data.string == "My UTF-8 na string" {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0017_unicodetext_ack(&mut self, _data: h0017::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
+    fn h0018_unicodestate_cmd(&mut self, data: h0018::Cmd<H>) -> Result<h0018::Ack, h0018::Nak> {
+        if data.symbols == "ABC" {
+            Ok(h0018::Ack {})
+        } else {
+            Err(h0018::Nak {})
+        }
+    }
+    fn h0018_unicodestate_nacmd(&mut self, data: h0018::Cmd<H>) -> Result<(), CommandError> {
+        if data.symbols == "DEF" {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0018_unicodestate_ack(&mut self, _data: h0018::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
+    fn h001a_sleepmode_cmd(&mut self, _data: h001a::Cmd) -> Result<h001a::Ack, h001a::Nak> {
+        Ok(h001a::Ack {})
+    }
+    fn h001a_sleepmode_ack(&mut self, _data: h001a::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
+    fn h0031_terminalcmd_cmd(&mut self, data: h0031::Cmd<H>) -> Result<h0031::Ack, h0031::Nak> {
+        if data.command == "terminal command string\n\r".as_bytes() {
+            Ok(h0031::Ack {})
+        } else {
+            Err(h0031::Nak {})
+        }
+    }
+    fn h0031_terminalcmd_nacmd(&mut self, data: h0031::Cmd<H>) -> Result<(), CommandError> {
+        if data.command == "na terminal command string\n\r".as_bytes() {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0031_terminalcmd_ack(&mut self, _data: h0031::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
+    fn h0034_terminalout_cmd(&mut self, data: h0034::Cmd<H>) -> Result<h0034::Ack, h0034::Nak> {
+        if data.output == "terminal output string\n\r\t".as_bytes() {
+            Ok(h0034::Ack {})
+        } else {
+            Err(h0034::Nak {})
+        }
+    }
+    fn h0034_terminalout_nacmd(&mut self, data: h0034::Cmd<H>) -> Result<(), CommandError> {
+        if data.output == "terminal na output string\n\r\t".as_bytes() {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0034_terminalout_ack(&mut self, _data: h0034::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
     fn h0050_manufacturing_cmd(
         &mut self,
         data: h0050::Cmd,
@@ -614,39 +704,245 @@ fn h0002_invalid() {
     assert!(process.is_err(), "process_rx2 => {:?}", process);
 }
 
-/*
 #[test]
 fn h0016_flashmode() {
     setup_logging_lite().ok();
 
-    // TODO
-    assert!(false, "BLA");
+    // Build list of supported ids
+    let ids = [HidIoCommandID::FlashMode];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Send command
+    let cmd = h0016::Cmd {};
+    let send = intf.h0016_flashmode(cmd);
+    assert!(send.is_ok(), "h0016_flashmode => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 => {:?}", process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 => {:?}", process);
 }
 
 #[test]
-fn h001A_sleepmode() {
+fn h0017_unicodetext() {
     setup_logging_lite().ok();
 
-    // TODO
-    assert!(false, "BLA");
+    // Build list of supported ids
+    let ids = [HidIoCommandID::UnicodeText];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Normal data packet
+    // Send command
+    let cmd = h0017::Cmd {
+        string: String::from("My UTF-8 string"),
+    };
+    let send = intf.h0017_unicodetext(cmd.clone(), false);
+    assert!(send.is_ok(), "h0017_unicodetext {:?} => {:?}", cmd, send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 {:?} => {:?}", cmd, process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 {:?} => {:?}", cmd, process);
+
+    // NA (no-ack) data packets
+    // Send command
+    let cmd = h0017::Cmd {
+        string: String::from("My UTF-8 na string"),
+    };
+    let send = intf.h0017_unicodetext(cmd.clone(), true);
+    assert!(
+        send.is_ok(),
+        "h0017_unicodetext(na) {:?} => {:?}",
+        cmd,
+        send
+    );
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx3 {:?} => {:?}", cmd, process);
+}
+
+#[test]
+fn h0018_unicodestate() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandID::UnicodeState];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Normal data packet
+    // Send command
+    let cmd = h0018::Cmd {
+        symbols: String::from("ABC"),
+    };
+    let send = intf.h0018_unicodestate(cmd.clone(), false);
+    assert!(send.is_ok(), "h0018_unicodestate {:?} => {:?}", cmd, send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 {:?} => {:?}", cmd, process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 {:?} => {:?}", cmd, process);
+
+    // NA (no-ack) data packets
+    // Send command
+    let cmd = h0018::Cmd {
+        symbols: String::from("DEF"),
+    };
+    let send = intf.h0018_unicodestate(cmd.clone(), true);
+    assert!(
+        send.is_ok(),
+        "h0018_unicodestate(na) {:?} => {:?}",
+        cmd,
+        send
+    );
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx3 {:?} => {:?}", cmd, process);
+}
+
+#[test]
+fn h001a_sleepmode() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandID::SleepMode];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Send command
+    let cmd = h001a::Cmd {};
+    let send = intf.h001a_sleepmode(cmd);
+    assert!(send.is_ok(), "h001a_sleepmode => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 => {:?}", process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 => {:?}", process);
 }
 
 #[test]
 fn h0031_terminalcmd() {
     setup_logging_lite().ok();
 
-    // TODO
-    assert!(false, "BLA");
+    // Build list of supported ids
+    let ids = [HidIoCommandID::TerminalCmd];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Normal data packet
+    // Send command
+    let cmd = h0031::Cmd {
+        command: Vec::from_slice("terminal command string\n\r".as_bytes()).unwrap(),
+    };
+    let send = intf.h0031_terminalcmd(cmd.clone(), false);
+    assert!(send.is_ok(), "h0031_terminalcmd {:?} => {:?}", cmd, send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 {:?} => {:?}", cmd, process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 {:?} => {:?}", cmd, process);
+
+    // NA (no-ack) data packets
+    // Send command
+    let cmd = h0031::Cmd {
+        command: Vec::from_slice("na terminal command string\n\r".as_bytes()).unwrap(),
+    };
+    let send = intf.h0031_terminalcmd(cmd.clone(), true);
+    assert!(
+        send.is_ok(),
+        "h0031_terminalcmd(na) {:?} => {:?}",
+        cmd,
+        send
+    );
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx3 {:?} => {:?}", cmd, process);
 }
 
 #[test]
 fn h0034_terminalout() {
     setup_logging_lite().ok();
 
-    // TODO
-    assert!(false, "BLA");
+    // Build list of supported ids
+    let ids = [HidIoCommandID::TerminalOut];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Normal data packet
+    // Send command
+    let cmd = h0034::Cmd {
+        output: Vec::from_slice("terminal output string\n\r\t".as_bytes()).unwrap(),
+    };
+    let send = intf.h0034_terminalout(cmd.clone(), false);
+    assert!(send.is_ok(), "h0034_terminalout {:?} => {:?}", cmd, send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 {:?} => {:?}", cmd, process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 {:?} => {:?}", cmd, process);
+
+    // NA (no-ack) data packets
+    // Send command
+    let cmd = h0034::Cmd {
+        output: Vec::from_slice("terminal na output string\n\r\t".as_bytes()).unwrap(),
+    };
+    let send = intf.h0034_terminalout(cmd.clone(), true);
+    assert!(
+        send.is_ok(),
+        "h0034_terminalout(na) {:?} => {:?}",
+        cmd,
+        send
+    );
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx3 {:?} => {:?}", cmd, process);
 }
-*/
 
 #[test]
 fn h0050_manufacturing() {

@@ -186,7 +186,7 @@ impl Module {
 pub fn supported_ids() -> Vec<HidIoCommandID> {
     vec![
         HidIoCommandID::UnicodeText,
-        HidIoCommandID::UnicodeKey,
+        HidIoCommandID::UnicodeState,
         HidIoCommandID::GetInputLayout,
         HidIoCommandID::SetInputLayout,
     ]
@@ -226,9 +226,9 @@ async fn process(mailbox: mailbox::Mailbox) {
                 }
                 debug!("UnicodeText (done): {}", s);
             }
-            HidIoCommandID::UnicodeKey => {
+            HidIoCommandID::UnicodeState => {
                 let s = String::from_utf8(mydata.to_vec()).unwrap();
-                debug!("UnicodeKey (start): {}", s);
+                debug!("UnicodeState (start): {}", s);
                 match module.display.set_held(&s) {
                     Ok(_) => {
                         msg.send_ack(sender.clone(), vec![]);
@@ -238,7 +238,7 @@ async fn process(mailbox: mailbox::Mailbox) {
                         msg.send_nak(sender.clone(), vec![]);
                     }
                 }
-                debug!("UnicodeKey (done): {}", s);
+                debug!("UnicodeState (done): {}", s);
             }
             HidIoCommandID::GetInputLayout => {
                 debug!("GetInputLayout (start)");

@@ -24,7 +24,7 @@ use futures::{AsyncReadExt, FutureExt};
 use hid_io_core::common_capnp::NodeType;
 use hid_io_core::hidio_capnp::hid_io;
 use hid_io_core::hidio_capnp::hid_io_server;
-use hid_io_core::protocol::hidio::HidIoCommandID;
+use hid_io_protocol::HidIoCommandID;
 use rand::Rng;
 use std::collections::HashMap;
 use std::convert::TryFrom;

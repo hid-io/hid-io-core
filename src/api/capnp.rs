@@ -1179,10 +1179,10 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         Promise::ok(())
     }
 
-    fn unicode_string(
+    fn unicode_text(
         &mut self,
-        params: daemon_capnp::daemon::UnicodeStringParams,
-        mut _results: daemon_capnp::daemon::UnicodeStringResults,
+        params: daemon_capnp::daemon::UnicodeTextParams,
+        mut _results: daemon_capnp::daemon::UnicodeTextResults,
     ) -> Promise<(), Error> {
         let params = params.get().unwrap();
         let string = params.get_string().unwrap();
@@ -1202,21 +1202,21 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
                 } else {
                     Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: "No ACK received (unicode_string)".to_string(),
+                        description: "No ACK received (unicode_text)".to_string(),
                     })
                 }
             }
             Err(e) => Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicode_string): {:?}", e),
+                description: format!("Error (unicode_text): {:?}", e),
             }),
         }
     }
 
-    fn unicode_keys(
+    fn unicode_state(
         &mut self,
-        params: daemon_capnp::daemon::UnicodeKeysParams,
-        mut _results: daemon_capnp::daemon::UnicodeKeysResults,
+        params: daemon_capnp::daemon::UnicodeStateParams,
+        mut _results: daemon_capnp::daemon::UnicodeStateResults,
     ) -> Promise<(), Error> {
         let params = params.get().unwrap();
         let string = params.get_characters().unwrap();
@@ -1226,7 +1226,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         match self.mailbox.try_send_command(
             src,
             dst,
-            HidIoCommandID::UnicodeKey,
+            HidIoCommandID::UnicodeState,
             string.as_bytes().to_vec(),
             true,
         ) {
@@ -1236,13 +1236,13 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
                 } else {
                     Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: "No ACK received (unicode_keys)".to_string(),
+                        description: "No ACK received (unicode_state)".to_string(),
                     })
                 }
             }
             Err(e) => Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicode_keys): {:?}", e),
+                description: format!("Error (unicode_state): {:?}", e),
             }),
         }
     }
@@ -1996,7 +1996,12 @@ async fn server_subscriptions(
 
 /// Supported Ids by this module
 pub fn supported_ids() -> Vec<HidIoCommandID> {
-    vec![HidIoCommandID::TerminalCmd, HidIoCommandID::TerminalOut]
+    vec![
+        HidIoCommandID::FlashMode,
+        HidIoCommandID::SleepMode,
+        HidIoCommandID::TerminalCmd,
+        HidIoCommandID::TerminalOut,
+    ]
 }
 
 /// Cap'n'Proto API Initialization

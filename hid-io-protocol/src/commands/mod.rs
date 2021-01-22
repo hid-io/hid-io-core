@@ -165,19 +165,63 @@ pub mod h0002 {
 }
 
 /// Reset HID-IO
-/// TODO
 pub mod h0003 {
+    #[derive(Clone, Debug)]
     pub struct Cmd {}
+
+    #[derive(Clone, Debug)]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
     pub struct Nak {}
 }
 
 /// Get Properties
-/// TODO
 pub mod h0010 {
-    pub struct Cmd {}
-    pub struct Ack {}
-    pub struct Nak {}
+    use heapless::{ArrayLength, String, Vec};
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    pub enum Command {
+        ListFields = 0x00,
+        GetFieldName = 0x01,
+        GetFieldValue = 0x02,
+        Unknown = 0xFF,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct Cmd {
+        pub command: Command,
+
+        /// 8-bit field id
+        /// Ignored by ListFields
+        pub field: u8,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct Ack<S: ArrayLength<u8>> {
+        pub command: Command,
+
+        /// 8-bit field id
+        /// Ignored by ListFields
+        pub field: u8,
+
+        /// List of field ids
+        pub field_list: Vec<u8, S>,
+
+        /// String payload
+        pub string: String<S>,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct Nak {
+        pub command: Command,
+
+        /// 8-bit field id
+        /// Ignored by ListFields
+        pub field: u8,
+    }
 }
 
 /// USB Key State
@@ -221,26 +265,59 @@ pub mod h0015 {
 }
 
 /// Flash Mode
-/// TODO
 pub mod h0016 {
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    pub enum Error {
+        NotSupported = 0x00,
+        Disabled = 0x01,
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Cmd {}
-    pub struct Ack {}
-    pub struct Nak {}
+
+    #[derive(Clone, Debug)]
+    pub struct Ack {
+        pub scancode: u16,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct Nak {
+        pub error: Error,
+    }
 }
 
 /// UTF-8 Character Stream
-/// TODO
 pub mod h0017 {
-    pub struct Cmd {}
+    use heapless::{ArrayLength, String};
+
+    #[derive(Clone, Debug)]
+    pub struct Cmd<S: ArrayLength<u8>> {
+        pub string: String<S>,
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
     pub struct Nak {}
 }
 
 /// UTF-8 State
-/// TODO
 pub mod h0018 {
-    pub struct Cmd {}
+    use heapless::{ArrayLength, String};
+
+    #[derive(Clone, Debug)]
+    pub struct Cmd<S: ArrayLength<u8>> {
+        pub symbols: String<S>,
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
     pub struct Nak {}
 }
 
@@ -253,11 +330,27 @@ pub mod h0019 {
 }
 
 /// Sleep Mode
-/// TODO
 pub mod h001a {
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    pub enum Error {
+        NotSupported = 0x00,
+        Disabled = 0x01,
+        NotReady = 0x02,
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Cmd {}
+
+    #[derive(Clone, Debug)]
     pub struct Ack {}
-    pub struct Nak {}
+
+    #[derive(Clone, Debug)]
+    pub struct Nak {
+        pub error: Error,
+    }
 }
 
 /// KLL Trigger State
@@ -317,10 +410,21 @@ pub mod h0030 {
 }
 
 /// Terminal Command
-/// TODO
 pub mod h0031 {
-    pub struct Cmd {}
+    use heapless::{ArrayLength, Vec};
+
+    #[derive(Clone, Debug)]
+    pub struct Cmd<S: ArrayLength<u8>> {
+        /// Byte array instead of UTF-8 as there may be VT100
+        /// control characters which are more difficult for devices
+        /// to decode.
+        pub command: Vec<u8, S>,
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
     pub struct Nak {}
 }
 
@@ -341,10 +445,21 @@ pub mod h0033 {
 }
 
 /// Terminal Output
-/// TODO
 pub mod h0034 {
-    pub struct Cmd {}
+    use heapless::{ArrayLength, Vec};
+
+    #[derive(Clone, Debug)]
+    pub struct Cmd<S: ArrayLength<u8>> {
+        /// Byte array instead of UTF-8 as there may be VT100
+        /// control characters which are more difficult for devices
+        /// to decode.
+        pub output: Vec<u8, S>,
+    }
+
+    #[derive(Clone, Debug)]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
     pub struct Nak {}
 }
 
@@ -493,6 +608,40 @@ where
         })
     }
 
+    /// Simple short ack (16-bit)
+    fn short_ack(&mut self, id: HidIoCommandID, val: u16) -> Result<(), CommandError> {
+        // Build ACK
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
+            // Data packet
+            ptype: HidIoPacketType::ACK,
+            // Packet id
+            id,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Byte payload
+            data: Vec::from_slice(&val.to_le_bytes()).unwrap(),
+            // Ready to go
+            done: true,
+        })
+    }
+
+    /// Simple short nak (16-bit)
+    fn short_nak(&mut self, id: HidIoCommandID, val: u16) -> Result<(), CommandError> {
+        // Build NAK
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
+            // Data packet
+            ptype: HidIoPacketType::NAK,
+            // Packet id
+            id,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Byte payload
+            data: Vec::from_slice(&val.to_le_bytes()).unwrap(),
+            // Ready to go
+            done: true,
+        })
+    }
+
     /// Process specific packet types
     /// Handles matching to interface functions
     fn rx_message_handling(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError>
@@ -520,6 +669,12 @@ where
             HidIoCommandID::GetInfo => self.h0001_info_handler(buf),
             HidIoCommandID::TestPacket => self.h0002_test_handler(buf),
             HidIoCommandID::ResetHidIo => self.h0003_resethidio_handler(buf),
+            HidIoCommandID::FlashMode => self.h0016_flashmode_handler(buf),
+            HidIoCommandID::UnicodeText => self.h0017_unicodetext_handler(buf),
+            HidIoCommandID::UnicodeState => self.h0018_unicodestate_handler(buf),
+            HidIoCommandID::SleepMode => self.h001a_sleepmode_handler(buf),
+            HidIoCommandID::TerminalCmd => self.h0031_terminalcmd_handler(buf),
+            HidIoCommandID::TerminalOut => self.h0034_terminalout_handler(buf),
             HidIoCommandID::ManufacturingTest => self.h0050_manufacturing_handler(buf),
             _ => Err(CommandError::IdNotMatched(buf.id)),
         }
@@ -966,6 +1121,430 @@ where
             HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
             HidIoPacketType::ACK => self.h0003_resethidio_ack(h0003::Ack {}),
             HidIoPacketType::NAK => self.h0003_resethidio_nak(h0003::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0016_flashmode(&mut self, _data: h0016::Cmd) -> Result<(), CommandError> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandID::FlashMode,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Ready
+            done: true,
+            // Use defaults for other fields
+            ..Default::default()
+        })
+    }
+    fn h0016_flashmode_cmd(&mut self, _data: h0016::Cmd) -> Result<h0016::Ack, h0016::Nak> {
+        Err(h0016::Nak {
+            error: h0016::Error::NotSupported,
+        })
+    }
+    fn h0016_flashmode_ack(&mut self, _data: h0016::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::FlashMode,
+            HidIoPacketType::ACK,
+        ))
+    }
+    fn h0016_flashmode_nak(&mut self, _data: h0016::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::FlashMode,
+            HidIoPacketType::NAK,
+        ))
+    }
+    fn h0016_flashmode_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => match self.h0016_flashmode_cmd(h0016::Cmd {}) {
+                Ok(ack) => self.short_ack(buf.id, ack.scancode),
+                Err(nak) => self.byte_nak(buf.id, nak.error as u8),
+            },
+            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::ACK => {
+                if buf.data.len() < 2 {
+                    return Err(CommandError::DataVecNoData);
+                }
+
+                let scancode = u16::from_le_bytes(buf.data[0..2].try_into().unwrap());
+                self.h0016_flashmode_ack(h0016::Ack { scancode })
+            }
+            HidIoPacketType::NAK => {
+                if buf.data.len() < 1 {
+                    return Err(CommandError::DataVecNoData);
+                }
+
+                let error = match h0016::Error::try_from(buf.data[0]) {
+                    Ok(error) => error,
+                    Err(_) => {
+                        return Err(CommandError::InvalidProperty8(buf.data[0]));
+                    }
+                };
+                self.h0016_flashmode_nak(h0016::Nak { error })
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn h0017_unicodetext(&mut self, data: h0017::Cmd<H>, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandID::UnicodeText,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NAData;
+        }
+
+        // Build payload
+        if !buf.append_payload(data.string.as_bytes()) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0017_unicodetext_cmd(&mut self, _data: h0017::Cmd<H>) -> Result<h0017::Ack, h0017::Nak> {
+        Err(h0017::Nak {})
+    }
+    fn h0017_unicodetext_nacmd(&mut self, _data: h0017::Cmd<H>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::UnicodeText,
+            HidIoPacketType::NAData,
+        ))
+    }
+    fn h0017_unicodetext_ack(&mut self, _data: h0017::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::UnicodeText,
+            HidIoPacketType::ACK,
+        ))
+    }
+    fn h0017_unicodetext_nak(&mut self, _data: h0017::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::UnicodeText,
+            HidIoPacketType::NAK,
+        ))
+    }
+    fn h0017_unicodetext_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0017::Cmd::<H> {
+                    string: match String::from_utf8(buf.data) {
+                        Ok(string) => string,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
+
+                match self.h0017_unicodetext_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NAData => {
+                // Copy data into struct
+                let cmd = h0017::Cmd::<H> {
+                    string: match String::from_utf8(buf.data) {
+                        Ok(string) => string,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
+
+                self.h0017_unicodetext_nacmd(cmd)
+            }
+            HidIoPacketType::ACK => self.h0017_unicodetext_ack(h0017::Ack {}),
+            HidIoPacketType::NAK => self.h0017_unicodetext_nak(h0017::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0018_unicodestate(&mut self, data: h0018::Cmd<H>, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandID::UnicodeState,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NAData;
+        }
+
+        // Build payload
+        if !buf.append_payload(data.symbols.as_bytes()) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0018_unicodestate_cmd(&mut self, _data: h0018::Cmd<H>) -> Result<h0018::Ack, h0018::Nak> {
+        Err(h0018::Nak {})
+    }
+    fn h0018_unicodestate_nacmd(&mut self, _data: h0018::Cmd<H>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::UnicodeState,
+            HidIoPacketType::NAData,
+        ))
+    }
+    fn h0018_unicodestate_ack(&mut self, _data: h0018::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::UnicodeState,
+            HidIoPacketType::ACK,
+        ))
+    }
+    fn h0018_unicodestate_nak(&mut self, _data: h0018::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::UnicodeState,
+            HidIoPacketType::NAK,
+        ))
+    }
+    fn h0018_unicodestate_handler(
+        &mut self,
+        buf: HidIoPacketBuffer<H>,
+    ) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0018::Cmd::<H> {
+                    symbols: match String::from_utf8(buf.data) {
+                        Ok(symbols) => symbols,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
+
+                match self.h0018_unicodestate_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NAData => {
+                // Copy data into struct
+                let cmd = h0018::Cmd::<H> {
+                    symbols: match String::from_utf8(buf.data) {
+                        Ok(symbols) => symbols,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
+
+                self.h0018_unicodestate_nacmd(cmd)
+            }
+            HidIoPacketType::ACK => self.h0018_unicodestate_ack(h0018::Ack {}),
+            HidIoPacketType::NAK => self.h0018_unicodestate_nak(h0018::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h001a_sleepmode(&mut self, _data: h001a::Cmd) -> Result<(), CommandError> {
+        self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandID::SleepMode,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Ready
+            done: true,
+            // Use defaults for other fields
+            ..Default::default()
+        })
+    }
+    fn h001a_sleepmode_cmd(&mut self, _data: h001a::Cmd) -> Result<h001a::Ack, h001a::Nak> {
+        Err(h001a::Nak {
+            error: h001a::Error::NotSupported,
+        })
+    }
+    fn h001a_sleepmode_ack(&mut self, _data: h001a::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::FlashMode,
+            HidIoPacketType::ACK,
+        ))
+    }
+    fn h001a_sleepmode_nak(&mut self, _data: h001a::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::FlashMode,
+            HidIoPacketType::NAK,
+        ))
+    }
+    fn h001a_sleepmode_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => match self.h001a_sleepmode_cmd(h001a::Cmd {}) {
+                Ok(_ack) => self.empty_ack(buf.id),
+                Err(nak) => self.byte_nak(buf.id, nak.error as u8),
+            },
+            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::ACK => self.h001a_sleepmode_ack(h001a::Ack {}),
+            HidIoPacketType::NAK => {
+                if buf.data.len() < 1 {
+                    return Err(CommandError::DataVecNoData);
+                }
+
+                let error = match h001a::Error::try_from(buf.data[0]) {
+                    Ok(error) => error,
+                    Err(_) => {
+                        return Err(CommandError::InvalidProperty8(buf.data[0]));
+                    }
+                };
+                self.h001a_sleepmode_nak(h001a::Nak { error })
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn h0031_terminalcmd(&mut self, data: h0031::Cmd<H>, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandID::TerminalCmd,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NAData;
+        }
+
+        // Build payload
+        if !buf.append_payload(&data.command) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0031_terminalcmd_cmd(&mut self, _data: h0031::Cmd<H>) -> Result<h0031::Ack, h0031::Nak> {
+        Err(h0031::Nak {})
+    }
+    fn h0031_terminalcmd_nacmd(&mut self, _data: h0031::Cmd<H>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TerminalCmd,
+            HidIoPacketType::NAData,
+        ))
+    }
+    fn h0031_terminalcmd_ack(&mut self, _data: h0031::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TerminalCmd,
+            HidIoPacketType::ACK,
+        ))
+    }
+    fn h0031_terminalcmd_nak(&mut self, _data: h0031::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TerminalCmd,
+            HidIoPacketType::NAK,
+        ))
+    }
+    fn h0031_terminalcmd_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0031::Cmd::<H> { command: buf.data };
+
+                match self.h0031_terminalcmd_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NAData => {
+                // Copy data into struct
+                let cmd = h0031::Cmd::<H> { command: buf.data };
+
+                self.h0031_terminalcmd_nacmd(cmd)
+            }
+            HidIoPacketType::ACK => self.h0031_terminalcmd_ack(h0031::Ack {}),
+            HidIoPacketType::NAK => self.h0031_terminalcmd_nak(h0031::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0034_terminalout(&mut self, data: h0034::Cmd<H>, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandID::TerminalOut,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NAData;
+        }
+
+        // Build payload
+        if !buf.append_payload(&data.output) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0034_terminalout_cmd(&mut self, _data: h0034::Cmd<H>) -> Result<h0034::Ack, h0034::Nak> {
+        Err(h0034::Nak {})
+    }
+    fn h0034_terminalout_nacmd(&mut self, _data: h0034::Cmd<H>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TerminalOut,
+            HidIoPacketType::NAData,
+        ))
+    }
+    fn h0034_terminalout_ack(&mut self, _data: h0034::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TerminalOut,
+            HidIoPacketType::ACK,
+        ))
+    }
+    fn h0034_terminalout_nak(&mut self, _data: h0034::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandID::TerminalOut,
+            HidIoPacketType::NAK,
+        ))
+    }
+    fn h0034_terminalout_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0034::Cmd::<H> { output: buf.data };
+
+                match self.h0034_terminalout_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NAData => {
+                // Copy data into struct
+                let cmd = h0034::Cmd::<H> { output: buf.data };
+
+                self.h0034_terminalout_nacmd(cmd)
+            }
+            HidIoPacketType::ACK => self.h0034_terminalout_ack(h0034::Ack {}),
+            HidIoPacketType::NAK => self.h0034_terminalout_nak(h0034::Nak {}),
             _ => Ok(()),
         }
     }

@@ -100,7 +100,7 @@ pub enum HidIoCommandID {
     LEDLayout = 0x15,
     FlashMode = 0x16,
     UnicodeText = 0x17,
-    UnicodeKey = 0x18,
+    UnicodeState = 0x18,
     HostMacro = 0x19,
     SleepMode = 0x1A,
     KLLState = 0x20,
@@ -111,9 +111,10 @@ pub enum HidIoCommandID {
     PixelSet3c16b = 0x25,
 
     OpenURL = 0x30,
-    Terminal = 0x31,
+    TerminalCmd = 0x31,
     GetInputLayout = 0x32,
     SetInputLayout = 0x33,
+    TerminalOut = 0x34,
 
     HIDKeyboard = 0x40,
     HIDKeyboardLED = 0x41,

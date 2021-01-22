@@ -107,10 +107,10 @@ interface Daemon extends(Common.Node) {
     # By default no packets will be sent
     # Will return an error if any of the options are not supported/invalid for this device
 
-    unicodeString @1 (string :Text);
+    unicodeText @1 (string :Text);
     # Output a unicode string to the focused window
 
-    unicodeKeys @2 (characters :Text);
+    unicodeState @2 (characters :Text);
     # Hold the specified unicode symbols on the focused window
     # To release the symbols, call this command again without those symbols specified
     # e.g.

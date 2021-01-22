@@ -22,7 +22,6 @@ use crate::api::Endpoint;
 use crate::api::EvdevInfo;
 use crate::mailbox;
 use crate::module::vhid;
-use crate::protocol::hidio;
 use hid_io_protocol::*;
 
 // TODO This should be converted to use hid-io/layouts (may need a rust package to handle

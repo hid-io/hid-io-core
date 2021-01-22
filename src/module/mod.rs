@@ -45,8 +45,6 @@ pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
         HidIoCommandID::KLLState,
         HidIoCommandID::OpenURL,
         HidIoCommandID::SupportedIDs,
-        HidIoCommandID::TerminalCmd,
-        HidIoCommandID::TerminalOut,
     ];
     if recursive {
         ids.extend(displayserver::supported_ids().iter().cloned());
