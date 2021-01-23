@@ -618,55 +618,84 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
 
-                // Wait for ACK/NAK
-                let res = self.mailbox.try_send_command(
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    result: Result<h001a::Ack, h001a::Nak>,
+                }
+                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h001a_sleepmode_ack(
+                        &mut self,
+                        data: h001a::Ack,
+                    ) -> Result<(), CommandError> {
+                        self.result = Ok(data);
+                        Ok(())
+                    }
+                    fn h001a_sleepmode_nak(
+                        &mut self,
+                        data: h001a::Nak,
+                    ) -> Result<(), CommandError> {
+                        self.result = Err(data);
+                        Ok(())
+                    }
+                }
+                let mut intf = CommandInterface {
                     src,
                     dst,
-                    HidIoCommandID::SleepMode,
-                    vec![],
-                    true,
-                );
-
-                match res {
-                    Ok(_msg) => Promise::ok(()),
-                    Err(mailbox::AckWaitError::NAKReceived { msg }) => {
-                        match msg.data.data.first() {
-                            Some(0x0) => {
-                                let status = results.get().init_status();
-                                let mut error = status.init_error();
-                                error.set_reason(hidio_capnp::node::sleep_mode_status::error::ErrorReason::NotSupported);
-                                Promise::ok(())
-                            }
-                            Some(0x1) => {
-                                let status = results.get().init_status();
-                                let mut error = status.init_error();
-                                error.set_reason(
-                                    hidio_capnp::node::sleep_mode_status::error::ErrorReason::Disabled,
-                                );
-                                Promise::ok(())
-                            }
-                            Some(0x2) => {
-                                let status = results.get().init_status();
-                                let mut error = status.init_error();
-                                error.set_reason(
-                                    hidio_capnp::node::sleep_mode_status::error::ErrorReason::NotReady,
-                                );
-                                Promise::ok(())
-                            }
-                            Some(error_code) => Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: format!("sleep_mode - Unknown error {}", error_code),
-                            }),
-                            None => Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: "sleep_mode - Invalid NAK packet size".to_string(),
-                            }),
-                        }
-                    }
-                    Err(e) => Promise::err(capnp::Error {
-                        kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (sleep_mode): {:?}", e),
+                    mailbox: self.mailbox.clone(),
+                    result: Err(h001a::Nak {
+                        error: h001a::Error::NotSupported,
                     }),
+                };
+
+                // Send command
+                if let Err(e) = intf.h001a_sleepmode(h001a::Cmd {}) {
+                    return Promise::err(capnp::Error {
+                        kind: ::capnp::ErrorKind::Failed,
+                        description: format!("Error (sleepmode): {:?}", e),
+                    });
+                }
+
+                // Wait for ACK/NAK
+                let status = results.get().init_status();
+                match intf.result {
+                    Ok(_msg) => Promise::ok(()),
+                    Err(msg) => match msg.error {
+                        h001a::Error::NotSupported => {
+                            let mut error = status.init_error();
+                            error.set_reason(hidio_capnp::node::sleep_mode_status::error::ErrorReason::NotSupported);
+                            Promise::ok(())
+                        }
+                        h001a::Error::Disabled => {
+                            let mut error = status.init_error();
+                            error.set_reason(
+                                hidio_capnp::node::sleep_mode_status::error::ErrorReason::Disabled,
+                            );
+                            Promise::ok(())
+                        }
+                        h001a::Error::NotReady => {
+                            let mut error = status.init_error();
+                            error.set_reason(
+                                hidio_capnp::node::sleep_mode_status::error::ErrorReason::NotReady,
+                            );
+                            Promise::ok(())
+                        }
+                    },
                 }
             }
             _ => Promise::err(capnp::Error {
@@ -685,63 +714,82 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             AuthLevel::Secure | AuthLevel::Debug => {
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
-                // Send command
-                let res = self.mailbox.try_send_command(
+
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    result: Result<h0016::Ack, h0016::Nak>,
+                }
+                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h0016_flashmode_ack(
+                        &mut self,
+                        data: h0016::Ack,
+                    ) -> Result<(), CommandError> {
+                        self.result = Ok(data);
+                        Ok(())
+                    }
+                    fn h0016_flashmode_nak(
+                        &mut self,
+                        data: h0016::Nak,
+                    ) -> Result<(), CommandError> {
+                        self.result = Err(data);
+                        Ok(())
+                    }
+                }
+                let mut intf = CommandInterface {
                     src,
                     dst,
-                    HidIoCommandID::FlashMode,
-                    vec![],
-                    true,
-                );
+                    mailbox: self.mailbox.clone(),
+                    result: Err(h0016::Nak {
+                        error: h0016::Error::NotSupported,
+                    }),
+                };
+
+                // Send command
+                if let Err(e) = intf.h0016_flashmode(h0016::Cmd {}) {
+                    return Promise::err(capnp::Error {
+                        kind: ::capnp::ErrorKind::Failed,
+                        description: format!("Error (flashmode): {:?}", e),
+                    });
+                }
 
                 // Wait for ACK/NAK
-                match res {
+                let status = results.get().init_status();
+                match intf.result {
                     Ok(msg) => {
-                        if let Some(msg) = msg {
-                            // Convert byte stream to u16 TODO Should handle better
-                            let scancode =
-                                ((msg.data.data[0] as u16) << 8) | msg.data.data[1] as u16;
-                            let status = results.get().init_status();
-                            let mut success = status.init_success();
-                            success.set_scan_code(scancode);
+                        let mut success = status.init_success();
+                        success.set_scan_code(msg.scancode);
+                        Promise::ok(())
+                    }
+                    Err(msg) => match msg.error {
+                        h0016::Error::NotSupported => {
+                            let mut error = status.init_error();
+                            error.set_reason(hidio_capnp::node::flash_mode_status::error::ErrorReason::NotSupported);
                             Promise::ok(())
-                        } else {
-                            Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: "Error no ACK (flash_mode)".to_string(),
-                            })
                         }
-                    }
-                    Err(mailbox::AckWaitError::NAKReceived { msg }) => {
-                        match msg.data.data.first() {
-                            Some(0x0) => {
-                                let status = results.get().init_status();
-                                let mut error = status.init_error();
-                                error.set_reason(hidio_capnp::node::flash_mode_status::error::ErrorReason::NotSupported);
-                                Promise::ok(())
-                            }
-                            Some(0x1) => {
-                                let status = results.get().init_status();
-                                let mut error = status.init_error();
-                                error.set_reason(
-                                    hidio_capnp::node::flash_mode_status::error::ErrorReason::Disabled,
-                                );
-                                Promise::ok(())
-                            }
-                            Some(error_code) => Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: format!("flash_mode - Unknown error {}", error_code),
-                            }),
-                            None => Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: "flash_mode - Invalid NAK packet size".to_string(),
-                            }),
+                        h0016::Error::Disabled => {
+                            let mut error = status.init_error();
+                            error.set_reason(
+                                hidio_capnp::node::flash_mode_status::error::ErrorReason::Disabled,
+                            );
+                            Promise::ok(())
                         }
-                    }
-                    Err(e) => Promise::err(capnp::Error {
-                        kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (flash_mode): {:?}", e),
-                    }),
+                    },
                 }
             }
             _ => Promise::err(capnp::Error {
@@ -762,7 +810,6 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
 
-                // CommandInterface for ManufacturingTest
                 struct CommandInterface {
                     src: mailbox::Address,
                     dst: mailbox::Address,
@@ -859,7 +906,6 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::DeviceHidio { uid: self.uid };
 
-        // CommandInterface for GetInfo
         struct CommandInterface {
             src: mailbox::Address,
             dst: mailbox::Address,
@@ -1185,30 +1231,62 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         mut _results: daemon_capnp::daemon::UnicodeTextResults,
     ) -> Promise<(), Error> {
         let params = params.get().unwrap();
-        let string = params.get_string().unwrap();
+        let string = heapless::String::from(params.get_string().unwrap());
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::Module;
 
-        match self.mailbox.try_send_command(
+        struct CommandInterface {
+            src: mailbox::Address,
+            dst: mailbox::Address,
+            mailbox: mailbox::Mailbox,
+            result: Result<h0017::Ack, h0017::Nak>,
+        }
+        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+            fn tx_packetbuffer_send(
+                &mut self,
+                buf: &mut mailbox::HidIoPacketBuffer,
+            ) -> Result<(), CommandError> {
+                if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                    src: self.src,
+                    dst: self.dst,
+                    data: buf.clone(),
+                })? {
+                    // Handle ack/nak
+                    self.rx_message_handling(rcvmsg.data)?;
+                }
+                Ok(())
+            }
+            fn h0017_unicodetext_ack(&mut self, data: h0017::Ack) -> Result<(), CommandError> {
+                self.result = Ok(data);
+                Ok(())
+            }
+            fn h0017_unicodetext_nak(&mut self, data: h0017::Nak) -> Result<(), CommandError> {
+                self.result = Err(data);
+                Ok(())
+            }
+        }
+        let mut intf = CommandInterface {
             src,
             dst,
-            HidIoCommandID::UnicodeText,
-            string.as_bytes().to_vec(),
-            true,
-        ) {
-            Ok(msg) => {
-                if let Some(_msg) = msg {
-                    Promise::ok(())
-                } else {
-                    Promise::err(capnp::Error {
-                        kind: ::capnp::ErrorKind::Failed,
-                        description: "No ACK received (unicode_text)".to_string(),
-                    })
-                }
-            }
-            Err(e) => Promise::err(capnp::Error {
+            mailbox: self.mailbox.clone(),
+            result: Err(h0017::Nak {}),
+        };
+
+        // Send command
+        let cmd = h0017::Cmd { string };
+        if let Err(e) = intf.h0017_unicodetext(cmd.clone(), false) {
+            return Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicode_text): {:?}", e),
+                description: format!("Error (unicodetext): {:?} {:?}", cmd, e),
+            });
+        }
+
+        // Wait for ACK/NAK
+        match intf.result {
+            Ok(_msg) => Promise::ok(()),
+            Err(msg) => Promise::err(capnp::Error {
+                kind: ::capnp::ErrorKind::Failed,
+                description: format!("Error (unicode_text): {:?}", msg),
             }),
         }
     }
@@ -1219,30 +1297,62 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         mut _results: daemon_capnp::daemon::UnicodeStateResults,
     ) -> Promise<(), Error> {
         let params = params.get().unwrap();
-        let string = params.get_characters().unwrap();
+        let symbols = heapless::String::from(params.get_characters().unwrap());
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::Module;
 
-        match self.mailbox.try_send_command(
+        struct CommandInterface {
+            src: mailbox::Address,
+            dst: mailbox::Address,
+            mailbox: mailbox::Mailbox,
+            result: Result<h0018::Ack, h0018::Nak>,
+        }
+        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+            fn tx_packetbuffer_send(
+                &mut self,
+                buf: &mut mailbox::HidIoPacketBuffer,
+            ) -> Result<(), CommandError> {
+                if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                    src: self.src,
+                    dst: self.dst,
+                    data: buf.clone(),
+                })? {
+                    // Handle ack/nak
+                    self.rx_message_handling(rcvmsg.data)?;
+                }
+                Ok(())
+            }
+            fn h0018_unicodestate_ack(&mut self, data: h0018::Ack) -> Result<(), CommandError> {
+                self.result = Ok(data);
+                Ok(())
+            }
+            fn h0018_unicodestate_nak(&mut self, data: h0018::Nak) -> Result<(), CommandError> {
+                self.result = Err(data);
+                Ok(())
+            }
+        }
+        let mut intf = CommandInterface {
             src,
             dst,
-            HidIoCommandID::UnicodeState,
-            string.as_bytes().to_vec(),
-            true,
-        ) {
-            Ok(msg) => {
-                if let Some(_msg) = msg {
-                    Promise::ok(())
-                } else {
-                    Promise::err(capnp::Error {
-                        kind: ::capnp::ErrorKind::Failed,
-                        description: "No ACK received (unicode_state)".to_string(),
-                    })
-                }
-            }
-            Err(e) => Promise::err(capnp::Error {
+            mailbox: self.mailbox.clone(),
+            result: Err(h0018::Nak {}),
+        };
+
+        // Send command
+        let cmd = h0018::Cmd { symbols };
+        if let Err(e) = intf.h0018_unicodestate(cmd.clone(), false) {
+            return Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicode_state): {:?}", e),
+                description: format!("Error (unicodetext): {:?} {:?}", cmd, e),
+            });
+        }
+
+        // Wait for ACK/NAK
+        match intf.result {
+            Ok(_msg) => Promise::ok(()),
+            Err(msg) => Promise::err(capnp::Error {
+                kind: ::capnp::ErrorKind::Failed,
+                description: format!("Error (unicode_text): {:?}", msg),
             }),
         }
     }
