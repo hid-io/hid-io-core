@@ -570,31 +570,65 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
         match self.auth {
             AuthLevel::Secure | AuthLevel::Debug => {
                 let params = params.get().unwrap();
-                let cmd = params.get_command().unwrap();
+                let command = heapless::String::from(params.get_command().unwrap());
                 let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
                 let dst = mailbox::Address::DeviceHidio { uid: self.uid };
-                match self.mailbox.try_send_command(
+
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    result: Result<h0031::Ack, h0031::Nak>,
+                }
+                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h0031_terminalcmd_ack(
+                        &mut self,
+                        data: h0031::Ack,
+                    ) -> Result<(), CommandError> {
+                        self.result = Ok(data);
+                        Ok(())
+                    }
+                    fn h0031_terminalcmd_nak(
+                        &mut self,
+                        data: h0031::Nak,
+                    ) -> Result<(), CommandError> {
+                        self.result = Err(data);
+                        Ok(())
+                    }
+                }
+                let mut intf = CommandInterface {
                     src,
                     dst,
-                    HidIoCommandID::TerminalCmd,
-                    cmd.as_bytes().to_vec(),
-                    //true,
-                    false, // TODO ACK Should work (firmware bug?)
-                ) {
-                    Ok(_msg) => {
-                        // TODO (HaaTa): FIXME This should have an ACK
-                        /*
-                        if let Some(msg) = msg {
-                            Promise::ok(())
-                        } else {
-                            Promise::err(capnp::Error {
-                            kind: ::capnp::ErrorKind::Failed,
-                            description: format!("No ACK received (cli_command)"),
-                            })
-                        }
-                        */
-                        Promise::ok(())
-                    }
+                    mailbox: self.mailbox.clone(),
+                    result: Err(h0031::Nak {}),
+                };
+
+                // Send command
+                let cmd = h0031::Cmd { command };
+                if let Err(e) = intf.h0031_terminalcmd(cmd.clone(), false) {
+                    return Promise::err(capnp::Error {
+                        kind: ::capnp::ErrorKind::Failed,
+                        description: format!("Error (cli_command): {:?} {:?}", cmd, e),
+                    });
+                }
+
+                // Wait for ACK/NAK
+                match intf.result {
+                    Ok(_msg) => Promise::ok(()),
                     Err(e) => Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
                         description: format!("Error (cli_command): {:?}", e),
@@ -708,7 +742,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn flash_mode(
         &mut self,
         _params: hidio_capnp::node::FlashModeParams,
-        mut results: hidio_capnp::node::FlashModeResults,
+        results: hidio_capnp::node::FlashModeResults,
     ) -> Promise<(), Error> {
         match self.auth {
             AuthLevel::Secure | AuthLevel::Debug => {
@@ -719,7 +753,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     src: mailbox::Address,
                     dst: mailbox::Address,
                     mailbox: mailbox::Mailbox,
-                    result: Result<h0016::Ack, h0016::Nak>,
+                    results: hidio_capnp::node::FlashModeResults,
                 }
                 impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
                     fn tx_packetbuffer_send(
@@ -740,14 +774,28 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         &mut self,
                         data: h0016::Ack,
                     ) -> Result<(), CommandError> {
-                        self.result = Ok(data);
+                        let status = self.results.get().init_status();
+                        let mut success = status.init_success();
+                        success.set_scan_code(data.scancode);
                         Ok(())
                     }
                     fn h0016_flashmode_nak(
                         &mut self,
                         data: h0016::Nak,
                     ) -> Result<(), CommandError> {
-                        self.result = Err(data);
+                        let status = self.results.get().init_status();
+                        match data.error {
+                            h0016::Error::NotSupported => {
+                                let mut error = status.init_error();
+                                error.set_reason(hidio_capnp::node::flash_mode_status::error::ErrorReason::NotSupported);
+                            }
+                            h0016::Error::Disabled => {
+                                let mut error = status.init_error();
+                                error.set_reason(
+                                    hidio_capnp::node::flash_mode_status::error::ErrorReason::Disabled,
+                                );
+                            }
+                        }
                         Ok(())
                     }
                 }
@@ -755,9 +803,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     src,
                     dst,
                     mailbox: self.mailbox.clone(),
-                    result: Err(h0016::Nak {
-                        error: h0016::Error::NotSupported,
-                    }),
+                    results,
                 };
 
                 // Send command
@@ -767,30 +813,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         description: format!("Error (flashmode): {:?}", e),
                     });
                 }
-
-                // Wait for ACK/NAK
-                let status = results.get().init_status();
-                match intf.result {
-                    Ok(msg) => {
-                        let mut success = status.init_success();
-                        success.set_scan_code(msg.scancode);
-                        Promise::ok(())
-                    }
-                    Err(msg) => match msg.error {
-                        h0016::Error::NotSupported => {
-                            let mut error = status.init_error();
-                            error.set_reason(hidio_capnp::node::flash_mode_status::error::ErrorReason::NotSupported);
-                            Promise::ok(())
-                        }
-                        h0016::Error::Disabled => {
-                            let mut error = status.init_error();
-                            error.set_reason(
-                                hidio_capnp::node::flash_mode_status::error::ErrorReason::Disabled,
-                            );
-                            Promise::ok(())
-                        }
-                    },
-                }
+                Promise::ok(())
             }
             _ => Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
@@ -802,7 +825,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn manufacturing_test(
         &mut self,
         params: hidio_capnp::node::ManufacturingTestParams,
-        mut results: hidio_capnp::node::ManufacturingTestResults,
+        results: hidio_capnp::node::ManufacturingTestResults,
     ) -> Promise<(), Error> {
         match self.auth {
             AuthLevel::Secure | AuthLevel::Debug => {
@@ -814,10 +837,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     src: mailbox::Address,
                     dst: mailbox::Address,
                     mailbox: mailbox::Mailbox,
-                    result: Result<
-                        h0050::Ack<mailbox::HidIoPacketBufferDataSize>,
-                        h0050::Nak<mailbox::HidIoPacketBufferDataSize>,
-                    >,
+                    results: hidio_capnp::node::ManufacturingTestResults,
                 }
                 impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
                     fn tx_packetbuffer_send(
@@ -838,14 +858,24 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         &mut self,
                         data: h0050::Ack<mailbox::HidIoPacketBufferDataSize>,
                     ) -> Result<(), CommandError> {
-                        self.result = Ok(data);
+                        // TODO is there a more efficient way to set this?
+                        let status = self.results.get().init_status();
+                        let mut result = status.init_success(data.data.len() as u32);
+                        for (i, f) in data.data.iter().enumerate() {
+                            result.set(i as u32, *f);
+                        }
                         Ok(())
                     }
                     fn h0050_manufacturing_nak(
                         &mut self,
                         data: h0050::Nak<mailbox::HidIoPacketBufferDataSize>,
                     ) -> Result<(), CommandError> {
-                        self.result = Err(data);
+                        let status = self.results.get().init_status();
+                        // TODO is there a more efficient way to set this?
+                        let mut result = status.init_error(data.data.len() as u32);
+                        for (i, f) in data.data.iter().enumerate() {
+                            result.set(i as u32, *f);
+                        }
                         Ok(())
                     }
                 }
@@ -853,9 +883,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     src,
                     dst,
                     mailbox: self.mailbox.clone(),
-                    result: Err(h0050::Nak {
-                        data: heapless::Vec::new(),
-                    }),
+                    results,
                 };
 
                 // Send command
@@ -868,27 +896,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         description: format!("Error (manufacturing_test): {:?}", e),
                     });
                 }
-
-                // Handle ACK/NAK
-                let status = results.get().init_status();
-                match intf.result {
-                    Ok(data) => {
-                        // TODO is there a more efficient way to set this?
-                        let mut result = status.init_success(data.data.len() as u32);
-                        for (i, f) in data.data.iter().enumerate() {
-                            result.set(i as u32, *f);
-                        }
-                        Promise::ok(())
-                    }
-                    Err(data) => {
-                        // TODO is there a more efficient way to set this?
-                        let mut result = status.init_error(data.data.len() as u32);
-                        for (i, f) in data.data.iter().enumerate() {
-                            result.set(i as u32, *f);
-                        }
-                        Promise::ok(())
-                    }
-                }
+                Promise::ok(())
             }
             _ => Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
@@ -900,9 +908,8 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn info(
         &mut self,
         _params: hidio_capnp::node::InfoParams,
-        mut results: hidio_capnp::node::InfoResults,
+        results: hidio_capnp::node::InfoResults,
     ) -> Promise<(), Error> {
-        let mut info = results.get().init_info();
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::DeviceHidio { uid: self.uid };
 
@@ -910,7 +917,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             src: mailbox::Address,
             dst: mailbox::Address,
             mailbox: mailbox::Mailbox,
-            result: Result<h0001::Ack<Sub1<mailbox::HidIoPacketBufferDataSize>>, h0001::Nak>,
+            results: hidio_capnp::node::InfoResults,
         }
         impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
             fn tx_packetbuffer_send(
@@ -935,7 +942,23 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             where
                 <mailbox::HidIoPacketBufferDataSize as Sub<B1>>::Output: ArrayLength<u8>,
             {
-                self.result = Ok(data);
+                use h0001::Property;
+
+                let mut info = self.results.get().init_info();
+                match data.property {
+                    Property::MajorVersion => info.set_hidio_major_version(data.number),
+                    Property::MinorVersion => info.set_hidio_minor_version(data.number),
+                    Property::PatchVersion => info.set_hidio_patch_version(data.number),
+                    Property::DeviceName => info.set_device_name(&data.string),
+                    Property::DeviceSerialNumber => info.set_device_serial(&data.string),
+                    Property::DeviceVersion => info.set_device_version(&data.string),
+                    Property::DeviceMCU => info.set_device_mcu(&data.string),
+                    Property::DeviceVendor => info.set_device_vendor(&data.string),
+                    Property::FirmwareName => info.set_firmware_name(&data.string),
+                    Property::FirmwareVersion => info.set_firmware_version(&data.string),
+                    _ => {}
+                }
+
                 Ok(())
             }
         }
@@ -943,96 +966,44 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             src,
             dst,
             mailbox: self.mailbox.clone(),
-            result: Err(h0001::Nak {
-                property: h0001::Property::Unknown,
-            }),
+            results,
         };
 
         // Get version info
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::MajorVersion,
-            })
-            .is_ok()
-        {
-            info.set_hidio_major_version(intf.result.clone().unwrap().number);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::MinorVersion,
-            })
-            .is_ok()
-        {
-            info.set_hidio_minor_version(intf.result.clone().unwrap().number);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::PatchVersion,
-            })
-            .is_ok()
-        {
-            info.set_hidio_patch_version(intf.result.clone().unwrap().number);
-        }
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::MajorVersion,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::MinorVersion,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::PatchVersion,
+        });
 
         // Get device info
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::DeviceName,
-            })
-            .is_ok()
-        {
-            info.set_device_name(&intf.result.clone().unwrap().string);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::DeviceSerialNumber,
-            })
-            .is_ok()
-        {
-            info.set_device_serial(&intf.result.clone().unwrap().string);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::DeviceVersion,
-            })
-            .is_ok()
-        {
-            info.set_device_version(&intf.result.clone().unwrap().string);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::DeviceMCU,
-            })
-            .is_ok()
-        {
-            info.set_device_mcu(&intf.result.clone().unwrap().string);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::DeviceVendor,
-            })
-            .is_ok()
-        {
-            info.set_device_vendor(&intf.result.clone().unwrap().string);
-        }
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::DeviceName,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::DeviceSerialNumber,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::DeviceVersion,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::DeviceMCU,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::DeviceVendor,
+        });
 
         // Get firmware info
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::FirmwareName,
-            })
-            .is_ok()
-        {
-            info.set_firmware_name(&intf.result.clone().unwrap().string);
-        }
-        if intf
-            .h0001_info(h0001::Cmd {
-                property: h0001::Property::FirmwareVersion,
-            })
-            .is_ok()
-        {
-            info.set_firmware_version(&intf.result.unwrap().string);
-        }
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::FirmwareName,
+        });
+        let _ = intf.h0001_info(h0001::Cmd {
+            property: h0001::Property::FirmwareVersion,
+        });
         Promise::ok(())
     }
 }
@@ -1757,43 +1728,84 @@ async fn server_subscriptions_keyboard(
                         }
                     );
             }
-            // Filter: cli command
-            let mut stream = stream.filter(|msg| msg.data.id == HidIoCommandID::TerminalOut);
-            // Filters: kll trigger
-            //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::KLLState);
-            // Filters: layer
-            // TODO
-            // Filters: host macro
-            //let stream = stream.filter(|msg| msg.data.id == HidIoCommandID::HostMacro);
 
-            // TODO Split into multiple stream paths? Or just handle here?
+            // Filters
+            //  cli output
+            //  host macro (TODO)
+            //  kll trigger (TODO)
+            //  layer (TODO)
+            let mut stream = stream.filter(|msg| {
+                msg.data.id == HidIoCommandID::TerminalOut
+                    || msg.data.id == HidIoCommandID::KLLState
+                    || msg.data.id == HidIoCommandID::HostMacro
+            });
+
+            // Handle stream
             while let Some(msg) = stream.next().await {
-                // Forward message to api callback
-                let mut request = subscriptions
-                    .read()
-                    .unwrap()
-                    .keyboard_node
-                    .subscribers
-                    .get(&last_keyboard_next_id)
-                    .unwrap()
-                    .client
-                    .update_request();
+                let src = msg.dst;
+                let dst = msg.src;
 
-                // Build Signal message
-                let mut signal = request.get().init_signal();
-                signal.set_time(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .expect("Time went backwards")
-                        .as_millis() as u64,
-                );
-                signal
-                    .init_data()
-                    .init_cli()
-                    .set_output(&String::from_utf8_lossy(&msg.data.data));
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    request: ::capnp::capability::Request<
+                        keyboard_capnp::keyboard::subscriber::update_params::Owned,
+                        keyboard_capnp::keyboard::subscriber::update_results::Owned,
+                    >,
+                }
+                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h0034_terminalout_cmd(
+                        &mut self,
+                        data: h0034::Cmd<mailbox::HidIoPacketBufferDataSize>,
+                    ) -> Result<h0034::Ack, h0034::Nak> {
+                        // Build Signal message
+                        let mut signal = self.request.get().init_signal();
+                        signal.set_time(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .expect("Time went backwards")
+                                .as_millis() as u64,
+                        );
+                        signal.init_data().init_cli().set_output(&data.output);
+
+                        Ok(h0034::Ack {})
+                    }
+                }
+
+                // Setup interface
+                let intf = CommandInterface {
+                    src,
+                    dst,
+                    mailbox: mailbox.clone(),
+                    // Forward message to api callback
+                    request: subscriptions
+                        .read()
+                        .unwrap()
+                        .keyboard_node
+                        .subscribers
+                        .get(&last_keyboard_next_id)
+                        .unwrap()
+                        .client
+                        .update_request(),
+                };
 
                 // Block on each send, drop subscription on failure
-                if let Err(e) = request.send().promise.await {
+                if let Err(e) = intf.request.send().promise.await {
                     warn!(
                         "keyboardwatcher packet error: {:?}. Dropping subscriber.",
                         e
@@ -2108,6 +2120,8 @@ async fn server_subscriptions(
 pub fn supported_ids() -> Vec<HidIoCommandID> {
     vec![
         HidIoCommandID::FlashMode,
+        HidIoCommandID::HostMacro,
+        HidIoCommandID::KLLState,
         HidIoCommandID::SleepMode,
         HidIoCommandID::TerminalCmd,
         HidIoCommandID::TerminalOut,

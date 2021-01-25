@@ -411,14 +411,11 @@ pub mod h0030 {
 
 /// Terminal Command
 pub mod h0031 {
-    use heapless::{ArrayLength, Vec};
+    use heapless::{ArrayLength, String};
 
     #[derive(Clone, Debug)]
     pub struct Cmd<S: ArrayLength<u8>> {
-        /// Byte array instead of UTF-8 as there may be VT100
-        /// control characters which are more difficult for devices
-        /// to decode.
-        pub command: Vec<u8, S>,
+        pub command: String<S>,
     }
 
     #[derive(Clone, Debug)]
@@ -446,14 +443,11 @@ pub mod h0033 {
 
 /// Terminal Output
 pub mod h0034 {
-    use heapless::{ArrayLength, Vec};
+    use heapless::{ArrayLength, String};
 
     #[derive(Clone, Debug)]
     pub struct Cmd<S: ArrayLength<u8>> {
-        /// Byte array instead of UTF-8 as there may be VT100
-        /// control characters which are more difficult for devices
-        /// to decode.
-        pub output: Vec<u8, S>,
+        pub output: String<S>,
     }
 
     #[derive(Clone, Debug)]
@@ -1428,7 +1422,7 @@ where
         }
 
         // Build payload
-        if !buf.append_payload(&data.command) {
+        if !buf.append_payload(&data.command.as_bytes()) {
             return Err(CommandError::DataVecTooSmall);
         }
         buf.done = true;
@@ -1461,7 +1455,14 @@ where
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0031::Cmd::<H> { command: buf.data };
+                let cmd = h0031::Cmd::<H> {
+                    command: match String::from_utf8(buf.data) {
+                        Ok(string) => string,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
 
                 match self.h0031_terminalcmd_cmd(cmd) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1470,7 +1471,14 @@ where
             }
             HidIoPacketType::NAData => {
                 // Copy data into struct
-                let cmd = h0031::Cmd::<H> { command: buf.data };
+                let cmd = h0031::Cmd::<H> {
+                    command: match String::from_utf8(buf.data) {
+                        Ok(string) => string,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
 
                 self.h0031_terminalcmd_nacmd(cmd)
             }
@@ -1497,7 +1505,7 @@ where
         }
 
         // Build payload
-        if !buf.append_payload(&data.output) {
+        if !buf.append_payload(&data.output.as_bytes()) {
             return Err(CommandError::DataVecTooSmall);
         }
         buf.done = true;
@@ -1530,7 +1538,14 @@ where
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0034::Cmd::<H> { output: buf.data };
+                let cmd = h0034::Cmd::<H> {
+                    output: match String::from_utf8(buf.data) {
+                        Ok(string) => string,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
 
                 match self.h0034_terminalout_cmd(cmd) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1539,7 +1554,14 @@ where
             }
             HidIoPacketType::NAData => {
                 // Copy data into struct
-                let cmd = h0034::Cmd::<H> { output: buf.data };
+                let cmd = h0034::Cmd::<H> {
+                    output: match String::from_utf8(buf.data) {
+                        Ok(string) => string,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(e));
+                        }
+                    },
+                };
 
                 self.h0034_terminalout_nacmd(cmd)
             }

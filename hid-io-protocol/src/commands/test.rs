@@ -367,14 +367,14 @@ where
     }
 
     fn h0031_terminalcmd_cmd(&mut self, data: h0031::Cmd<H>) -> Result<h0031::Ack, h0031::Nak> {
-        if data.command == "terminal command string\n\r".as_bytes() {
+        if data.command == "terminal command string\n\r" {
             Ok(h0031::Ack {})
         } else {
             Err(h0031::Nak {})
         }
     }
     fn h0031_terminalcmd_nacmd(&mut self, data: h0031::Cmd<H>) -> Result<(), CommandError> {
-        if data.command == "na terminal command string\n\r".as_bytes() {
+        if data.command == "na terminal command string\n\r" {
             Ok(())
         } else {
             Err(CommandError::TestFailure)
@@ -385,14 +385,14 @@ where
     }
 
     fn h0034_terminalout_cmd(&mut self, data: h0034::Cmd<H>) -> Result<h0034::Ack, h0034::Nak> {
-        if data.output == "terminal output string\n\r\t".as_bytes() {
+        if data.output == "terminal output string\n\r\t" {
             Ok(h0034::Ack {})
         } else {
             Err(h0034::Nak {})
         }
     }
     fn h0034_terminalout_nacmd(&mut self, data: h0034::Cmd<H>) -> Result<(), CommandError> {
-        if data.output == "terminal na output string\n\r\t".as_bytes() {
+        if data.output == "terminal na output string\n\r\t" {
             Ok(())
         } else {
             Err(CommandError::TestFailure)
@@ -863,7 +863,7 @@ fn h0031_terminalcmd() {
     // Normal data packet
     // Send command
     let cmd = h0031::Cmd {
-        command: Vec::from_slice("terminal command string\n\r".as_bytes()).unwrap(),
+        command: String::from("terminal command string\n\r"),
     };
     let send = intf.h0031_terminalcmd(cmd.clone(), false);
     assert!(send.is_ok(), "h0031_terminalcmd {:?} => {:?}", cmd, send);
@@ -881,7 +881,7 @@ fn h0031_terminalcmd() {
     // NA (no-ack) data packets
     // Send command
     let cmd = h0031::Cmd {
-        command: Vec::from_slice("na terminal command string\n\r".as_bytes()).unwrap(),
+        command: String::from("na terminal command string\n\r"),
     };
     let send = intf.h0031_terminalcmd(cmd.clone(), true);
     assert!(
@@ -910,7 +910,7 @@ fn h0034_terminalout() {
     // Normal data packet
     // Send command
     let cmd = h0034::Cmd {
-        output: Vec::from_slice("terminal output string\n\r\t".as_bytes()).unwrap(),
+        output: String::from("terminal output string\n\r\t"),
     };
     let send = intf.h0034_terminalout(cmd.clone(), false);
     assert!(send.is_ok(), "h0034_terminalout {:?} => {:?}", cmd, send);
@@ -928,7 +928,7 @@ fn h0034_terminalout() {
     // NA (no-ack) data packets
     // Send command
     let cmd = h0034::Cmd {
-        output: Vec::from_slice("terminal na output string\n\r\t".as_bytes()).unwrap(),
+        output: String::from("terminal na output string\n\r\t"),
     };
     let send = intf.h0034_terminalout(cmd.clone(), true);
     assert!(
