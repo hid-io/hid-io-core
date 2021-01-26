@@ -25,6 +25,7 @@
 
 // ----- Crates -----
 
+use core::convert::TryFrom;
 use core::ptr::copy_nonoverlapping;
 use cstr_core::c_char;
 use cstr_core::CStr;
@@ -52,6 +53,51 @@ static mut INTF: Option<
 // ----- External C Callbacks -----
 
 extern "C" {
+    /// h0016 callback for Flash Mode
+    ///
+    /// val (output)
+    /// - Scancode if Ack
+    /// - Errorcode if Nak
+    ///
+    /// Return:
+    /// - true (Ack)
+    /// - false (Nak)
+    fn h0016_flashmode_cmd(val: *mut u16) -> bool;
+
+    /// h001a callback for Sleep Mode
+    ///
+    /// val (output)
+    /// - Unused if Ack
+    /// - Errorcode if Nak
+    ///
+    /// Return:
+    /// - true (Ack)
+    /// - false (Nak)
+    fn h001a_sleepmode_cmd(val: *mut u8) -> bool;
+
+    /// h0031 callback for Terminal Command
+    /// Used for both ack and noack versions of command.
+    /// Nothing changes for the callback in either case.
+    ///
+    /// string (input)
+    /// - String used to call terminal command
+    ///
+    /// len (input)
+    /// - Length of string in bytes
+    ///
+    /// noack (input)
+    /// - Whether this is a no-ack command
+    /// - Return value changes in noack mode
+    ///
+    /// Return (ack)
+    /// - true (Ack)
+    /// - false (NaK)
+    ///
+    /// Return (noack)
+    /// - true (Success)
+    /// - false (error condition for hid-io-protocol)
+    fn h0031_terminalcmd_cmd(string: *const c_char, len: u16) -> bool;
+
     /// h0050 callback for Manufacturing tests
     ///
     /// command (input)
@@ -79,6 +125,7 @@ pub enum HidioStatus {
     BufferEmpty,
     BufferNotReady,
     ErrorIdVecTooSmall,
+    ErrorInvalidUTF8,
     ErrorBufSizeTooLarge,
     ErrorBufSizeTooSmall,
     ErrorBufFull,
@@ -340,6 +387,94 @@ pub unsafe extern "C" fn h0001_info_data(info: *mut HidioHostInfo) -> bool {
 
     *info = intf.hostinfo.clone();
     true
+}
+
+/// # Safety
+/// Send UTF-8 string to hid-io to be printed
+/// Sent as no-ack so there is no response whether the command worked
+/// Expects a null-terminated UTF-8 string
+#[no_mangle]
+pub unsafe extern "C" fn hidio_h0017_unicodetext(string: *const c_char) -> HidioStatus {
+    use h0017::*;
+
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
+        None => {
+            return HidioStatus::ErrorNotInitialized;
+        }
+    };
+
+    // Prepare UTF-8 string
+    let cstr = CStr::from_ptr(string);
+    let utf8string = match cstr.to_str() {
+        Ok(utf8string) => utf8string,
+        Err(_) => {
+            return HidioStatus::ErrorInvalidUTF8;
+        }
+    };
+
+    // Send command
+    if intf
+        .h0017_unicodetext(
+            Cmd {
+                string: String::from(utf8string),
+            },
+            true,
+        )
+        .is_err()
+    {
+        // TODO Better error handling
+        return HidioStatus::ErrorDetailed;
+    }
+
+    HidioStatus::Success
+}
+
+/// # Safety
+/// Sends a list of UTF-8 symbols to have "held".
+/// To release the symbols send another list without those symbols present.
+/// Sent as no-ack so there is no response whether the command worked
+/// Expects a null-terminated UTF-8 string
+///
+/// Will only return false on some early failures as this is a no-ack command
+/// (invalid UTF-8)
+#[no_mangle]
+pub unsafe extern "C" fn hidio_h0018_unicodestate(symbols: *const c_char) -> HidioStatus {
+    use h0018::*;
+
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
+        None => {
+            return HidioStatus::ErrorNotInitialized;
+        }
+    };
+
+    // Prepare UTF-8 string
+    let cstr = CStr::from_ptr(symbols);
+    let utf8string = match cstr.to_str() {
+        Ok(utf8string) => utf8string,
+        Err(_) => {
+            return HidioStatus::ErrorInvalidUTF8;
+        }
+    };
+
+    // Send command
+    if intf
+        .h0018_unicodestate(
+            Cmd {
+                symbols: String::from(utf8string),
+            },
+            true,
+        )
+        .is_err()
+    {
+        // TODO Better error handling
+        return HidioStatus::ErrorDetailed;
+    }
+
+    HidioStatus::Success
 }
 
 // ----- Command Interface -----
@@ -651,6 +786,73 @@ where
 
     fn h0002_test_cmd(&mut self, data: h0002::Cmd<H>) -> Result<h0002::Ack<H>, h0002::Nak> {
         Ok(h0002::Ack { data: data.data })
+    }
+
+    fn h0016_flashmode_cmd(&mut self, _data: h0016::Cmd) -> Result<h0016::Ack, h0016::Nak> {
+        let mut val = 0;
+        if unsafe { h0016_flashmode_cmd(&mut val) } {
+            Ok(h0016::Ack { scancode: val })
+        } else {
+            Err(h0016::Nak {
+                error: h0016::Error::try_from(val as u8).unwrap(),
+            })
+        }
+    }
+
+    fn h001a_sleepmode_cmd(&mut self, _data: h001a::Cmd) -> Result<h001a::Ack, h001a::Nak> {
+        let mut val = 0;
+        if unsafe { h001a_sleepmode_cmd(&mut val) } {
+            Ok(h001a::Ack {})
+        } else {
+            Err(h001a::Nak {
+                error: h001a::Error::try_from(val).unwrap(),
+            })
+        }
+    }
+
+    fn h0031_terminalcmd_cmd(&mut self, mut data: h0031::Cmd<H>) -> Result<h0031::Ack, h0031::Nak> {
+        // Add null required for CStr
+        // This will fail if the command is the max size
+        if data.command.push('\0').is_err() {
+            return Err(h0031::Nak {});
+        }
+
+        // XXX (HaaTa): Yes this will not work for non-ASCII, but that's
+        // fine in this context.
+        let cstr = match CStr::from_bytes_with_nul(data.command.as_bytes()) {
+            Ok(cstr) => cstr,
+            Err(_) => {
+                return Err(h0031::Nak {});
+            }
+        };
+
+        if unsafe { h0031_terminalcmd_cmd(cstr.as_ptr(), data.command.len() as u16) } {
+            Ok(h0031::Ack {})
+        } else {
+            Err(h0031::Nak {})
+        }
+    }
+    fn h0031_terminalcmd_nacmd(&mut self, mut data: h0031::Cmd<H>) -> Result<(), CommandError> {
+        // Add null required for CStr
+        // This will fail if the command is the max size
+        if data.command.push('\0').is_err() {
+            return Err(CommandError::DataVecTooSmall);
+        }
+
+        // XXX (HaaTa): Yes this will not work for non-ASCII, but that's
+        // fine in this context.
+        let cstr = match CStr::from_bytes_with_nul(data.command.as_bytes()) {
+            Ok(cstr) => cstr,
+            Err(_) => {
+                return Err(CommandError::InvalidCStr);
+            }
+        };
+
+        if unsafe { h0031_terminalcmd_cmd(cstr.as_ptr(), data.command.len() as u16) } {
+            Ok(())
+        } else {
+            Err(CommandError::CallbackFailed)
+        }
     }
 
     fn h0050_manufacturing_cmd(
