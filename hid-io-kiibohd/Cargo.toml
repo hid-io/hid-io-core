@@ -20,5 +20,6 @@ name = "hid_io_kiibohd"
 [dependencies]
 cstr_core       = { version = "^0.2", default-features = false }
 heapless        = { version = "^0.5" }
-hid-io-protocol = { path = "../hid-io-protocol" }
+hid-io-protocol = { path = "../hid-io-protocol", default-features = false, features = ["device"] }
+pkg-version     = { version = "^1.0" }
 typenum         = { version = "^1.12", features = ["no_std"] }

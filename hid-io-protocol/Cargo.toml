@@ -36,7 +36,7 @@ server = ["log", "bincode_core/std"]
 
 [dependencies]
 arraydeque      = { version = "^0.4", default-features = false }
-bincode_core    = { git = "https://github.com/bincode-org/bincode-core.git" }
+bincode_core    = { git = "https://github.com/bincode-org/bincode-core.git", default-features = false }
 heapless        = { version = "^0.5" }
 log             = { version = "^0.4", default-features = false, optional = true }
 num_enum        = { version = "^0.5", default-features = false }

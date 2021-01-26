@@ -33,6 +33,7 @@ use heapless::consts::{U10, U256, U276, U64, U8};
 use heapless::{ArrayLength, String, Vec};
 use hid_io_protocol::commands::*;
 use hid_io_protocol::*;
+use pkg_version::*;
 use typenum::Unsigned;
 
 // ----- Types -----
@@ -135,9 +136,6 @@ pub enum HidioStatus {
 
 #[repr(C)]
 pub struct HidioConfig {
-    major_version: u16,
-    minor_version: u16,
-    patch_version: u16,
     device_name: *const c_char,
     device_serial_number: *const c_char,
     device_mcu: *const c_char,
@@ -477,6 +475,51 @@ pub unsafe extern "C" fn hidio_h0018_unicodestate(symbols: *const c_char) -> Hid
     HidioStatus::Success
 }
 
+/// # Safety
+/// Sends terminal output to the host
+/// Sent as no-ack so there is no response whether the command worked
+/// Expects a null-terminated UTF-8 string
+///
+/// Will only return false on some early failures as this is a no-ack command
+/// (invalid UTF-8)
+#[no_mangle]
+pub unsafe extern "C" fn hidio_h0034_terminalout(output: *const c_char) -> HidioStatus {
+    use h0034::*;
+
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
+        None => {
+            return HidioStatus::ErrorNotInitialized;
+        }
+    };
+
+    // Prepare UTF-8 string
+    let cstr = CStr::from_ptr(output);
+    let utf8string = match cstr.to_str() {
+        Ok(utf8string) => utf8string,
+        Err(_) => {
+            return HidioStatus::ErrorInvalidUTF8;
+        }
+    };
+
+    // Send command
+    if intf
+        .h0034_terminalout(
+            Cmd {
+                output: String::from(utf8string),
+            },
+            true,
+        )
+        .is_err()
+    {
+        // TODO Better error handling
+        return HidioStatus::ErrorDetailed;
+    }
+
+    HidioStatus::Success
+}
+
 // ----- Command Interface -----
 
 struct CommandInterface<
@@ -539,8 +582,8 @@ where
             minor_version: 0,
             patch_version: 0,
             os: 0,
-            os_version: os_version.as_ptr() as *const i8,
-            host_software_name: host_software_name.as_ptr() as *const i8,
+            os_version: os_version.as_ptr() as *const c_char,
+            host_software_name: host_software_name.as_ptr() as *const c_char,
         };
 
         Ok(CommandInterface {
@@ -691,13 +734,13 @@ where
 
         match property {
             Property::MajorVersion => {
-                number = self.config.major_version;
+                number = pkg_version_major!();
             }
             Property::MinorVersion => {
-                number = self.config.minor_version;
+                number = pkg_version_minor!();
             }
             Property::PatchVersion => {
-                number = self.config.patch_version;
+                number = pkg_version_patch!();
             }
             Property::DeviceName => {
                 unsafe {
