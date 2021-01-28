@@ -27,6 +27,7 @@
 
 pub mod buffer;
 pub mod commands;
+pub mod test;
 
 // ----- Crates -----
 
@@ -564,6 +565,13 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         // Get packet type
         let ptype = packet_type(packet_data)?;
 
+        // Check if this a sync packet
+        if ptype == HidIoPacketType::Sync {
+            self.ptype = ptype;
+            self.done = true;
+            return Ok(1);
+        }
+
         // Get payload_len
         let payload_len = payload_len(packet_data)?;
         let packet_len = payload_len + 2;
@@ -677,7 +685,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
 
         // Make sure serialization worked
         len = writer.written_len();
-        if len < 5 {
+        if self.ptype == HidIoPacketType::Sync && len < 2 || self.ptype != HidIoPacketType::Sync && len < 5 {
             error!(
                 "Serialization too small: {} -> {:02X?}",
                 len,
@@ -789,6 +797,13 @@ where
 
         // Calculate total length of serialized output
         let serialized_len = self.serialized_len();
+
+        // Determine if this is a sync packet (much simpler serialization)
+        if self.ptype == HidIoPacketType::Sync {
+            let mut state = serializer.serialize_seq(Some(1))?;
+            state.serialize_element(&hdr_byte)?;
+            return state.end();
+        }
 
         // Serialize as a sequence
         let mut state = serializer.serialize_seq(Some(serialized_len as usize))?;
@@ -933,221 +948,8 @@ impl<H: ArrayLength<u8>> fmt::Display for HidIoPacketBuffer<H> {
 #[lang = "eh_personality"]
 fn eh_personality() {}
 
-//#[cfg(all(not(test), target_feature = "thumb-mode"))]
 #[cfg(all(not(test), feature = "device"))]
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     loop {}
-}
-
-// ----- Tests -----
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use flexi_logger::Logger;
-    use heapless::consts::{U1, U110, U170, U60, U7};
-
-    enum LogError {
-        CouldNotStartLogger,
-    }
-
-    /// Lite logging setup
-    fn setup_logging_lite() -> Result<(), LogError> {
-        match Logger::with_env_or_str("")
-            .format(flexi_logger::colored_default_format)
-            .format_for_files(flexi_logger::colored_detailed_format)
-            .duplicate_to_stderr(flexi_logger::Duplicate::All)
-            .start()
-        {
-            Err(_) => Err(LogError::CouldNotStartLogger),
-            Ok(_) => Ok(()),
-        }
-    }
-
-    /// Loopback helper
-    /// Serializes, deserializes, then checks if same as original
-    fn loopback_serializer<H: ArrayLength<u8> + core::cmp::PartialEq>(
-        mut buffer: HidIoPacketBuffer<H>,
-        data: &mut [u8],
-    ) {
-        // Serialize
-        let data = match buffer.serialize_buffer(data) {
-            Ok(data) => data,
-            Err(err) => {
-                assert!(false, "Serialized Buffer failed: {:?}", err);
-                &[0u8; 0]
-            }
-        };
-
-        // Validate serialization worked
-        assert!(data.len() > 0, "Serialization bytes:{}", data.len());
-
-        // Deserialize while there are bytes left
-        let mut deserialized = HidIoPacketBuffer::new();
-        let mut bytes_used = 0;
-        while bytes_used != data.len() {
-            // Remove already processed bytes
-            let slice = &data[bytes_used..];
-            match deserialized.decode_packet(&mut slice.to_vec()) {
-                Ok(result) => {
-                    bytes_used += result as usize;
-                }
-                _ => {
-                    panic!("Failured decoding packet");
-                }
-            };
-        }
-
-        // Set the max_len as decode_packet does not infer this (not enough information from datastream)
-        deserialized.max_len = buffer.max_len;
-
-        // Validate buffers are the same
-        assert!(
-            buffer == deserialized,
-            "\nInput:{}\nSerialized:{:#?}\nOutput:{}",
-            buffer,
-            data.len(),
-            deserialized
-        );
-
-        // Validate all bytes used
-        assert!(
-            data.len() == bytes_used,
-            "Serialized:{}, Deserialized Used:{}",
-            data.len(),
-            bytes_used
-        );
-    }
-
-    /// Generates a single byte payload buffer
-    /// Serializes, deserializes, then checks if same as original
-    #[test]
-    fn single_byte_payload_test() {
-        setup_logging_lite().ok();
-
-        // Create single byte payload buffer
-        let buffer = HidIoPacketBuffer::<U1> {
-            // Data packet
-            ptype: HidIoPacketType::Data,
-            // Test packet id
-            id: HidIoCommandID::TestPacket,
-            // Standard USB 2.0 FS packet length
-            max_len: 64,
-            // Single byte, 0xAC
-            data: Vec::from_slice(&[0xAC]).unwrap(),
-            // Ready to go
-            done: true,
-        };
-
-        // Run loopback serializer, handles all test validation
-        let mut data = [0u8; 64];
-        loopback_serializer(buffer, &mut data);
-    }
-
-    /// Generates a full packet payload buffer
-    /// Serializes, deserializes, then checks if same as original
-    #[test]
-    fn full_packet_payload_test() {
-        setup_logging_lite().ok();
-
-        // Create single byte payload buffer
-        let buffer = HidIoPacketBuffer::<U60> {
-            // Data packet
-            ptype: HidIoPacketType::Data,
-            // Test packet id
-            id: HidIoCommandID::TestPacket,
-            // Standard USB 2.0 FS packet length
-            max_len: 64,
-            // 60 bytes, 0xAC; requires 2 byte header, and 2 bytes for id, which is 64 bytes
-            data: Vec::from_slice(&[0xAC; 60]).unwrap(),
-            // Ready to go
-            done: true,
-        };
-
-        // Run loopback serializer, handles all test validation
-        let mut data = [0u8; 65];
-        loopback_serializer(buffer, &mut data);
-    }
-
-    /// Generates a two packet payload buffer
-    /// Serializes, deserializes, then checks if same as original
-    #[test]
-    fn two_packet_continued_payload_test() {
-        setup_logging_lite().ok();
-
-        // Create single byte payload buffer
-        let buffer = HidIoPacketBuffer::<U110> {
-            // Data packet
-            ptype: HidIoPacketType::Data,
-            // Test packet id
-            id: HidIoCommandID::TestPacket,
-            // Standard USB 2.0 FS packet length
-            max_len: 64,
-            // 110 bytes, 0xAC: 60 then 50 (62 then 52)
-            data: Vec::from_slice(&[0xAC; 110]).unwrap(),
-            // Ready to go
-            done: true,
-        };
-
-        // Run loopback serializer, handles all test validation
-        let mut data = [0u8; 128];
-        loopback_serializer(buffer, &mut data);
-    }
-
-    /// Generates a three packet payload buffer
-    /// Serializes, deserializes, then checks if same as original
-    #[test]
-    fn three_packet_continued_payload_test() {
-        setup_logging_lite().ok();
-
-        // Create single byte payload buffer
-        let buffer = HidIoPacketBuffer::<U170> {
-            // Data packet
-            ptype: HidIoPacketType::Data,
-            // Test packet id
-            id: HidIoCommandID::TestPacket,
-            // Standard USB 2.0 FS packet length
-            max_len: 64,
-            // 170 bytes, 0xAC: 60, 60 then 50 (62, 62 then 52)
-            data: Vec::from_slice(&[0xAC; 170]).unwrap(),
-            // Ready to go
-            done: true,
-        };
-
-        // Run loopback serializer, handles all test validation
-        let mut data = [0u8; 200];
-        loopback_serializer(buffer, &mut data);
-    }
-
-    /// Tests hid_bitmask2vec and hid_vec2bitmask
-    #[test]
-    fn hid_vec2bitmask2vec_test() {
-        setup_logging_lite().ok();
-
-        let inputvec: Vec<u8, U7> = Vec::from_slice(&[1, 2, 3, 4, 5, 100, 255]).unwrap();
-
-        // Convert, then convert back
-        let bitmask = match hid_vec2bitmask(&inputvec) {
-            Ok(bitmask) => bitmask,
-            Err(e) => {
-                assert!(false, "Failed to run hid_vec2bitmask: {:?}", e);
-                Vec::new()
-            }
-        };
-        let new_vec = match hid_bitmask2vec(&bitmask) {
-            Ok(new_vec) => new_vec,
-            Err(e) => {
-                assert!(false, "Failed to run hid_bitmask2vec: {:?}", e);
-                Vec::new()
-            }
-        };
-
-        // Compare with original
-        assert_eq!(
-            inputvec, new_vec,
-            "Bitmask test failed! Input: {:?}\nOutput: {:?}",
-            inputvec, new_vec,
-        );
-    }
 }

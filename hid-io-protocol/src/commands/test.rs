@@ -441,6 +441,8 @@ where
 // - KLL Event buffer (maybe have some sort of generic buffer setup?)
 // - Send buffer on each USB/Output processing cycle
 
+// ----- Tests -----
+
 #[test]
 fn h0000_supported_ids_test() {
     setup_logging_lite().ok();
