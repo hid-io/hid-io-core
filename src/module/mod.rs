@@ -214,9 +214,8 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
 mod displayserver {
     use crate::mailbox;
     use hid_io_protocol::HidIoCommandID;
-    use std::sync::Arc;
 
-    pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
+    pub async fn initialize(_mailbox: mailbox::Mailbox) {}
     pub fn supported_ids() -> Vec<HidIoCommandID> {
         vec![]
     }
@@ -226,7 +225,6 @@ mod displayserver {
 #[cfg(not(feature = "dev-capture"))]
 mod vhid {
     use crate::mailbox;
-    use std::sync::Arc;
 
-    pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
+    pub async fn initialize(_mailbox: mailbox::Mailbox) {}
 }

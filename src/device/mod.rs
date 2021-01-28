@@ -264,8 +264,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
 #[cfg(not(feature = "dev-capture"))]
 mod evdev {
     use crate::mailbox;
-    use std::sync::Arc;
 
     #[allow(dead_code)]
-    pub async fn initialize(_rt: Arc<tokio::runtime::Runtime>, _mailbox: mailbox::Mailbox) {}
+    pub async fn initialize(_mailbox: mailbox::Mailbox) {}
 }
