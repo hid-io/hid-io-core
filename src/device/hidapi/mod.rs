@@ -1,5 +1,5 @@
 #![cfg(feature = "hidapi-devices")]
-/* Copyright (C) 2017-2020 by Jacob Alexander
+/* Copyright (C) 2017-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -71,10 +71,14 @@ impl std::io::Write for HIDAPIDevice {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
         let buf = {
             #[allow(clippy::needless_bool)]
+            #[allow(clippy::if_same_then_else)]
             let prepend = if cfg!(target_os = "linux") || cfg!(target_os = "macos") {
                 // If the first byte is a 0 its not tranmitted
                 // https://github.com/node-hid/node-hid/issues/187#issuecomment-282863702
-                _buf[0] == 0x00
+                //_buf[0] == 0x00
+                // TODO(HaaTa): This behaviour seems to have changed?
+                // Or perhaps a hid-io-protocol bug was fixed
+                true
             } else if cfg!(target_os = "windows") {
                 // The first byte always seems to be stripped and not tranmitted
                 // https://github.com/node-hid/node-hid/issues/187#issuecomment-285688178
@@ -102,7 +106,7 @@ impl std::io::Write for HIDAPIDevice {
                 Ok(len)
             }
             Err(e) => {
-                warn!("Write - {:?}", e);
+                warn!("Write - {:?} {:x?}", e, buf);
                 Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     format!("{:?}", e),

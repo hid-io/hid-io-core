@@ -25,7 +25,7 @@
 
 use super::*;
 use flexi_logger::Logger;
-use heapless::consts::{U0, U1, U110, U170, U60, U7};
+use heapless::consts::{U0, U1, U110, U170, U240, U60, U7};
 
 // ----- Enumerations -----
 
@@ -250,6 +250,30 @@ fn three_packet_continued_payload_test() {
 
     // Run loopback serializer, handles all test validation
     let mut data = [0u8; 200];
+    loopback_serializer(buffer, &mut data);
+}
+
+/// Generates a serialized length greater than 1 byte (255)
+#[test]
+fn four_packet_continued_payload_test() {
+    setup_logging_lite().ok();
+
+    // Create single byte payload buffer
+    let buffer = HidIoPacketBuffer::<U240> {
+        // Data packet
+        ptype: HidIoPacketType::Data,
+        // Test packet id
+        id: HidIoCommandID::TestPacket,
+        // Standard USB 2.0 FS packet length
+        max_len: 64,
+        // 240 bytes, 0xAC: 60, 60, 60 then 60 (64, 64, 64, 64)
+        data: Vec::from_slice(&[0xAC; 240]).unwrap(),
+        // Ready to go
+        done: true,
+    };
+
+    // Run loopback serializer, handles all test validation
+    let mut data = [0u8; 257];
     loopback_serializer(buffer, &mut data);
 }
 

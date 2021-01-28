@@ -513,6 +513,11 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
     /// Returns the currently computed serialized length of the
     /// buffer. Can change based on the struct fields.
     pub fn serialized_len(&self) -> u32 {
+        // Sync packets have a serialized length of 1 (+1 for length)
+        if self.ptype == HidIoPacketType::Sync {
+            return 1 + 1;
+        }
+
         let hdr_len = self.hdr_len();
         let data_len = (&self.data).len() as u32;
         let payload_len = self.payload_len();
@@ -524,7 +529,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
             0
         };
 
-        // TODO Find how extra 1 byte is used by serializer
+        // Extra byte is a type field from the serializer
         fullpackets + partialpacket + 1
     }
 
@@ -697,7 +702,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
             return Err(HidIoParseError::SerializationFailedResultTooSmall(len));
         }
 
-        // Slice off the first byte (length) header bytes from serde
+        // Slice off the first byte (type) header bytes from serde
         let slice = &data[1..len as usize];
         Ok(slice)
     }
@@ -798,18 +803,15 @@ where
             // upper_len - 2 bits
             (upper_len & 0x3);
 
-        // Calculate total length of serialized output
-        let serialized_len = self.serialized_len();
-
         // Determine if this is a sync packet (much simpler serialization)
         if self.ptype == HidIoPacketType::Sync {
-            let mut state = serializer.serialize_seq(Some(1))?;
+            let mut state = serializer.serialize_seq(Some(0))?;
             state.serialize_element(&hdr_byte)?;
             return state.end();
         }
 
         // Serialize as a sequence
-        let mut state = serializer.serialize_seq(Some(serialized_len as usize))?;
+        let mut state = serializer.serialize_seq(Some(0))?;
 
         // Serialize header
         state.serialize_element(&hdr_byte)?;

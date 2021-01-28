@@ -22,7 +22,6 @@ pub mod hidapi;
 /// Works with both USB and BLE HID devices
 use crate::mailbox;
 use hid_io_protocol::*;
-use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::time::Instant;
 use tokio::sync::broadcast;
@@ -84,7 +83,12 @@ impl HidIoEndpoint {
         &mut self,
         mut packet: mailbox::HidIoPacketBuffer,
     ) -> Result<(), std::io::Error> {
-        debug!("Sending {:x?}", packet);
+        debug!(
+            "Sending {:x?} len:{} chunk:{}",
+            packet,
+            packet.serialized_len(),
+            self.max_packet_len
+        );
         let mut buf: Vec<u8> = Vec::new();
         buf.resize_with(packet.serialized_len() as usize, Default::default);
         let buf = packet.serialize_buffer(&mut buf).unwrap().to_vec();
@@ -101,10 +105,8 @@ impl HidIoEndpoint {
     pub fn send_sync(&mut self) -> Result<(), std::io::Error> {
         self.send_packet(mailbox::HidIoPacketBuffer {
             ptype: HidIoPacketType::Sync,
-            id: HidIoCommandID::try_from(0).unwrap(),
-            max_len: 64, //..Defaults
-            data: heapless::Vec::new(),
-            done: true,
+            done: true, // Ready
+            ..Default::default()
         })
     }
 }
