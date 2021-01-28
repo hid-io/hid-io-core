@@ -151,7 +151,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --manifest-path hid-io-protocol/Cargo.toml --target thumbv7em-none-eabi --no-default-features --features device --release
+          args: --manifest-path hid-io-protocol/Cargo.toml --no-default-features --features device --release
 
   fmt:
     name: Rustfmt

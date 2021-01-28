@@ -196,6 +196,38 @@ pub extern "C" fn hidio_txbyte_bufsize() -> u16 {
     <TxBuf as Unsigned>::to_u16()
 }
 
+#[no_mangle]
+pub extern "C" fn hidio_test() {
+    let ids = [
+        HidIoCommandID::SupportedIDs,
+        HidIoCommandID::GetInfo,
+        HidIoCommandID::TestPacket,
+        HidIoCommandID::ManufacturingTest,
+    ];
+
+    let config = HidioConfig {
+        device_name: String::<U256>::from("Test").as_ptr() as *mut c_char,
+        device_mcu: String::<U256>::from("Test").as_ptr() as *mut c_char,
+        device_serial_number: String::<U256>::from("Test").as_ptr() as *mut c_char,
+        firmware_version: String::<U256>::from("Test").as_ptr() as *mut c_char,
+        firmware_vendor: String::<U256>::from("Test").as_ptr() as *mut c_char,
+    };
+
+    unsafe {
+        INTF = Some(match CommandInterface::<TxBuf, RxBuf, BufChunk, MessageLen, SerializationLen, IdLen>::new(&ids, config) {
+            Ok(intf) => intf,
+            Err(CommandError::IdVecTooSmall) => {
+                return;
+            }
+            Err(_) => {
+                // TODO Convert errors properly
+                //HIDIO_ERROR.copy_from_slice("ERROR TODO".as_bytes());
+                return;
+            }
+        });
+    }
+}
+
 /// Initialized the hid-io CommandInterface
 #[no_mangle]
 pub extern "C" fn hidio_init(config: HidioConfig) -> HidioStatus {

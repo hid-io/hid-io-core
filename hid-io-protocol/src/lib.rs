@@ -40,6 +40,7 @@ use heapless::Vec;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::ser::{self, Serialize, SerializeSeq, Serializer};
 
+#[cfg(all(not(test), target_feature = "thumb-mode"))]
 #[cfg(feature = "device")]
 use core::panic::PanicInfo;
 
@@ -685,7 +686,9 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
 
         // Make sure serialization worked
         len = writer.written_len();
-        if self.ptype == HidIoPacketType::Sync && len < 2 || self.ptype != HidIoPacketType::Sync && len < 5 {
+        if self.ptype == HidIoPacketType::Sync && len < 2
+            || self.ptype != HidIoPacketType::Sync && len < 5
+        {
             error!(
                 "Serialization too small: {} -> {:02X?}",
                 len,
@@ -943,11 +946,12 @@ impl<H: ArrayLength<u8>> fmt::Display for HidIoPacketBuffer<H> {
     }
 }
 
-//#[cfg(all(not(test), target_feature = "thumb-mode"))]
+#[cfg(all(not(test), target_feature = "thumb-mode"))]
 #[cfg(all(not(test), feature = "device"))]
 #[lang = "eh_personality"]
 fn eh_personality() {}
 
+#[cfg(all(not(test), target_feature = "thumb-mode"))]
 #[cfg(all(not(test), feature = "device"))]
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
