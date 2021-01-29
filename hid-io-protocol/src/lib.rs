@@ -137,7 +137,7 @@ pub enum HidIoCommandID {
 #[derive(Debug)]
 pub enum HidIoParseError {
     InvalidContinuedIdByte(u8),
-    InvalidHidIoCommandID(u32),
+    InvalidHidIoCommandId(u32),
     InvalidPacketIdWidth(u8),
     InvalidPacketType(u8),
     MissingContinuedIdByte,
@@ -598,7 +598,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
             Ok(id) => id,
             Err(e) => {
                 error!("Failed to convert {} to HidIoCommandID: {}", id_num, e);
-                return Err(HidIoParseError::InvalidHidIoCommandID(id_num));
+                return Err(HidIoParseError::InvalidHidIoCommandId(id_num));
             }
         };
 

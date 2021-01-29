@@ -25,7 +25,9 @@
 
 // ----- Crates -----
 
+use c_utf8::CUtf8;
 use core::convert::TryFrom;
+use core::fmt::Write;
 use core::ptr::copy_nonoverlapping;
 use cstr_core::c_char;
 use cstr_core::CStr;
@@ -54,6 +56,18 @@ static mut INTF: Option<
 // ----- External C Callbacks -----
 
 extern "C" {
+    /// Error callback
+    ///
+    /// string (output)
+    /// - Error string
+    ///
+    /// len (output)
+    /// - Length of string
+    fn hidio_error(string: *const c_char, len: u16);
+
+    /// Sync callback
+    fn hidio_sync_packet();
+
     /// h0016 callback for Flash Mode
     ///
     /// val (output)
@@ -125,13 +139,37 @@ pub enum HidioStatus {
     Success,
     BufferEmpty,
     BufferNotReady,
-    ErrorIdVecTooSmall,
-    ErrorInvalidUTF8,
+    ErrorBufFull,
     ErrorBufSizeTooLarge,
     ErrorBufSizeTooSmall,
-    ErrorBufFull,
+    ErrorDecode,
+    ErrorDecodeContinuedIdByte,
+    ErrorDecodeHidIoCommandId,
+    ErrorDecodeMissingContinuedIdByte,
+    ErrorDecodeMissingPacketIdWidthByte,
+    ErrorDecodeMissingPacketTypeByte,
+    ErrorDecodeMissingPayloadLengthByte,
+    ErrorDecodeNotEnoughActualBytesPacketId,
+    ErrorDecodeNotEnoughPossibleBytesPacketId,
+    ErrorDecodePacketIdWidth,
+    ErrorDecodePacketType,
+    ErrorDecodePayloadAddFailed,
+    ErrorDecodeSerializationError,
+    ErrorDecodeSerializationFailedResultTooSmall,
+    ErrorDecodeVecAddFailed,
+    ErrorDecodeVecResizeFailed,
     ErrorDetailed,
+    ErrorIdNotImplemented,
+    ErrorIdNotMatched,
+    ErrorIdNotSupported,
+    ErrorIdVecTooSmall,
+    ErrorInvalidId,
+    ErrorInvalidPacketBufferType,
+    ErrorInvalidProperty8,
+    ErrorInvalidRxMessage,
+    ErrorInvalidUtf8,
     ErrorNotInitialized,
+    ErrorUnknown,
 }
 
 #[repr(C)]
@@ -154,29 +192,6 @@ pub struct HidioHostInfo {
     host_software_name: *const c_char,
 }
 
-/// Most recent detailed error
-/// Valid whenever HidioStatus_ErrorDetailed* is returned.
-#[no_mangle]
-pub extern "C" fn hidio_error() -> *const c_char {
-    unsafe {
-        // Retrieve interface
-        let intf = match INTF.as_mut() {
-            Some(intf) => intf,
-            None => {
-                return CStr::from_bytes_with_nul(b"Not initialized\0")
-                    .unwrap()
-                    .as_ptr()
-            }
-        };
-
-        match CStr::from_bytes_with_nul(intf.error_str.as_bytes()) {
-            Ok(cstr) => cstr,
-            Err(_) => CStr::from_bytes_with_nul(b"Invalid error\0").unwrap(),
-        }
-        .as_ptr()
-    }
-}
-
 /// Size of each hid-io buffer chunk
 /// This is the transmission length of the serialized packet
 #[no_mangle]
@@ -196,46 +211,17 @@ pub extern "C" fn hidio_txbyte_bufsize() -> u16 {
     <TxBuf as Unsigned>::to_u16()
 }
 
-#[no_mangle]
-pub extern "C" fn hidio_test() {
-    let ids = [
-        HidIoCommandID::SupportedIDs,
-        HidIoCommandID::GetInfo,
-        HidIoCommandID::TestPacket,
-        HidIoCommandID::ManufacturingTest,
-    ];
-
-    let config = HidioConfig {
-        device_name: String::<U256>::from("Test").as_ptr() as *mut c_char,
-        device_mcu: String::<U256>::from("Test").as_ptr() as *mut c_char,
-        device_serial_number: String::<U256>::from("Test").as_ptr() as *mut c_char,
-        firmware_version: String::<U256>::from("Test").as_ptr() as *mut c_char,
-        firmware_vendor: String::<U256>::from("Test").as_ptr() as *mut c_char,
-    };
-
-    unsafe {
-        INTF = Some(match CommandInterface::<TxBuf, RxBuf, BufChunk, MessageLen, SerializationLen, IdLen>::new(&ids, config) {
-            Ok(intf) => intf,
-            Err(CommandError::IdVecTooSmall) => {
-                return;
-            }
-            Err(_) => {
-                // TODO Convert errors properly
-                //HIDIO_ERROR.copy_from_slice("ERROR TODO".as_bytes());
-                return;
-            }
-        });
-    }
-}
-
 /// Initialized the hid-io CommandInterface
 #[no_mangle]
 pub extern "C" fn hidio_init(config: HidioConfig) -> HidioStatus {
     let ids = [
-        HidIoCommandID::SupportedIDs,
+        HidIoCommandID::FlashMode,
         HidIoCommandID::GetInfo,
-        HidIoCommandID::TestPacket,
         HidIoCommandID::ManufacturingTest,
+        HidIoCommandID::SleepMode,
+        HidIoCommandID::SupportedIDs,
+        HidIoCommandID::TerminalCmd,
+        HidIoCommandID::TestPacket,
     ];
 
     unsafe {
@@ -245,13 +231,25 @@ pub extern "C" fn hidio_init(config: HidioConfig) -> HidioStatus {
                 return HidioStatus::ErrorIdVecTooSmall;
             }
             Err(_) => {
-                // TODO Convert errors properly
-                //HIDIO_ERROR.copy_from_slice("ERROR TODO".as_bytes());
-                return HidioStatus::ErrorDetailed;
+                return HidioStatus::ErrorUnknown;
             }
         });
     }
     HidioStatus::Success
+}
+
+/// # Safety
+/// Checks to see if the rx byte buffer is full
+#[no_mangle]
+pub unsafe extern "C" fn hidio_rx_byte_buffer_full() -> bool {
+    // Get rx_bytebuf
+    let rx_bytebuf = match INTF.as_mut() {
+        Some(intf) => &mut intf.rx_bytebuf,
+        None => {
+            return false;
+        }
+    };
+    rx_bytebuf.is_full()
 }
 
 /// # Safety
@@ -261,7 +259,7 @@ pub extern "C" fn hidio_init(config: HidioConfig) -> HidioStatus {
 #[no_mangle]
 pub unsafe extern "C" fn hidio_rx_bytes(bytes: *const u8, len: u16) -> HidioStatus {
     // Make sure the incoming buffer is a valid size
-    if len > <RxBuf as Unsigned>::to_u16() {
+    if len > <BufChunk as Unsigned>::to_u16() {
         return HidioStatus::ErrorBufSizeTooLarge;
     }
 
@@ -296,10 +294,10 @@ pub unsafe extern "C" fn hidio_rx_bytes(bytes: *const u8, len: u16) -> HidioStat
 #[no_mangle]
 pub unsafe extern "C" fn hidio_tx_bytes(bytes: *mut u8, len: u16) -> HidioStatus {
     // Make sure the buffer is the correct size
-    if len > <TxBuf as Unsigned>::to_u16() {
+    if len > <BufChunk as Unsigned>::to_u16() {
         return HidioStatus::ErrorBufSizeTooLarge;
     }
-    if len < <TxBuf as Unsigned>::to_u16() {
+    if len < <BufChunk as Unsigned>::to_u16() {
         return HidioStatus::ErrorBufSizeTooSmall;
     }
 
@@ -348,10 +346,66 @@ pub extern "C" fn hidio_rx_process(count: u8) -> HidioStatus {
                     HidioStatus::BufferNotReady
                 }
             }
-            Err(_) => {
-                // TODO Convert errors properly
-                //HIDIO_ERROR.copy_from_slice("ERROR TODO".as_bytes());
-                HidioStatus::ErrorDetailed
+            Err(err) => {
+                let err = intf.error_handler(err);
+                intf.rx_packetbuf.clear();
+                match err {
+                    CommandError::IdNotSupported(_) => HidioStatus::ErrorIdNotSupported,
+                    CommandError::InvalidRxMessage(_) => HidioStatus::ErrorInvalidRxMessage,
+                    CommandError::IdNotMatched(_) => HidioStatus::ErrorIdNotMatched,
+                    CommandError::IdVecTooSmall => HidioStatus::ErrorIdVecTooSmall,
+                    CommandError::InvalidPacketBufferType(_) => {
+                        HidioStatus::ErrorInvalidPacketBufferType
+                    }
+                    CommandError::InvalidId(_) => HidioStatus::ErrorInvalidId,
+                    CommandError::IdNotImplemented(_, _) => HidioStatus::ErrorIdNotImplemented,
+                    CommandError::InvalidProperty8(_) => HidioStatus::ErrorInvalidProperty8,
+                    CommandError::InvalidUtf8(_) => HidioStatus::ErrorInvalidUtf8,
+                    CommandError::PacketDecodeError(err) => match err {
+                        HidIoParseError::InvalidContinuedIdByte(_) => {
+                            HidioStatus::ErrorDecodeContinuedIdByte
+                        }
+                        HidIoParseError::InvalidHidIoCommandId(_) => {
+                            HidioStatus::ErrorDecodeHidIoCommandId
+                        }
+                        HidIoParseError::InvalidPacketIdWidth(_) => {
+                            HidioStatus::ErrorDecodePacketIdWidth
+                        }
+                        HidIoParseError::InvalidPacketType(_) => HidioStatus::ErrorDecodePacketType,
+                        HidIoParseError::MissingContinuedIdByte => {
+                            HidioStatus::ErrorDecodeMissingContinuedIdByte
+                        }
+                        HidIoParseError::MissingPacketIdWidthByte => {
+                            HidioStatus::ErrorDecodeMissingPacketIdWidthByte
+                        }
+                        HidIoParseError::MissingPacketTypeByte => {
+                            HidioStatus::ErrorDecodeMissingPacketTypeByte
+                        }
+                        HidIoParseError::MissingPayloadLengthByte => {
+                            HidioStatus::ErrorDecodeMissingPayloadLengthByte
+                        }
+                        HidIoParseError::NotEnoughActualBytesPacketId {
+                            len: _,
+                            id_width: _,
+                        } => HidioStatus::ErrorDecodeNotEnoughActualBytesPacketId,
+                        HidIoParseError::NotEnoughPossibleBytesPacketId {
+                            len: _,
+                            id_width: _,
+                        } => HidioStatus::ErrorDecodeNotEnoughPossibleBytesPacketId,
+                        HidIoParseError::PayloadAddFailed(_) => {
+                            HidioStatus::ErrorDecodePayloadAddFailed
+                        }
+                        HidIoParseError::SerializationError => {
+                            HidioStatus::ErrorDecodeSerializationError
+                        }
+                        HidIoParseError::SerializationFailedResultTooSmall(_) => {
+                            HidioStatus::ErrorDecodeSerializationFailedResultTooSmall
+                        }
+                        HidIoParseError::VecAddFailed => HidioStatus::ErrorDecodeVecAddFailed,
+                        HidIoParseError::VecResizeFailed => HidioStatus::ErrorDecodeVecResizeFailed,
+                    },
+                    _ => HidioStatus::ErrorUnknown,
+                }
             }
         }
     }
@@ -440,7 +494,7 @@ pub unsafe extern "C" fn hidio_h0017_unicodetext(string: *const c_char) -> Hidio
     let utf8string = match cstr.to_str() {
         Ok(utf8string) => utf8string,
         Err(_) => {
-            return HidioStatus::ErrorInvalidUTF8;
+            return HidioStatus::ErrorInvalidUtf8;
         }
     };
 
@@ -486,7 +540,7 @@ pub unsafe extern "C" fn hidio_h0018_unicodestate(symbols: *const c_char) -> Hid
     let utf8string = match cstr.to_str() {
         Ok(utf8string) => utf8string,
         Err(_) => {
-            return HidioStatus::ErrorInvalidUTF8;
+            return HidioStatus::ErrorInvalidUtf8;
         }
     };
 
@@ -531,7 +585,7 @@ pub unsafe extern "C" fn hidio_h0034_terminalout(output: *const c_char) -> Hidio
     let utf8string = match cstr.to_str() {
         Ok(utf8string) => utf8string,
         Err(_) => {
-            return HidioStatus::ErrorInvalidUTF8;
+            return HidioStatus::ErrorInvalidUtf8;
         }
     };
 
@@ -646,6 +700,7 @@ where
                             // Handle sync packet type
                             match self.rx_packetbuf.ptype {
                                 HidIoPacketType::Sync => {
+                                    unsafe { hidio_sync_packet() };
                                     self.rx_packetbuf.clear();
                                 }
                                 _ => {
@@ -683,6 +738,21 @@ where
         }
 
         Ok(cur)
+    }
+
+    fn error_handler(&mut self, err: CommandError) -> CommandError {
+        if write!(self.error_str, "{:?}\0", err).is_ok() {
+            unsafe {
+                hidio_error(
+                    CUtf8::from_str_unchecked(self.error_str.as_str())
+                        .as_bytes_with_nul()
+                        .as_ptr() as *const c_char,
+                    self.error_str.len() as u16,
+                )
+            };
+        }
+        self.error_str.clear();
+        err
     }
 }
 

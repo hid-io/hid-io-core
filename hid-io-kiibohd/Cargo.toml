@@ -18,6 +18,7 @@ edition = "2018"
 name = "hid_io_kiibohd"
 
 [dependencies]
+c_utf8          = { version = "^0.1", default-features = false }
 cstr_core       = { version = "^0.2", default-features = false }
 heapless        = { version = "^0.5" }
 hid-io-protocol = { path = "../hid-io-protocol", default-features = false, features = ["device"] }

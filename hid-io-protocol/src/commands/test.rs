@@ -432,15 +432,6 @@ where
     }
 }
 
-// VT TODO
-// - Print buffer
-//   * Size should be configurable at build time
-// - Send message when buffer full, flush, or pattern found (\n)
-
-// Event Buffers TODO
-// - KLL Event buffer (maybe have some sort of generic buffer setup?)
-// - Send buffer on each USB/Output processing cycle
-
 // ----- Tests -----
 
 #[test]

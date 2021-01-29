@@ -116,4 +116,9 @@ impl<Q: ArrayLength<Vec<u8, N>>, N: ArrayLength<u8>> Buffer<Q, N> {
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }
+
+    /// Buffer full
+    pub fn is_full(&self) -> bool {
+        self.len() == self.capacity()
+    }
 }

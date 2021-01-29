@@ -1,4 +1,4 @@
-/* Copyright (C) 2020 by Jacob Alexander
+/* Copyright (C) 2020-2021 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@ use hid_io_core::hidio_capnp;
 use hid_io_core::hidio_capnp::hid_io_server;
 use hid_io_core::keyboard_capnp;
 use hid_io_core::logging::setup_logging_lite;
-use log::*;
 use rand::Rng;
 use std::fs;
 use std::io::Write;
@@ -394,7 +393,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                 }
             }
             _ => {
-                warn!("No command specified");
+                println!("No command specified");
             }
         }
 
