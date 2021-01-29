@@ -135,6 +135,7 @@ extern "C" {
 // ----- External C Interface -----
 
 #[repr(C)]
+#[derive(PartialEq)]
 pub enum HidioStatus {
     Success,
     BufferEmpty,
@@ -266,16 +267,16 @@ pub unsafe extern "C" fn hidio_rx_bytes(bytes: *const u8, len: u16) -> HidioStat
     // Copy into rx buffer
     let slice = core::slice::from_raw_parts(bytes, len as usize);
 
-    // Get rx_bytebuf
-    let rx_bytebuf = match INTF.as_mut() {
-        Some(intf) => &mut intf.rx_bytebuf,
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
         None => {
             return HidioStatus::ErrorNotInitialized;
         }
     };
 
     // Enqueue bytes into buffer
-    match rx_bytebuf.enqueue(match Vec::from_slice(slice) {
+    match intf.rx_bytebuf.enqueue(match Vec::from_slice(slice) {
         Ok(vec) => vec,
         Err(_) => {
             return HidioStatus::ErrorBufSizeTooSmall;
@@ -301,16 +302,16 @@ pub unsafe extern "C" fn hidio_tx_bytes(bytes: *mut u8, len: u16) -> HidioStatus
         return HidioStatus::ErrorBufSizeTooSmall;
     }
 
-    // Retrieve tx_buf
-    let tx_bytebuf = match INTF.as_mut() {
-        Some(intf) => &mut intf.tx_bytebuf,
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
         None => {
             return HidioStatus::ErrorNotInitialized;
         }
     };
 
     // Copy a single chunk from the tx_buffer
-    match tx_bytebuf.dequeue() {
+    match intf.tx_bytebuf.dequeue() {
         Some(chunk) => {
             copy_nonoverlapping(chunk.as_ptr(), bytes, len as usize);
             HidioStatus::Success
@@ -722,7 +723,7 @@ where
     /// Process rx buffer until empty
     /// Handles flushing tx->rx, decoding, then processing buffers
     /// Returns the number of buffers processed
-    fn process_rx(&mut self, count: u8) -> Result<u8, CommandError>
+    pub fn process_rx(&mut self, count: u8) -> Result<u8, CommandError>
     where
         <H as Sub<B1>>::Output: ArrayLength<u8>,
     {
@@ -740,7 +741,9 @@ where
         Ok(cur)
     }
 
-    fn error_handler(&mut self, err: CommandError) -> CommandError {
+    /// Sends string version of CommandError to error_str callback and clears
+    /// it
+    pub fn error_handler(&mut self, err: CommandError) -> CommandError {
         if write!(self.error_str, "{:?}\0", err).is_ok() {
             unsafe {
                 hidio_error(
@@ -754,6 +757,21 @@ where
         self.error_str.clear();
         err
     }
+
+    /*
+    /// Sends error_str to callback and clears it
+    pub fn error_string(&mut self) {
+        unsafe {
+            hidio_error(
+                CUtf8::from_str_unchecked(self.error_str.as_str())
+                    .as_bytes_with_nul()
+                    .as_ptr() as *const c_char,
+                self.error_str.len() as u16,
+            )
+        };
+        self.error_str.clear();
+    }
+    */
 }
 
 /// CommandInterface for Commands
@@ -783,7 +801,7 @@ where
         if self.serial_buf.resize_default(size).is_err() {
             return Err(CommandError::SerializationVecTooSmall);
         }
-        let data = match buf.serialize_buffer(&mut self.serial_buf) {
+        match buf.serialize_buffer(&mut self.serial_buf) {
             Ok(data) => data,
             Err(err) => {
                 return Err(CommandError::SerializationFailed(err));
@@ -793,7 +811,8 @@ where
         // Add serialized data to buffer
         // May need to enqueue multiple packets depending how much
         // was serialized
-        for pos in (0..data.len()).step_by(<N as Unsigned>::to_usize()) {
+        let data = &self.serial_buf;
+        for pos in (1..data.len()).step_by(<N as Unsigned>::to_usize()) {
             let len = core::cmp::min(<N as Unsigned>::to_usize(), data.len() - pos);
             match self
                 .tx_bytebuf

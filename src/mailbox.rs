@@ -335,7 +335,7 @@ impl Mailbox {
             match receiver.try_recv() {
                 Ok(rcvmsg) => {
                     // Packet must have the same address as was sent, except reversed
-                    if rcvmsg.dst == msg.src
+                    if rcvmsg.dst == Address::All
                         && rcvmsg.src == msg.dst
                         && rcvmsg.data.id == msg.data.id
                     {
