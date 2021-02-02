@@ -323,6 +323,8 @@ async fn processing(mailbox: mailbox::Mailbox) {
                         Err(e) => {
                             // Could not open device (likely removed, or in use)
                             warn!("Failed to open device:{:?} - {}", device_path, e);
+                            // Remove handle from map
+                            uids.write().unwrap().remove(&uid);
                         }
                     };
                 });

@@ -626,12 +626,14 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
             }
 
             // Check if not a continued packet, and we have a payload
-            if !(self.data.is_empty()
-                || ptype == HidIoPacketType::Continued
-                || ptype == HidIoPacketType::NAContinued)
-            {
-                warn!("Dropping. Invalid packet type (non-HidIoPacketType::Continued) on a already initialized buffer");
-                return Ok(packet_len);
+            if !self.data.is_empty() {
+                match ptype {
+                    HidIoPacketType::Continued | HidIoPacketType::NAContinued => {}
+                    _ => {
+                        warn!("Dropping. Invalid packet type (non-HidIoPacketType::Continued) on a already initialized buffer: {} {}", ptype, self.data.is_empty());
+                        return Ok(packet_len);
+                    }
+                }
             }
 
             // Validate that we're looking at the same Id
@@ -858,7 +860,16 @@ where
             cont = payload_left > payload_len;
 
             // Continued Packet
-            let ptype = 4; // HidIoPacketType::Continued
+            let ptype = match self.ptype {
+                HidIoPacketType::ACK | HidIoPacketType::NAK | HidIoPacketType::Data => {
+                    HidIoPacketType::Continued as u8
+                }
+                HidIoPacketType::NAData => HidIoPacketType::NAContinued as u8,
+                _ => {
+                    warn!("Dropping. Invalid continued packet type: {:?}", self.ptype);
+                    break;
+                }
+            };
 
             // Determine packet len
             let packet_len: u16 = if cont {

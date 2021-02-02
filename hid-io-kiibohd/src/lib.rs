@@ -31,7 +31,7 @@ use core::fmt::Write;
 use core::ptr::copy_nonoverlapping;
 use cstr_core::c_char;
 use cstr_core::CStr;
-use heapless::consts::{U10, U256, U276, U64, U8};
+use heapless::consts::{U10, U256, U277, U64, U8};
 use heapless::{ArrayLength, String, Vec};
 use hid_io_protocol::commands::*;
 use hid_io_protocol::*;
@@ -44,7 +44,7 @@ type BufChunk = U64;
 type IdLen = U10;
 type MessageLen = U256;
 type RxBuf = U8;
-type SerializationLen = U276;
+type SerializationLen = U277;
 type TxBuf = U8;
 
 // ----- Globals -----
@@ -67,6 +67,10 @@ extern "C" {
 
     /// Sync callback
     fn hidio_sync_packet();
+
+    /// Flush hidraw buffer
+    /// Needed when the tx_byte buffer is full and will be overflowing
+    fn hidio_tx_bytes_flush();
 
     /// h0016 callback for Flash Mode
     ///
@@ -143,6 +147,7 @@ pub enum HidioStatus {
     ErrorBufFull,
     ErrorBufSizeTooLarge,
     ErrorBufSizeTooSmall,
+    ErrorDataVecTooSmall,
     ErrorDecode,
     ErrorDecodeContinuedIdByte,
     ErrorDecodeHidIoCommandId,
@@ -350,65 +355,80 @@ pub extern "C" fn hidio_rx_process(count: u8) -> HidioStatus {
             Err(err) => {
                 let err = intf.error_handler(err);
                 intf.rx_packetbuf.clear();
-                match err {
-                    CommandError::IdNotSupported(_) => HidioStatus::ErrorIdNotSupported,
-                    CommandError::InvalidRxMessage(_) => HidioStatus::ErrorInvalidRxMessage,
-                    CommandError::IdNotMatched(_) => HidioStatus::ErrorIdNotMatched,
-                    CommandError::IdVecTooSmall => HidioStatus::ErrorIdVecTooSmall,
-                    CommandError::InvalidPacketBufferType(_) => {
-                        HidioStatus::ErrorInvalidPacketBufferType
-                    }
-                    CommandError::InvalidId(_) => HidioStatus::ErrorInvalidId,
-                    CommandError::IdNotImplemented(_, _) => HidioStatus::ErrorIdNotImplemented,
-                    CommandError::InvalidProperty8(_) => HidioStatus::ErrorInvalidProperty8,
-                    CommandError::InvalidUtf8(_) => HidioStatus::ErrorInvalidUtf8,
-                    CommandError::PacketDecodeError(err) => match err {
-                        HidIoParseError::InvalidContinuedIdByte(_) => {
-                            HidioStatus::ErrorDecodeContinuedIdByte
-                        }
-                        HidIoParseError::InvalidHidIoCommandId(_) => {
-                            HidioStatus::ErrorDecodeHidIoCommandId
-                        }
-                        HidIoParseError::InvalidPacketIdWidth(_) => {
-                            HidioStatus::ErrorDecodePacketIdWidth
-                        }
-                        HidIoParseError::InvalidPacketType(_) => HidioStatus::ErrorDecodePacketType,
-                        HidIoParseError::MissingContinuedIdByte => {
-                            HidioStatus::ErrorDecodeMissingContinuedIdByte
-                        }
-                        HidIoParseError::MissingPacketIdWidthByte => {
-                            HidioStatus::ErrorDecodeMissingPacketIdWidthByte
-                        }
-                        HidIoParseError::MissingPacketTypeByte => {
-                            HidioStatus::ErrorDecodeMissingPacketTypeByte
-                        }
-                        HidIoParseError::MissingPayloadLengthByte => {
-                            HidioStatus::ErrorDecodeMissingPayloadLengthByte
-                        }
-                        HidIoParseError::NotEnoughActualBytesPacketId {
-                            len: _,
-                            id_width: _,
-                        } => HidioStatus::ErrorDecodeNotEnoughActualBytesPacketId,
-                        HidIoParseError::NotEnoughPossibleBytesPacketId {
-                            len: _,
-                            id_width: _,
-                        } => HidioStatus::ErrorDecodeNotEnoughPossibleBytesPacketId,
-                        HidIoParseError::PayloadAddFailed(_) => {
-                            HidioStatus::ErrorDecodePayloadAddFailed
-                        }
-                        HidIoParseError::SerializationError => {
-                            HidioStatus::ErrorDecodeSerializationError
-                        }
-                        HidIoParseError::SerializationFailedResultTooSmall(_) => {
-                            HidioStatus::ErrorDecodeSerializationFailedResultTooSmall
-                        }
-                        HidIoParseError::VecAddFailed => HidioStatus::ErrorDecodeVecAddFailed,
-                        HidIoParseError::VecResizeFailed => HidioStatus::ErrorDecodeVecResizeFailed,
-                    },
-                    _ => HidioStatus::ErrorUnknown,
-                }
+                err
             }
         }
+    }
+}
+
+/// # Safety
+/// Add to the term buffer string
+/// If a \n is detected, force a flush (unless flush_newline is false)
+/// When term buffer is full, the buffer is also flushed
+#[no_mangle]
+pub unsafe extern "C" fn hidio_term_buffer_enqueue(string: *const c_char, len: u16) -> HidioStatus {
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
+        None => {
+            return HidioStatus::ErrorNotInitialized;
+        }
+    };
+
+    // Determine if there are any newlines in the incoming string
+    let string = match CStr::from_ptr(string).to_str() {
+        Ok(string) => string,
+        Err(_) => {
+            return HidioStatus::ErrorInvalidUtf8;
+        }
+    };
+    let string = &string[..len as usize];
+
+    let mut pos = 0;
+    while string.len() - pos > 0 {
+        let size = string.len() - pos;
+        let buffer_left = intf.term_out_buffer.capacity() - intf.term_out_buffer.len();
+        if size > buffer_left {
+            if intf
+                .term_out_buffer
+                .push_str(&string[pos..buffer_left + pos])
+                .is_err()
+            {
+                return HidioStatus::ErrorUnknown;
+            }
+
+            if let Err(e) = intf.term_buffer_flush() {
+                return intf.error_handler(e);
+            }
+            pos += buffer_left;
+        } else {
+            if intf.term_out_buffer.push_str(&string[pos..]).is_err() {
+                return HidioStatus::ErrorUnknown;
+            }
+            pos = string.len();
+        }
+    }
+
+    HidioStatus::Success
+}
+
+/// Flush terminal buffer
+#[no_mangle]
+pub extern "C" fn hidio_term_buffer_flush() -> HidioStatus {
+    unsafe {
+        // Retrieve interface
+        let intf = match INTF.as_mut() {
+            Some(intf) => intf,
+            None => {
+                return HidioStatus::ErrorNotInitialized;
+            }
+        };
+
+        if let Err(err) = intf.term_buffer_flush() {
+            return intf.error_handler(err);
+        }
+
+        HidioStatus::Success
     }
 }
 
@@ -500,17 +520,13 @@ pub unsafe extern "C" fn hidio_h0017_unicodetext(string: *const c_char) -> Hidio
     };
 
     // Send command
-    if intf
-        .h0017_unicodetext(
-            Cmd {
-                string: String::from(utf8string),
-            },
-            true,
-        )
-        .is_err()
-    {
-        // TODO Better error handling
-        return HidioStatus::ErrorDetailed;
+    if let Err(err) = intf.h0017_unicodetext(
+        Cmd {
+            string: String::from(utf8string),
+        },
+        true,
+    ) {
+        return intf.error_handler(err);
     }
 
     HidioStatus::Success
@@ -546,17 +562,13 @@ pub unsafe extern "C" fn hidio_h0018_unicodestate(symbols: *const c_char) -> Hid
     };
 
     // Send command
-    if intf
-        .h0018_unicodestate(
-            Cmd {
-                symbols: String::from(utf8string),
-            },
-            true,
-        )
-        .is_err()
-    {
-        // TODO Better error handling
-        return HidioStatus::ErrorDetailed;
+    if let Err(err) = intf.h0018_unicodestate(
+        Cmd {
+            symbols: String::from(utf8string),
+        },
+        true,
+    ) {
+        return intf.error_handler(err);
     }
 
     HidioStatus::Success
@@ -591,17 +603,13 @@ pub unsafe extern "C" fn hidio_h0034_terminalout(output: *const c_char) -> Hidio
     };
 
     // Send command
-    if intf
-        .h0034_terminalout(
-            Cmd {
-                output: String::from(utf8string),
-            },
-            true,
-        )
-        .is_err()
-    {
-        // TODO Better error handling
-        return HidioStatus::ErrorDetailed;
+    if let Err(err) = intf.h0034_terminalout(
+        Cmd {
+            output: String::from(utf8string),
+        },
+        true,
+    ) {
+        return intf.error_handler(err);
     }
 
     HidioStatus::Success
@@ -628,8 +636,9 @@ struct CommandInterface<
     config: HidioConfig,
     hostinfo: HidioHostInfo,
     error_str: String<U256>,
-    os_version: String<U256>,
-    host_software_name: String<U256>,
+    os_version: String<H>,
+    host_software_name: String<H>,
+    term_out_buffer: String<H>,
 }
 
 impl<
@@ -664,6 +673,7 @@ where
         let rx_packetbuf = HidIoPacketBuffer::new();
         let serial_buf = Vec::new();
         let error_str = String::new();
+        let term_out_buffer = String::new();
         let hostinfo = HidioHostInfo {
             major_version: 0,
             minor_version: 0,
@@ -684,6 +694,7 @@ where
             hostinfo,
             os_version,
             host_software_name,
+            term_out_buffer,
         })
     }
 
@@ -741,9 +752,20 @@ where
         Ok(cur)
     }
 
+    /// Flush the term buffer
+    pub fn term_buffer_flush(&mut self) -> Result<(), CommandError> {
+        // Send the buffer
+        if self.term_out_buffer.len() > 0 {
+            let output = self.term_out_buffer.clone();
+            self.h0034_terminalout(h0034::Cmd { output }, true)?;
+            self.term_out_buffer.clear();
+        }
+        Ok(())
+    }
+
     /// Sends string version of CommandError to error_str callback and clears
     /// it
-    pub fn error_handler(&mut self, err: CommandError) -> CommandError {
+    pub fn error_handler(&mut self, err: CommandError) -> HidioStatus {
         if write!(self.error_str, "{:?}\0", err).is_ok() {
             unsafe {
                 hidio_error(
@@ -755,7 +777,55 @@ where
             };
         }
         self.error_str.clear();
-        err
+
+        match err {
+            CommandError::DataVecTooSmall => HidioStatus::ErrorDataVecTooSmall,
+            CommandError::IdNotSupported(_) => HidioStatus::ErrorIdNotSupported,
+            CommandError::InvalidRxMessage(_) => HidioStatus::ErrorInvalidRxMessage,
+            CommandError::IdNotMatched(_) => HidioStatus::ErrorIdNotMatched,
+            CommandError::IdVecTooSmall => HidioStatus::ErrorIdVecTooSmall,
+            CommandError::InvalidPacketBufferType(_) => HidioStatus::ErrorInvalidPacketBufferType,
+            CommandError::InvalidId(_) => HidioStatus::ErrorInvalidId,
+            CommandError::IdNotImplemented(_, _) => HidioStatus::ErrorIdNotImplemented,
+            CommandError::InvalidProperty8(_) => HidioStatus::ErrorInvalidProperty8,
+            CommandError::InvalidUtf8(_) => HidioStatus::ErrorInvalidUtf8,
+            CommandError::PacketDecodeError(err) => match err {
+                HidIoParseError::InvalidContinuedIdByte(_) => {
+                    HidioStatus::ErrorDecodeContinuedIdByte
+                }
+                HidIoParseError::InvalidHidIoCommandId(_) => HidioStatus::ErrorDecodeHidIoCommandId,
+                HidIoParseError::InvalidPacketIdWidth(_) => HidioStatus::ErrorDecodePacketIdWidth,
+                HidIoParseError::InvalidPacketType(_) => HidioStatus::ErrorDecodePacketType,
+                HidIoParseError::MissingContinuedIdByte => {
+                    HidioStatus::ErrorDecodeMissingContinuedIdByte
+                }
+                HidIoParseError::MissingPacketIdWidthByte => {
+                    HidioStatus::ErrorDecodeMissingPacketIdWidthByte
+                }
+                HidIoParseError::MissingPacketTypeByte => {
+                    HidioStatus::ErrorDecodeMissingPacketTypeByte
+                }
+                HidIoParseError::MissingPayloadLengthByte => {
+                    HidioStatus::ErrorDecodeMissingPayloadLengthByte
+                }
+                HidIoParseError::NotEnoughActualBytesPacketId {
+                    len: _,
+                    id_width: _,
+                } => HidioStatus::ErrorDecodeNotEnoughActualBytesPacketId,
+                HidIoParseError::NotEnoughPossibleBytesPacketId {
+                    len: _,
+                    id_width: _,
+                } => HidioStatus::ErrorDecodeNotEnoughPossibleBytesPacketId,
+                HidIoParseError::PayloadAddFailed(_) => HidioStatus::ErrorDecodePayloadAddFailed,
+                HidIoParseError::SerializationError => HidioStatus::ErrorDecodeSerializationError,
+                HidIoParseError::SerializationFailedResultTooSmall(_) => {
+                    HidioStatus::ErrorDecodeSerializationFailedResultTooSmall
+                }
+                HidIoParseError::VecAddFailed => HidioStatus::ErrorDecodeVecAddFailed,
+                HidIoParseError::VecResizeFailed => HidioStatus::ErrorDecodeVecResizeFailed,
+            },
+            _ => HidioStatus::ErrorUnknown,
+        }
     }
 
     /*
@@ -823,8 +893,11 @@ where
                     }
                 }) {
                 Ok(_) => {}
-                Err(_) => {
-                    return Err(CommandError::TxBufferSendFailed);
+                Err(vdata) => {
+                    unsafe { hidio_tx_bytes_flush() };
+                    if self.tx_bytebuf.enqueue(vdata).is_err() {
+                        return Err(CommandError::TxBufferSendFailed);
+                    }
                 }
             }
         }
@@ -981,16 +1054,14 @@ where
             return Err(h0031::Nak {});
         }
 
-        // XXX (HaaTa): Yes this will not work for non-ASCII, but that's
-        // fine in this context.
-        let cstr = match CStr::from_bytes_with_nul(data.command.as_bytes()) {
-            Ok(cstr) => cstr,
+        let cstr = match CUtf8::from_str(data.command.as_str()) {
+            Ok(cstr) => cstr.as_bytes_with_nul().as_ptr() as *const c_char,
             Err(_) => {
                 return Err(h0031::Nak {});
             }
         };
 
-        if unsafe { h0031_terminalcmd_cmd(cstr.as_ptr(), data.command.len() as u16) } {
+        if unsafe { h0031_terminalcmd_cmd(cstr, data.command.len() as u16) } {
             Ok(h0031::Ack {})
         } else {
             Err(h0031::Nak {})
@@ -1003,16 +1074,14 @@ where
             return Err(CommandError::DataVecTooSmall);
         }
 
-        // XXX (HaaTa): Yes this will not work for non-ASCII, but that's
-        // fine in this context.
-        let cstr = match CStr::from_bytes_with_nul(data.command.as_bytes()) {
-            Ok(cstr) => cstr,
+        let cstr = match CUtf8::from_str(data.command.as_str()) {
+            Ok(cstr) => cstr.as_bytes_with_nul().as_ptr() as *const c_char,
             Err(_) => {
                 return Err(CommandError::InvalidCStr);
             }
         };
 
-        if unsafe { h0031_terminalcmd_cmd(cstr.as_ptr(), data.command.len() as u16) } {
+        if unsafe { h0031_terminalcmd_cmd(cstr, data.command.len() as u16) } {
             Ok(())
         } else {
             Err(CommandError::CallbackFailed)

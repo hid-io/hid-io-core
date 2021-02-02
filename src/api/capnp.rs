@@ -1742,8 +1742,8 @@ async fn server_subscriptions_keyboard(
 
             // Handle stream
             while let Some(msg) = stream.next().await {
-                let src = msg.dst;
-                let dst = msg.src;
+                let src = msg.src;
+                let dst = msg.dst;
 
                 struct CommandInterface {
                     src: mailbox::Address,
@@ -1785,10 +1785,26 @@ async fn server_subscriptions_keyboard(
 
                         Ok(h0034::Ack {})
                     }
+                    fn h0034_terminalout_nacmd(
+                        &mut self,
+                        data: h0034::Cmd<mailbox::HidIoPacketBufferDataSize>,
+                    ) -> Result<(), CommandError> {
+                        // Build Signal message
+                        let mut signal = self.request.get().init_signal();
+                        signal.set_time(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .expect("Time went backwards")
+                                .as_millis() as u64,
+                        );
+                        signal.init_data().init_cli().set_output(&data.output);
+
+                        Ok(())
+                    }
                 }
 
                 // Setup interface
-                let intf = CommandInterface {
+                let mut intf = CommandInterface {
                     src,
                     dst,
                     mailbox: mailbox.clone(),
@@ -1803,6 +1819,12 @@ async fn server_subscriptions_keyboard(
                         .client
                         .update_request(),
                 };
+
+                // Process incoming message
+                // TODO(HaaTa): Determine the best way to return some sort of error (capnp) if this fails
+                if let Err(err) = intf.rx_message_handling(msg.data) {
+                    error!("rx_message_handling failed!: {:?}", err);
+                }
 
                 // Block on each send, drop subscription on failure
                 if let Err(e) = intf.request.send().promise.await {
