@@ -629,6 +629,43 @@ Various test commands used during manufacturing to validate the hardware.
             Args:
             * 0x0000 - Disable
             * 0x0001 - Enable
+ * 0x0003 - Hall Effect sensor test
+            Used to check the status of each sensor.
+            Args:
+            * 0x0000 - Pass/Fail test
+            * 0x0001 - Level check
+            
+Any return values will be sent as a Manufacturing Test Result (0x51).
+
++> (No payload)
+-> (No payload)
+```
+
+### Manufacturing Test Result
+```
+0x51 <command:16 bits> <argument:16 bits> <payload...>
+
+Various test commands used during manufacturing to validate the hardware.
+ * 0x0001 - LED test sequence
+            Generally cycles through all available colors to check for dead LEDs.
+            Args:
+            * 0x0000 - Disable
+            * 0x0001 - Enable
+ * 0x0002 - LED cycle on keypress test
+            Used with shake tests to determine if there are hair-trigger switches.
+            On each press or release event, cycle to a different LED event.
+            Args:
+            * 0x0000 - Disable
+            * 0x0001 - Enable
+            Payload:
+            * List of 16-bit scancodes which have been activated while the test was running
+ * 0x0003 - Hall Effect sensor test
+            Used to check the status of each sensor
+            Args:
+            * 0x0000 - Pass/Fail test
+              Payload: List of failed sensors positions, each sensor has a 16-bit scancode
+            * 0x0001 - Level test, number of scancodes is determined by the device.
+              Payload: [<scancode:16 bits> <level:16 bits>...]
 
 +> (No payload)
 -> (No payload)
