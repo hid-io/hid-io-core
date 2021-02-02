@@ -709,3 +709,4 @@ Various test commands used during manufacturing to validate the hardware.
 * 0x43 - (Host/Device) Reserved - HID Joystick State
 * 0x44..0x4F - **Unused**
 * 0x50 - (Host)        [Manufacturing Test](#manufacturing-test)
+* 0x50 - (Device)      [Manufacturing Test Result](#manufacturing-test-result)
