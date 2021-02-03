@@ -31,7 +31,7 @@ use core::fmt::Write;
 use core::ptr::copy_nonoverlapping;
 use cstr_core::c_char;
 use cstr_core::CStr;
-use heapless::consts::{U10, U256, U277, U64, U8};
+use heapless::consts::{U10, U256, U277, U4, U64, U8};
 use heapless::{ArrayLength, String, Vec};
 use hid_io_protocol::commands::*;
 use hid_io_protocol::*;
@@ -124,16 +124,10 @@ extern "C" {
     /// argument (input)
     /// - Argument to manufacturing command
     ///
-    /// data (output)
-    /// - Byte array of data to send back to caller
-    ///   (ack or nak)
-    /// len (input)
-    /// - Length of provided memory (data)
-    ///
     /// Return:
     /// - true (Ack)
     /// - false (Nak)
-    fn h0050_manufacturing_cmd(command: u16, argument: u16, data: *mut u8, len: u16) -> bool;
+    fn h0050_manufacturing_cmd(command: u16, argument: u16) -> bool;
 }
 
 // ----- External C Interface -----
@@ -627,6 +621,7 @@ struct CommandInterface<
 > where
     H: core::fmt::Debug,
     H: Sub<B1>,
+    H: Sub<U4>,
 {
     ids: Vec<HidIoCommandID, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
@@ -652,6 +647,7 @@ impl<
 where
     H: core::fmt::Debug,
     H: Sub<B1>,
+    H: Sub<U4>,
 {
     fn new(
         ids: &[HidIoCommandID],
@@ -737,6 +733,7 @@ where
     pub fn process_rx(&mut self, count: u8) -> Result<u8, CommandError>
     where
         <H as Sub<B1>>::Output: ArrayLength<u8>,
+        <H as Sub<U4>>::Output: ArrayLength<u8>,
     {
         // Decode bytes into buffer
         let mut cur = 0;
@@ -860,7 +857,7 @@ impl<
         ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
     > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
 where
-    H: core::fmt::Debug + Sub<B1>,
+    H: core::fmt::Debug + Sub<B1> + Sub<U4>,
 {
     fn default_packet_chunk(&self) -> u32 {
         <N as Unsigned>::to_u32()
@@ -1088,27 +1085,13 @@ where
         }
     }
 
-    fn h0050_manufacturing_cmd(
-        &mut self,
-        data: h0050::Cmd,
-    ) -> Result<h0050::Ack<H>, h0050::Nak<H>> {
-        // Prepare data buffer for manufacturing test results
-        let mut databuf = Vec::new();
-        if databuf.resize_default(<H as Unsigned>::to_usize()).is_err() {
-            return Err(h0050::Nak { data: databuf });
-        }
-
+    fn h0050_manufacturing_cmd(&mut self, data: h0050::Cmd) -> Result<h0050::Ack, h0050::Nak> {
         // Callback
         unsafe {
-            if h0050_manufacturing_cmd(
-                data.command,
-                data.argument,
-                databuf.as_mut_ptr(),
-                databuf.len() as u16,
-            ) {
-                Ok(h0050::Ack { data: databuf })
+            if h0050_manufacturing_cmd(data.command, data.argument) {
+                Ok(h0050::Ack {})
             } else {
-                Err(h0050::Nak { data: databuf })
+                Err(h0050::Nak {})
             }
         }
     }

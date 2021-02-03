@@ -94,6 +94,7 @@ pub enum HidIoCommandID {
     TestPacket = 0x02,
     ResetHidIo = 0x03,
     Reserved = 0x04, // ... 0x0F
+
     GetProperties = 0x10,
     KeyState = 0x11,
     KeyboardLayout = 0x12,
@@ -105,6 +106,7 @@ pub enum HidIoCommandID {
     UnicodeState = 0x18,
     HostMacro = 0x19,
     SleepMode = 0x1A,
+
     KLLState = 0x20,
     PixelSetting = 0x21,
     PixelSet1c8b = 0x22,
@@ -126,6 +128,7 @@ pub enum HidIoCommandID {
     HIDConsumerCtrl = 0x45,
 
     ManufacturingTest = 0x50,
+    ManufacturingResult = 0x51,
 
     Unused = 0xFFFF,
 }

@@ -856,26 +856,18 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     }
                     fn h0050_manufacturing_ack(
                         &mut self,
-                        data: h0050::Ack<mailbox::HidIoPacketBufferDataSize>,
+                        _data: h0050::Ack,
                     ) -> Result<(), CommandError> {
-                        // TODO is there a more efficient way to set this?
                         let status = self.results.get().init_status();
-                        let mut result = status.init_success(data.data.len() as u32);
-                        for (i, f) in data.data.iter().enumerate() {
-                            result.set(i as u32, *f);
-                        }
+                        status.init_success();
                         Ok(())
                     }
                     fn h0050_manufacturing_nak(
                         &mut self,
-                        data: h0050::Nak<mailbox::HidIoPacketBufferDataSize>,
+                        _data: h0050::Nak,
                     ) -> Result<(), CommandError> {
                         let status = self.results.get().init_status();
-                        // TODO is there a more efficient way to set this?
-                        let mut result = status.init_error(data.data.len() as u32);
-                        for (i, f) in data.data.iter().enumerate() {
-                            result.set(i as u32, *f);
-                        }
+                        status.init_error();
                         Ok(())
                     }
                 }
@@ -1729,6 +1721,7 @@ async fn server_subscriptions_keyboard(
                     );
             }
 
+            // TODO Handle filtering based on what has been registered
             // Filters
             //  cli output
             //  host macro (TODO)
@@ -1800,6 +1793,27 @@ async fn server_subscriptions_keyboard(
                         signal.init_data().init_cli().set_output(&data.output);
 
                         Ok(())
+                    }
+                    fn h0051_manufacturingres_cmd(
+                        &mut self,
+                        data: h0051::Cmd<Diff<mailbox::HidIoPacketBufferDataSize, U4>>,
+                    ) -> Result<h0051::Ack, h0051::Nak> {
+                        // Build Signal message
+                        let mut signal = self.request.get().init_signal();
+                        signal.set_time(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .expect("Time went backwards")
+                                .as_millis() as u64,
+                        );
+                        let mut result = signal.init_data().init_manufacturing();
+                        result.set_cmd(data.command);
+                        result.set_arg(data.argument);
+                        let mut result = result.init_data(data.data.len() as u32);
+                        for (i, f) in data.data.iter().enumerate() {
+                            result.set(i as u32, *f);
+                        }
+                        Ok(h0051::Ack {})
                     }
                 }
 

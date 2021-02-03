@@ -58,6 +58,10 @@ interface Keyboard extends(HidIo.Node) {
         cliOutput @4;
         # Subscribe to CLI output
         # Useful when using cli commands (to see the result) or to monitor keyboard status and internal errors
+
+        manufacturingResult @5;
+        # Subscribe to Manufacturing Results
+        # Used when getting the asynchronous updates from Manufacturing tests
     }
 
 
@@ -76,6 +80,14 @@ interface Keyboard extends(HidIo.Node) {
         struct Layer {
         }
 
+        struct ManufacturingResult {
+            # Cmd and Arg relate to the orignal manufacturingTest command used
+            cmd @0 :UInt16;
+            arg @1 :UInt16;
+            # Free-form byte data from the result
+            data @2 :List(UInt8);
+        }
+
         time @0 :UInt64;
         # Signal event timestamp
 
@@ -91,6 +103,9 @@ interface Keyboard extends(HidIo.Node) {
 
             layer @4 :Layer;
             # Layer event message
+
+            manufacturing @5 :ManufacturingResult;
+            # Manufacturing message
         }
     }
 

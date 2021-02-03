@@ -216,10 +216,13 @@ interface Node extends(Common.Node) {
     }
 
     struct ManufacturingStatus {
+        struct Success {}
+        struct Error {}
+
         # Result of manufacturing test command
         union {
-            success @0 :List(UInt8);
-            error @1 :List(UInt8);
+            success @0 :Success;
+            error @1 :Error;
         }
     }
 

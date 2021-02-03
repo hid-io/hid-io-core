@@ -65,6 +65,7 @@ struct CommandInterface<
 > where
     H: core::fmt::Debug,
     H: Sub<B1>,
+    H: Sub<U4>,
 {
     ids: Vec<HidIoCommandID, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
@@ -84,6 +85,7 @@ impl<
 where
     H: core::fmt::Debug,
     H: Sub<B1>,
+    H: Sub<U4>,
 {
     fn new(ids: &[HidIoCommandID]) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
@@ -155,6 +157,7 @@ where
     fn process_rx(&mut self) -> Result<(), CommandError>
     where
         <H as Sub<B1>>::Output: ArrayLength<u8>,
+        <H as Sub<U4>>::Output: ArrayLength<u8>,
     {
         // Flush tx->rx
         self.flush_tx2rx();
@@ -190,7 +193,7 @@ impl<
         ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
     > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
 where
-    H: core::fmt::Debug + Sub<B1>,
+    H: core::fmt::Debug + Sub<B1> + Sub<U4>,
 {
     fn default_packet_chunk(&self) -> u32 {
         <N as Unsigned>::to_u32()
@@ -402,33 +405,38 @@ where
         Ok(())
     }
 
-    fn h0050_manufacturing_cmd(
-        &mut self,
-        data: h0050::Cmd,
-    ) -> Result<h0050::Ack<H>, h0050::Nak<H>> {
+    fn h0050_manufacturing_cmd(&mut self, data: h0050::Cmd) -> Result<h0050::Ack, h0050::Nak> {
         if data.command == 0 && data.argument == 0 {
-            Ok(h0050::Ack {
-                data: Vec::from_slice(&[1, 2, 3]).unwrap(),
-            })
+            Ok(h0050::Ack {})
         } else {
-            Err(h0050::Nak {
-                data: Vec::from_slice(&[4, 5, 6]).unwrap(),
-            })
+            Err(h0050::Nak {})
         }
     }
-    fn h0050_manufacturing_ack(&mut self, data: h0050::Ack<H>) -> Result<(), CommandError> {
-        if data.data == Vec::<u8, H>::from_slice(&[1, 2, 3]).unwrap() {
-            Ok(())
+    fn h0050_manufacturing_ack(&mut self, _data: h0050::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+    fn h0050_manufacturing_nak(&mut self, _data: h0050::Nak) -> Result<(), CommandError> {
+        Err(CommandError::TestFailure)
+    }
+
+    fn h0051_manufacturingres_cmd(
+        &mut self,
+        data: h0051::Cmd<Diff<H, U4>>,
+    ) -> Result<h0051::Ack, h0051::Nak>
+    where
+        <H as Sub<U4>>::Output: ArrayLength<u8>,
+    {
+        if data.command == 0 && data.argument == 0 {
+            Ok(h0051::Ack {})
         } else {
-            Err(CommandError::TestFailure)
+            Err(h0051::Nak {})
         }
     }
-    fn h0050_manufacturing_nak(&mut self, data: h0050::Nak<H>) -> Result<(), CommandError> {
-        if data.data == Vec::<u8, H>::from_slice(&[4, 5, 6]).unwrap() {
-            Ok(())
-        } else {
-            Err(CommandError::TestFailure)
-        }
+    fn h0051_manufacturingres_ack(&mut self, _data: h0051::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+    fn h0051_manufacturingres_nak(&mut self, _data: h0051::Nak) -> Result<(), CommandError> {
+        Err(CommandError::TestFailure)
     }
 }
 
@@ -981,5 +989,35 @@ fn h0050_manufacturing() {
     // Flush tx->rx
     // Process rx buffer
     let process = intf.process_rx();
-    assert!(process.is_ok(), "process_rx4 => {:?}", process);
+    assert!(process.is_err(), "process_rx4 => {:?}", process);
+}
+
+#[test]
+fn h0051_manufacturing() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandID::ManufacturingResult];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+
+    // Send valid command (expect ack)
+    let cmd = h0051::Cmd {
+        command: 0,
+        argument: 0,
+        data: Vec::new(),
+    };
+    let send = intf.h0051_manufacturingres(cmd);
+    assert!(send.is_ok(), "h0051_manufacturing(ack) => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 => {:?}", process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 => {:?}", process);
 }
