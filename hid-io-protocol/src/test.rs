@@ -139,7 +139,7 @@ fn no_payload_test() {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
-        id: HidIoCommandID::TestPacket,
+        id: HidIoCommandId::TestPacket,
         // Standard USB 2.0 FS packet length
         max_len: 64,
         // No payload
@@ -164,7 +164,7 @@ fn single_byte_payload_test() {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
-        id: HidIoCommandID::TestPacket,
+        id: HidIoCommandId::TestPacket,
         // Standard USB 2.0 FS packet length
         max_len: 64,
         // Single byte, 0xAC
@@ -189,7 +189,7 @@ fn full_packet_payload_test() {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
-        id: HidIoCommandID::TestPacket,
+        id: HidIoCommandId::TestPacket,
         // Standard USB 2.0 FS packet length
         max_len: 64,
         // 60 bytes, 0xAC; requires 2 byte header, and 2 bytes for id, which is 64 bytes
@@ -214,7 +214,7 @@ fn two_packet_continued_payload_test() {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
-        id: HidIoCommandID::TestPacket,
+        id: HidIoCommandId::TestPacket,
         // Standard USB 2.0 FS packet length
         max_len: 64,
         // 110 bytes, 0xAC: 60 then 50 (62 then 52)
@@ -239,7 +239,7 @@ fn three_packet_continued_payload_test() {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
-        id: HidIoCommandID::TestPacket,
+        id: HidIoCommandId::TestPacket,
         // Standard USB 2.0 FS packet length
         max_len: 64,
         // 170 bytes, 0xAC: 60, 60 then 50 (62, 62 then 52)
@@ -263,7 +263,7 @@ fn four_packet_continued_payload_test() {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
-        id: HidIoCommandID::TestPacket,
+        id: HidIoCommandId::TestPacket,
         // Standard USB 2.0 FS packet length
         max_len: 64,
         // 240 bytes, 0xAC: 60, 60, 60 then 60 (64, 64, 64, 64)

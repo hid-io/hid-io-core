@@ -215,13 +215,13 @@ pub extern "C" fn hidio_txbyte_bufsize() -> u16 {
 #[no_mangle]
 pub extern "C" fn hidio_init(config: HidioConfig) -> HidioStatus {
     let ids = [
-        HidIoCommandID::FlashMode,
-        HidIoCommandID::GetInfo,
-        HidIoCommandID::ManufacturingTest,
-        HidIoCommandID::SleepMode,
-        HidIoCommandID::SupportedIDs,
-        HidIoCommandID::TerminalCmd,
-        HidIoCommandID::TestPacket,
+        HidIoCommandId::FlashMode,
+        HidIoCommandId::GetInfo,
+        HidIoCommandId::ManufacturingTest,
+        HidIoCommandId::SleepMode,
+        HidIoCommandId::SupportedIds,
+        HidIoCommandId::TerminalCmd,
+        HidIoCommandId::TestPacket,
     ];
 
     unsafe {
@@ -671,13 +671,13 @@ struct CommandInterface<
     N: ArrayLength<u8>,
     H: ArrayLength<u8>,
     S: ArrayLength<u8>,
-    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+    ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
 > where
     H: core::fmt::Debug,
     H: Sub<B1>,
     H: Sub<U4>,
 {
-    ids: Vec<HidIoCommandID, ID>,
+    ids: Vec<HidIoCommandId, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
     rx_packetbuf: HidIoPacketBuffer<H>,
     tx_bytebuf: buffer::Buffer<TX, N>,
@@ -696,7 +696,7 @@ impl<
         N: ArrayLength<u8>,
         H: ArrayLength<u8>,
         S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+        ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
     > CommandInterface<TX, RX, N, H, S, ID>
 where
     H: core::fmt::Debug,
@@ -704,7 +704,7 @@ where
     H: Sub<U4>,
 {
     fn new(
-        ids: &[HidIoCommandID],
+        ids: &[HidIoCommandId],
         config: HidioConfig,
     ) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
@@ -901,14 +901,14 @@ where
 /// N - Max payload length (HidIoPacketBuffer), used for default values
 /// H - Max data payload length (HidIoPacketBuffer)
 /// S - Serialization buffer size
-/// ID - Max number of HidIoCommandIDs
+/// ID - Max number of HidIoCommandIds
 impl<
         TX: ArrayLength<Vec<u8, N>>,
         RX: ArrayLength<Vec<u8, N>>,
         N: ArrayLength<u8>,
         H: ArrayLength<u8>,
         S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+        ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
     > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
 where
     H: core::fmt::Debug + Sub<B1> + Sub<U4>,
@@ -954,7 +954,7 @@ where
         }
         Ok(())
     }
-    fn supported_id(&self, id: HidIoCommandID) -> bool {
+    fn supported_id(&self, id: HidIoCommandId) -> bool {
         self.ids.iter().any(|&i| i == id)
     }
 
@@ -973,7 +973,7 @@ where
         use h0001::*;
 
         let property = data.property;
-        let os = OSType::Unknown;
+        let os = OsType::Unknown;
         let mut number = 0;
         let mut string = String::new();
 
@@ -1001,7 +1001,7 @@ where
                     }
                 };
             }
-            Property::DeviceMCU => {
+            Property::DeviceMcu => {
                 unsafe {
                     if let Ok(cstr) = CStr::from_ptr(self.config.device_mcu).to_str() {
                         string = String::from(cstr);

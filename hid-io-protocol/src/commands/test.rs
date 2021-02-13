@@ -61,13 +61,13 @@ struct CommandInterface<
     N: ArrayLength<u8>,
     H: ArrayLength<u8>,
     S: ArrayLength<u8>,
-    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+    ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
 > where
     H: core::fmt::Debug,
     H: Sub<B1>,
     H: Sub<U4>,
 {
-    ids: Vec<HidIoCommandID, ID>,
+    ids: Vec<HidIoCommandId, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
     rx_packetbuf: HidIoPacketBuffer<H>,
     tx_bytebuf: buffer::Buffer<TX, N>,
@@ -80,14 +80,14 @@ impl<
         N: ArrayLength<u8>,
         H: ArrayLength<u8>,
         S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+        ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
     > CommandInterface<TX, RX, N, H, S, ID>
 where
     H: core::fmt::Debug,
     H: Sub<B1>,
     H: Sub<U4>,
 {
-    fn new(ids: &[HidIoCommandID]) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
+    fn new(ids: &[HidIoCommandId]) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
         let ids = match Vec::from_slice(ids) {
             Ok(ids) => ids,
@@ -183,14 +183,14 @@ where
 /// N - Max payload length (HidIoPacketBuffer), used for default values
 /// H - Max data payload length (HidIoPacketBuffer)
 /// S - Serialization buffer size
-/// ID - Max number of HidIoCommandIDs
+/// ID - Max number of HidIoCommandIds
 impl<
         TX: ArrayLength<Vec<u8, N>>,
         RX: ArrayLength<Vec<u8, N>>,
         N: ArrayLength<u8>,
         H: ArrayLength<u8>,
         S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
+        ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
     > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
 where
     H: core::fmt::Debug + Sub<B1> + Sub<U4>,
@@ -232,7 +232,7 @@ where
         }
         Ok(())
     }
-    fn supported_id(&self, id: HidIoCommandID) -> bool {
+    fn supported_id(&self, id: HidIoCommandId) -> bool {
         self.ids.iter().any(|&i| i == id)
     }
 
@@ -448,9 +448,9 @@ fn h0000_supported_ids_test() {
 
     // Build list of supported ids
     let ids = [
-        HidIoCommandID::SupportedIDs,
-        HidIoCommandID::GetInfo,
-        HidIoCommandID::TestPacket,
+        HidIoCommandId::SupportedIds,
+        HidIoCommandId::GetInfo,
+        HidIoCommandId::TestPacket,
     ];
 
     // Setup command interface
@@ -475,86 +475,86 @@ fn h0000_supported_ids_test() {
 #[derive(Debug)]
 struct H0001TestEntry<'a> {
     property: h0001::Property,
-    os: h0001::OSType,
+    os: h0001::OsType,
     number: u16,
     string: &'a str,
 }
 const H0001ENTRIES: [H0001TestEntry; 13] = [
     H0001TestEntry {
         property: h0001::Property::MajorVersion,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 12,
         string: "",
     },
     H0001TestEntry {
         property: h0001::Property::MinorVersion,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 34,
         string: "",
     },
     H0001TestEntry {
         property: h0001::Property::PatchVersion,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 79,
         string: "",
     },
     H0001TestEntry {
         property: h0001::Property::DeviceName,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "My Device",
     },
     H0001TestEntry {
         property: h0001::Property::DeviceSerialNumber,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "1234567890 - 0987654321",
     },
     H0001TestEntry {
         property: h0001::Property::DeviceVersion,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "v9001",
     },
     H0001TestEntry {
-        property: h0001::Property::DeviceMCU,
-        os: h0001::OSType::Unknown,
+        property: h0001::Property::DeviceMcu,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "someMCUname",
     },
     H0001TestEntry {
         property: h0001::Property::FirmwareName,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "SpecialDeviceFirmware",
     },
     H0001TestEntry {
         property: h0001::Property::FirmwareVersion,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "v9999",
     },
     H0001TestEntry {
         property: h0001::Property::DeviceVendor,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "HID-IO",
     },
     H0001TestEntry {
         property: h0001::Property::OsType,
-        os: h0001::OSType::Linux,
+        os: h0001::OsType::Linux,
         number: 0,
         string: "",
     },
     H0001TestEntry {
         property: h0001::Property::OsVersion,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "Special Linux Version",
     },
     H0001TestEntry {
         property: h0001::Property::HostSoftwareName,
-        os: h0001::OSType::Unknown,
+        os: h0001::OsType::Unknown,
         number: 0,
         string: "HID-IO Core Unit Test",
     },
@@ -565,7 +565,7 @@ fn h0001_info() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
+    let ids = [HidIoCommandId::SupportedIds, HidIoCommandId::GetInfo];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U100, U110, U2>::new(&ids).unwrap();
@@ -625,9 +625,9 @@ fn h0002_test() {
 
     // Build list of supported ids
     let ids = [
-        HidIoCommandID::SupportedIDs,
-        HidIoCommandID::GetInfo,
-        HidIoCommandID::TestPacket,
+        HidIoCommandId::SupportedIds,
+        HidIoCommandId::GetInfo,
+        HidIoCommandId::TestPacket,
     ];
 
     // Setup command interface
@@ -676,7 +676,7 @@ fn h0002_invalid() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::SupportedIDs, HidIoCommandID::GetInfo];
+    let ids = [HidIoCommandId::SupportedIds, HidIoCommandId::GetInfo];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U2>::new(&ids).unwrap();
@@ -710,7 +710,7 @@ fn h0016_flashmode() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::FlashMode];
+    let ids = [HidIoCommandId::FlashMode];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -736,7 +736,7 @@ fn h0017_unicodetext() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::UnicodeText];
+    let ids = [HidIoCommandId::UnicodeText];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -783,7 +783,7 @@ fn h0018_unicodestate() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::UnicodeState];
+    let ids = [HidIoCommandId::UnicodeState];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -830,7 +830,7 @@ fn h001a_sleepmode() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::SleepMode];
+    let ids = [HidIoCommandId::SleepMode];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -856,7 +856,7 @@ fn h0031_terminalcmd() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::TerminalCmd];
+    let ids = [HidIoCommandId::TerminalCmd];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -903,7 +903,7 @@ fn h0034_terminalout() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::TerminalOut];
+    let ids = [HidIoCommandId::TerminalOut];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -950,7 +950,7 @@ fn h0050_manufacturing() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::ManufacturingTest];
+    let ids = [HidIoCommandId::ManufacturingTest];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
@@ -997,7 +997,7 @@ fn h0051_manufacturing() {
     setup_logging_lite().ok();
 
     // Build list of supported ids
-    let ids = [HidIoCommandID::ManufacturingResult];
+    let ids = [HidIoCommandId::ManufacturingResult];
 
     // Setup command interface
     let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();

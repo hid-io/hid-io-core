@@ -34,7 +34,7 @@ pub mod quartz;
 
 use crate::mailbox;
 use crate::RUNNING;
-use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
+use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use std::string::FromUtf8Error;
 use std::sync::atomic::Ordering;
 use tokio::stream::StreamExt;
@@ -183,12 +183,12 @@ impl Module {
 }
 
 /// Supported Ids by this module
-pub fn supported_ids() -> Vec<HidIoCommandID> {
+pub fn supported_ids() -> Vec<HidIoCommandId> {
     vec![
-        HidIoCommandID::UnicodeText,
-        HidIoCommandID::UnicodeState,
-        HidIoCommandID::GetInputLayout,
-        HidIoCommandID::SetInputLayout,
+        HidIoCommandId::UnicodeText,
+        HidIoCommandId::UnicodeState,
+        HidIoCommandId::GetInputLayout,
+        HidIoCommandId::SetInputLayout,
     ]
 }
 
@@ -204,7 +204,7 @@ async fn process(mailbox: mailbox::Mailbox) {
             .filter(Result::is_ok).map(Result::unwrap)
             .filter(|msg| msg.dst == mailbox::Address::Module)
             .filter(|msg| supported_ids().contains(&msg.data.id))
-            .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
+            .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NaData);
     }
 
     // Process filtered message stream
@@ -212,7 +212,7 @@ async fn process(mailbox: mailbox::Mailbox) {
         let mydata = msg.data.data.clone();
         debug!("Processing command: {:?}", msg.data.id);
         match msg.data.id {
-            HidIoCommandID::UnicodeText => {
+            HidIoCommandId::UnicodeText => {
                 let s = String::from_utf8(mydata.to_vec()).unwrap();
                 debug!("UnicodeText (start): {}", s);
                 match module.display.type_string(&s) {
@@ -226,7 +226,7 @@ async fn process(mailbox: mailbox::Mailbox) {
                 }
                 debug!("UnicodeText (done): {}", s);
             }
-            HidIoCommandID::UnicodeState => {
+            HidIoCommandId::UnicodeState => {
                 let s = String::from_utf8(mydata.to_vec()).unwrap();
                 debug!("UnicodeState (start): {}", s);
                 match module.display.set_held(&s) {
@@ -240,7 +240,7 @@ async fn process(mailbox: mailbox::Mailbox) {
                 }
                 debug!("UnicodeState (done): {}", s);
             }
-            HidIoCommandID::GetInputLayout => {
+            HidIoCommandId::GetInputLayout => {
                 debug!("GetInputLayout (start)");
                 match module.display.get_layout() {
                     Ok(layout) => {
@@ -254,7 +254,7 @@ async fn process(mailbox: mailbox::Mailbox) {
                 }
                 debug!("GetInputLayout (done)");
             }
-            HidIoCommandID::SetInputLayout => {
+            HidIoCommandId::SetInputLayout => {
                 let s = String::from_utf8(mydata.to_vec()).unwrap();
                 debug!("SetInputLayout (start): {}", s);
                 /* TODO - Setting layout is more complicated for X11 (and Wayland)

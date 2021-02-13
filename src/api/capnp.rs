@@ -34,7 +34,7 @@ use futures::{FutureExt, TryFutureExt};
 use glob::glob;
 use heapless::consts::U0;
 use hid_io_protocol::commands::*;
-use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
+use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use rcgen::generate_simple_self_signed;
 use std::collections::HashMap;
 use std::env;
@@ -83,8 +83,8 @@ impl std::fmt::Display for hidio_capnp::hid_io::packet::Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match *self {
             hidio_capnp::hid_io::packet::Type::Data => write!(f, "Data"),
-            hidio_capnp::hid_io::packet::Type::Ack => write!(f, "ACK"),
-            hidio_capnp::hid_io::packet::Type::Nak => write!(f, "NAK"),
+            hidio_capnp::hid_io::packet::Type::Ack => write!(f, "Ack"),
+            hidio_capnp::hid_io::packet::Type::Nak => write!(f, "Nak"),
             hidio_capnp::hid_io::packet::Type::NaData => write!(f, "NaData"),
             hidio_capnp::hid_io::packet::Type::Unknown => write!(f, "Unknown"),
         }
@@ -626,7 +626,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     });
                 }
 
-                // Wait for ACK/NAK
+                // Wait for Ack/Nak
                 match intf.result {
                     Ok(_msg) => Promise::ok(()),
                     Err(e) => Promise::err(capnp::Error {
@@ -705,7 +705,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     });
                 }
 
-                // Wait for ACK/NAK
+                // Wait for Ack/Nak
                 let status = results.get().init_status();
                 match intf.result {
                     Ok(_msg) => Promise::ok(()),
@@ -944,7 +944,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Property::DeviceName => info.set_device_name(&data.string),
                     Property::DeviceSerialNumber => info.set_device_serial(&data.string),
                     Property::DeviceVersion => info.set_device_version(&data.string),
-                    Property::DeviceMCU => info.set_device_mcu(&data.string),
+                    Property::DeviceMcu => info.set_device_mcu(&data.string),
                     Property::DeviceVendor => info.set_device_vendor(&data.string),
                     Property::FirmwareName => info.set_firmware_name(&data.string),
                     Property::FirmwareVersion => info.set_firmware_version(&data.string),
@@ -983,7 +983,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             property: h0001::Property::DeviceVersion,
         });
         let _ = intf.h0001_info(h0001::Cmd {
-            property: h0001::Property::DeviceMCU,
+            property: h0001::Property::DeviceMcu,
         });
         let _ = intf.h0001_info(h0001::Cmd {
             property: h0001::Property::DeviceVendor,
@@ -1244,7 +1244,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             });
         }
 
-        // Wait for ACK/NAK
+        // Wait for Ack/Nak
         match intf.result {
             Ok(_msg) => Promise::ok(()),
             Err(msg) => Promise::err(capnp::Error {
@@ -1310,7 +1310,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             });
         }
 
-        // Wait for ACK/NAK
+        // Wait for Ack/Nak
         match intf.result {
             Ok(_msg) => Promise::ok(()),
             Err(msg) => Promise::err(capnp::Error {
@@ -1728,9 +1728,9 @@ async fn server_subscriptions_keyboard(
             //  kll trigger (TODO)
             //  layer (TODO)
             let mut stream = stream.filter(|msg| {
-                msg.data.id == HidIoCommandID::TerminalOut
-                    || msg.data.id == HidIoCommandID::KLLState
-                    || msg.data.id == HidIoCommandID::HostMacro
+                msg.data.id == HidIoCommandId::TerminalOut
+                    || msg.data.id == HidIoCommandId::KllState
+                    || msg.data.id == HidIoCommandId::HostMacro
             });
 
             // Handle stream
@@ -1956,9 +1956,9 @@ async fn server_subscriptions_hidiowatcher(
                 });
                 packet.set_type(match msg.data.ptype {
                     HidIoPacketType::Data => hidio_capnp::hid_io::packet::Type::Data,
-                    HidIoPacketType::NAData => hidio_capnp::hid_io::packet::Type::NaData,
-                    HidIoPacketType::ACK => hidio_capnp::hid_io::packet::Type::Ack,
-                    HidIoPacketType::NAK => hidio_capnp::hid_io::packet::Type::Nak,
+                    HidIoPacketType::NaData => hidio_capnp::hid_io::packet::Type::NaData,
+                    HidIoPacketType::Ack => hidio_capnp::hid_io::packet::Type::Ack,
+                    HidIoPacketType::Nak => hidio_capnp::hid_io::packet::Type::Nak,
                     _ => hidio_capnp::hid_io::packet::Type::Unknown,
                 });
                 packet.set_id(msg.data.id as u32);
@@ -2153,14 +2153,14 @@ async fn server_subscriptions(
 }
 
 /// Supported Ids by this module
-pub fn supported_ids() -> Vec<HidIoCommandID> {
+pub fn supported_ids() -> Vec<HidIoCommandId> {
     vec![
-        HidIoCommandID::FlashMode,
-        HidIoCommandID::HostMacro,
-        HidIoCommandID::KLLState,
-        HidIoCommandID::SleepMode,
-        HidIoCommandID::TerminalCmd,
-        HidIoCommandID::TerminalOut,
+        HidIoCommandId::FlashMode,
+        HidIoCommandId::HostMacro,
+        HidIoCommandId::KllState,
+        HidIoCommandId::SleepMode,
+        HidIoCommandId::TerminalCmd,
+        HidIoCommandId::TerminalOut,
     ]
 }
 

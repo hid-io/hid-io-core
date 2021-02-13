@@ -20,7 +20,7 @@ use crate::api::Endpoint;
 use crate::api::UhidInfo;
 use crate::mailbox;
 use crate::module::vhid;
-use hid_io_protocol::HidIoCommandID;
+use hid_io_protocol::HidIoCommandId;
 use libc::{c_int, c_short, c_ulong, c_void};
 use std::io::{Error, ErrorKind};
 use std::os::unix::io::AsRawFd;
@@ -108,7 +108,7 @@ fn default_output_event(
 /// uhid NKRO Keyboard
 /// To create multiple unique devices, make sure to set uniq to a unique value so to differentiate
 /// betweent devices
-pub struct KeyboardNKRO {
+pub struct KeyboardNkro {
     mailbox: mailbox::Mailbox,
     uid: u64,
     _endpoint: Endpoint,
@@ -116,7 +116,7 @@ pub struct KeyboardNKRO {
     device: uhid_virt::UHIDDevice<std::fs::File>,
 }
 
-impl KeyboardNKRO {
+impl KeyboardNkro {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
         mailbox: mailbox::Mailbox,
@@ -128,7 +128,7 @@ impl KeyboardNKRO {
         product: u32,
         version: u32,
         country: u32,
-    ) -> std::io::Result<KeyboardNKRO> {
+    ) -> std::io::Result<KeyboardNkro> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
             name,
@@ -157,7 +157,7 @@ impl KeyboardNKRO {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        Ok(KeyboardNKRO {
+        Ok(KeyboardNkro {
             mailbox,
             uid,
             _endpoint: endpoint,
@@ -212,7 +212,7 @@ impl KeyboardNKRO {
                 .try_send_command(
                     mailbox::Address::DeviceHid { uid: self.uid },
                     mailbox::Address::All,
-                    HidIoCommandID::HIDKeyboardLED,
+                    HidIoCommandId::HidKeyboardLed,
                     data.to_vec(),
                     false,
                 )
@@ -224,7 +224,7 @@ impl KeyboardNKRO {
     }
 }
 
-impl Drop for KeyboardNKRO {
+impl Drop for KeyboardNkro {
     fn drop(&mut self) {
         // Unregister node
         self.mailbox.unregister_node(self.uid);
@@ -234,7 +234,7 @@ impl Drop for KeyboardNKRO {
 /// uhid 6KRO Keyboard
 /// To create multiple unique devices, make sure to set uniq to a unique value so to differentiate
 /// betweent devices
-pub struct Keyboard6KRO {
+pub struct Keyboard6kro {
     mailbox: mailbox::Mailbox,
     uid: u64,
     _endpoint: Endpoint,
@@ -242,7 +242,7 @@ pub struct Keyboard6KRO {
     device: uhid_virt::UHIDDevice<std::fs::File>,
 }
 
-impl Keyboard6KRO {
+impl Keyboard6kro {
     #![allow(clippy::too_many_arguments)]
     pub fn new(
         mailbox: mailbox::Mailbox,
@@ -254,7 +254,7 @@ impl Keyboard6KRO {
         product: u32,
         version: u32,
         country: u32,
-    ) -> std::io::Result<Keyboard6KRO> {
+    ) -> std::io::Result<Keyboard6kro> {
         // Setup creation parameters
         let params = uhid_virt::CreateParams {
             name,
@@ -283,7 +283,7 @@ impl Keyboard6KRO {
         // Register node
         mailbox.clone().register_node(endpoint.clone());
 
-        Ok(Keyboard6KRO {
+        Ok(Keyboard6kro {
             mailbox,
             uid,
             _endpoint: endpoint,
@@ -344,7 +344,7 @@ impl Keyboard6KRO {
                 .try_send_command(
                     mailbox::Address::DeviceHid { uid: self.uid },
                     mailbox::Address::All,
-                    HidIoCommandID::HIDKeyboardLED,
+                    HidIoCommandId::HidKeyboardLed,
                     data.to_vec(),
                     false,
                 )
@@ -356,7 +356,7 @@ impl Keyboard6KRO {
     }
 }
 
-impl Drop for Keyboard6KRO {
+impl Drop for Keyboard6kro {
     fn drop(&mut self) {
         // Unregister node
         self.mailbox.unregister_node(self.uid);
@@ -548,7 +548,7 @@ impl SysCtrlConsControl {
                     self.mailbox.send_command(
                         mailbox::Address::DeviceHid { uid: self.uid },
                         mailbox::Address::All,
-                        HidIoCommandID::HIDKeyboardLED,
+                        HidIoCommandId::HIDKeyboardLED,
                         data.to_vec(),
                     );
                 }
@@ -824,7 +824,7 @@ mod test {
         let uniq = nanoid::nanoid!();
 
         // Instantiate hid device
-        let mut keyboard = KeyboardNKRO::new(
+        let mut keyboard = KeyboardNkro::new(
             mailbox.clone(),
             name.clone(),
             "".to_string(),
@@ -964,7 +964,7 @@ mod test {
         let uniq = nanoid::nanoid!();
 
         // Instantiate hid device
-        let mut keyboard = Keyboard6KRO::new(
+        let mut keyboard = Keyboard6kro::new(
             mailbox.clone(),
             name.clone(),
             "".to_string(),

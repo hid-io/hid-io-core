@@ -46,9 +46,9 @@ pub enum CommandError {
     CallbackFailed,
     DataVecNoData,
     DataVecTooSmall,
-    IdNotImplemented(HidIoCommandID, HidIoPacketType),
-    IdNotMatched(HidIoCommandID),
-    IdNotSupported(HidIoCommandID),
+    IdNotImplemented(HidIoCommandId, HidIoPacketType),
+    IdNotMatched(HidIoCommandId),
+    IdNotSupported(HidIoCommandId),
     IdVecTooSmall,
     InvalidCStr,
     InvalidId(u32),
@@ -72,15 +72,15 @@ pub enum CommandError {
 
 /// Supported Ids
 pub mod h0000 {
-    use super::super::HidIoCommandID;
+    use super::super::HidIoCommandId;
     use heapless::{ArrayLength, Vec};
 
     #[derive(Clone, Debug)]
     pub struct Cmd {}
 
     #[derive(Clone, Debug)]
-    pub struct Ack<ID: ArrayLength<HidIoCommandID>> {
-        pub ids: Vec<HidIoCommandID, ID>,
+    pub struct Ack<ID: ArrayLength<HidIoCommandId>> {
+        pub ids: Vec<HidIoCommandId, ID>,
     }
 
     #[derive(Clone, Debug)]
@@ -102,7 +102,7 @@ pub mod h0001 {
         DeviceName = 0x04,
         DeviceSerialNumber = 0x05,
         DeviceVersion = 0x06,
-        DeviceMCU = 0x07,
+        DeviceMcu = 0x07,
         FirmwareName = 0x08,
         FirmwareVersion = 0x09,
         DeviceVendor = 0x0A,
@@ -113,14 +113,14 @@ pub mod h0001 {
 
     #[repr(u8)]
     #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
-    pub enum OSType {
+    pub enum OsType {
         Unknown = 0x00,
         Windows = 0x01,
         Linux = 0x02,
         Android = 0x03,
-        MacOS = 0x04,
-        IOS = 0x05,
-        ChromeOS = 0x06,
+        MacOs = 0x04,
+        Ios = 0x05,
+        ChromeOs = 0x06,
     }
 
     #[derive(Clone, Debug)]
@@ -133,7 +133,7 @@ pub mod h0001 {
         pub property: Property,
 
         /// OS Type field
-        pub os: OSType,
+        pub os: OsType,
 
         /// Number is set when the given property specifies a number
         pub number: u16,
@@ -529,8 +529,8 @@ pub mod h0051 {
 
 /// HID-IO Command Interface
 /// H - Max data payload length (HidIoPacketBuffer)
-/// ID - Max number of HidIoCommandIDs
-pub trait Commands<H: ArrayLength<u8>, ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>>
+/// ID - Max number of HidIoCommandIds
+pub trait Commands<H: ArrayLength<u8>, ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>>
 where
     H: core::fmt::Debug + Sub<B1> + Sub<U4>,
 {
@@ -539,7 +539,7 @@ where
 
     /// Check if id is valid for this interface
     /// (By default support all ids)
-    fn supported_id(&self, _id: HidIoCommandID) -> bool {
+    fn supported_id(&self, _id: HidIoCommandId) -> bool {
         true
     }
 
@@ -550,11 +550,11 @@ where
     }
 
     /// Simple empty ack
-    fn empty_ack(&mut self, id: HidIoCommandID) -> Result<(), CommandError> {
-        // Build empty ACK
+    fn empty_ack(&mut self, id: HidIoCommandId) -> Result<(), CommandError> {
+        // Build empty Ack
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
-            ptype: HidIoPacketType::ACK,
+            ptype: HidIoPacketType::Ack,
             // Packet id
             id,
             // Detect max size
@@ -567,11 +567,11 @@ where
     }
 
     /// Simple empty nak
-    fn empty_nak(&mut self, id: HidIoCommandID) -> Result<(), CommandError> {
-        // Build empty NAK
+    fn empty_nak(&mut self, id: HidIoCommandId) -> Result<(), CommandError> {
+        // Build empty Nak
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
-            ptype: HidIoPacketType::NAK,
+            ptype: HidIoPacketType::Nak,
             // Packet id
             id,
             // Detect max size
@@ -584,11 +584,11 @@ where
     }
 
     /// Simple byte ack
-    fn byte_ack(&mut self, id: HidIoCommandID, byte: u8) -> Result<(), CommandError> {
-        // Build ACK
+    fn byte_ack(&mut self, id: HidIoCommandId, byte: u8) -> Result<(), CommandError> {
+        // Build Ack
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
-            ptype: HidIoPacketType::ACK,
+            ptype: HidIoPacketType::Ack,
             // Packet id
             id,
             // Detect max size
@@ -601,11 +601,11 @@ where
     }
 
     /// Simple byte nak
-    fn byte_nak(&mut self, id: HidIoCommandID, byte: u8) -> Result<(), CommandError> {
-        // Build NAK
+    fn byte_nak(&mut self, id: HidIoCommandId, byte: u8) -> Result<(), CommandError> {
+        // Build Nak
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
-            ptype: HidIoPacketType::NAK,
+            ptype: HidIoPacketType::Nak,
             // Packet id
             id,
             // Detect max size
@@ -618,11 +618,11 @@ where
     }
 
     /// Simple short ack (16-bit)
-    fn short_ack(&mut self, id: HidIoCommandID, val: u16) -> Result<(), CommandError> {
-        // Build ACK
+    fn short_ack(&mut self, id: HidIoCommandId, val: u16) -> Result<(), CommandError> {
+        // Build Ack
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
-            ptype: HidIoPacketType::ACK,
+            ptype: HidIoPacketType::Ack,
             // Packet id
             id,
             // Detect max size
@@ -635,11 +635,11 @@ where
     }
 
     /// Simple short nak (16-bit)
-    fn short_nak(&mut self, id: HidIoCommandID, val: u16) -> Result<(), CommandError> {
-        // Build NAK
+    fn short_nak(&mut self, id: HidIoCommandId, val: u16) -> Result<(), CommandError> {
+        // Build Nak
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Data packet
-            ptype: HidIoPacketType::NAK,
+            ptype: HidIoPacketType::Nak,
             // Packet id
             id,
             // Detect max size
@@ -665,9 +665,9 @@ where
 
         // Check for invalid packet types
         match buf.ptype {
-            HidIoPacketType::Data | HidIoPacketType::NAData => {}
-            HidIoPacketType::ACK => {}
-            HidIoPacketType::NAK => {}
+            HidIoPacketType::Data | HidIoPacketType::NaData => {}
+            HidIoPacketType::Ack => {}
+            HidIoPacketType::Nak => {}
             _ => {
                 return Err(CommandError::InvalidRxMessage(buf.ptype));
             }
@@ -675,18 +675,18 @@ where
 
         // Match id
         match buf.id {
-            HidIoCommandID::SupportedIDs => self.h0000_supported_ids_handler(buf),
-            HidIoCommandID::GetInfo => self.h0001_info_handler(buf),
-            HidIoCommandID::TestPacket => self.h0002_test_handler(buf),
-            HidIoCommandID::ResetHidIo => self.h0003_resethidio_handler(buf),
-            HidIoCommandID::FlashMode => self.h0016_flashmode_handler(buf),
-            HidIoCommandID::UnicodeText => self.h0017_unicodetext_handler(buf),
-            HidIoCommandID::UnicodeState => self.h0018_unicodestate_handler(buf),
-            HidIoCommandID::SleepMode => self.h001a_sleepmode_handler(buf),
-            HidIoCommandID::TerminalCmd => self.h0031_terminalcmd_handler(buf),
-            HidIoCommandID::TerminalOut => self.h0034_terminalout_handler(buf),
-            HidIoCommandID::ManufacturingTest => self.h0050_manufacturing_handler(buf),
-            HidIoCommandID::ManufacturingResult => self.h0051_manufacturingres_handler(buf),
+            HidIoCommandId::SupportedIds => self.h0000_supported_ids_handler(buf),
+            HidIoCommandId::GetInfo => self.h0001_info_handler(buf),
+            HidIoCommandId::TestPacket => self.h0002_test_handler(buf),
+            HidIoCommandId::ResetHidIo => self.h0003_resethidio_handler(buf),
+            HidIoCommandId::FlashMode => self.h0016_flashmode_handler(buf),
+            HidIoCommandId::UnicodeText => self.h0017_unicodetext_handler(buf),
+            HidIoCommandId::UnicodeState => self.h0018_unicodestate_handler(buf),
+            HidIoCommandId::SleepMode => self.h001a_sleepmode_handler(buf),
+            HidIoCommandId::TerminalCmd => self.h0031_terminalcmd_handler(buf),
+            HidIoCommandId::TerminalOut => self.h0034_terminalout_handler(buf),
+            HidIoCommandId::ManufacturingTest => self.h0050_manufacturing_handler(buf),
+            HidIoCommandId::ManufacturingResult => self.h0051_manufacturingres_handler(buf),
             _ => Err(CommandError::IdNotMatched(buf.id)),
         }
     }
@@ -694,7 +694,7 @@ where
     fn h0000_supported_ids(&mut self, _data: h0000::Cmd) -> Result<(), CommandError> {
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::SupportedIDs,
+            id: HidIoCommandId::SupportedIds,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Ready to go
@@ -708,14 +708,14 @@ where
     }
     fn h0000_supported_ids_ack(&mut self, _data: h0000::Ack<ID>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::SupportedIDs,
-            HidIoPacketType::ACK,
+            HidIoCommandId::SupportedIds,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0000_supported_ids_nak(&mut self, _data: h0000::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::SupportedIDs,
-            HidIoPacketType::NAK,
+            HidIoCommandId::SupportedIds,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0000_supported_ids_handler(
@@ -727,10 +727,10 @@ where
             HidIoPacketType::Data => {
                 match self.h0000_supported_ids_cmd(h0000::Cmd {}) {
                     Ok(ack) => {
-                        // Build ACK
+                        // Build Ack
                         let mut buf = HidIoPacketBuffer {
                             // Data packet
-                            ptype: HidIoPacketType::ACK,
+                            ptype: HidIoPacketType::Ack,
                             // Packet id
                             id: buf.id,
                             // Detect max size
@@ -756,17 +756,17 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => {
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => {
                 // Retrieve list of ids
-                let mut ids: Vec<HidIoCommandID, ID> = Vec::new();
+                let mut ids: Vec<HidIoCommandId, ID> = Vec::new();
                 // Ids are always 16-bit le for this command
                 let mut pos = 0;
                 while pos <= buf.data.len() - 2 {
                     let slice = &buf.data[pos..pos + 2];
                     let idnum = u16::from_le_bytes(slice.try_into().unwrap()) as u32;
                     // Make sure this is a valid id
-                    let id = match HidIoCommandID::try_from(idnum) {
+                    let id = match HidIoCommandId::try_from(idnum) {
                         Ok(id) => id,
                         Err(_) => {
                             return Err(CommandError::InvalidId(idnum));
@@ -785,7 +785,7 @@ where
                 }
                 self.h0000_supported_ids_ack(h0000::Ack { ids })
             }
-            HidIoPacketType::NAK => self.h0000_supported_ids_nak(h0000::Nak {}),
+            HidIoPacketType::Nak => self.h0000_supported_ids_nak(h0000::Nak {}),
             _ => Ok(()),
         }
     }
@@ -794,7 +794,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::GetInfo,
+            id: HidIoCommandId::GetInfo,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Ready to go
@@ -823,14 +823,14 @@ where
         <H as Sub<B1>>::Output: ArrayLength<u8>,
     {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::GetInfo,
-            HidIoPacketType::ACK,
+            HidIoCommandId::GetInfo,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0001_info_nak(&mut self, _data: h0001::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::GetInfo,
-            HidIoPacketType::NAK,
+            HidIoCommandId::GetInfo,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0001_info_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError>
@@ -852,10 +852,10 @@ where
                 };
                 match self.h0001_info_cmd(h0001::Cmd { property }) {
                     Ok(ack) => {
-                        // Build ACK
+                        // Build Ack
                         let mut buf = HidIoPacketBuffer {
                             // Data packet
-                            ptype: HidIoPacketType::ACK,
+                            ptype: HidIoPacketType::Ack,
                             // Packet id
                             id: buf.id,
                             // Detect max size
@@ -907,8 +907,8 @@ where
                     Err(_nak) => self.byte_nak(buf.id, property as u8),
                 }
             }
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => {
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => {
                 if buf.data.len() < 1 {
                     return Err(CommandError::DataVecNoData);
                 }
@@ -923,7 +923,7 @@ where
                 // Setup ack struct
                 let mut ack = h0001::Ack {
                     property,
-                    os: h0001::OSType::Unknown,
+                    os: h0001::OsType::Unknown,
                     number: 0,
                     string: String::new(),
                 };
@@ -942,7 +942,7 @@ where
                     // Handle 8-bit os type
                     h0001::Property::OsType => {
                         let typenum = buf.data[1];
-                        ack.os = match h0001::OSType::try_from(typenum) {
+                        ack.os = match h0001::OsType::try_from(typenum) {
                             Ok(ostype) => ostype,
                             Err(_) => {
                                 return Err(CommandError::InvalidProperty8(typenum));
@@ -965,7 +965,7 @@ where
 
                 self.h0001_info_ack(ack)
             }
-            HidIoPacketType::NAK => {
+            HidIoPacketType::Nak => {
                 if buf.data.len() < 1 {
                     return Err(CommandError::DataVecNoData);
                 }
@@ -986,7 +986,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::TestPacket,
+            id: HidIoCommandId::TestPacket,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -995,7 +995,7 @@ where
 
         // Set NA (no-ack)
         if na {
-            buf.ptype = HidIoPacketType::NAData;
+            buf.ptype = HidIoPacketType::NaData;
         }
 
         // Build payload
@@ -1011,20 +1011,20 @@ where
     }
     fn h0002_test_nacmd(&mut self, _data: h0002::Cmd<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TestPacket,
-            HidIoPacketType::NAData,
+            HidIoCommandId::TestPacket,
+            HidIoPacketType::NaData,
         ))
     }
     fn h0002_test_ack(&mut self, _data: h0002::Ack<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TestPacket,
-            HidIoPacketType::ACK,
+            HidIoCommandId::TestPacket,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0002_test_nak(&mut self, _data: h0002::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TestPacket,
-            HidIoPacketType::NAK,
+            HidIoCommandId::TestPacket,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0002_test_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1043,10 +1043,10 @@ where
 
                 match self.h0002_test_cmd(cmd) {
                     Ok(ack) => {
-                        // Build ACK (max test data size)
+                        // Build Ack (max test data size)
                         let mut buf = HidIoPacketBuffer {
                             // Data packet
-                            ptype: HidIoPacketType::ACK,
+                            ptype: HidIoPacketType::Ack,
                             // Packet id
                             id: buf.id,
                             // Detect max size
@@ -1064,7 +1064,7 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => {
+            HidIoPacketType::NaData => {
                 // Copy data into struct
                 let cmd = h0002::Cmd::<H> {
                     data: match Vec::from_slice(&buf.data) {
@@ -1077,7 +1077,7 @@ where
 
                 self.h0002_test_nacmd(cmd)
             }
-            HidIoPacketType::ACK => {
+            HidIoPacketType::Ack => {
                 // Copy data into struct
                 let ack = h0002::Ack::<H> {
                     data: match Vec::from_slice(&buf.data) {
@@ -1090,7 +1090,7 @@ where
 
                 self.h0002_test_ack(ack)
             }
-            HidIoPacketType::NAK => self.h0002_test_nak(h0002::Nak {}),
+            HidIoPacketType::Nak => self.h0002_test_nak(h0002::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1098,7 +1098,7 @@ where
     fn h0003_resethidio(&mut self, _data: h0003::Cmd) -> Result<(), CommandError> {
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::ResetHidIo,
+            id: HidIoCommandId::ResetHidIo,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Ready
@@ -1112,14 +1112,14 @@ where
     }
     fn h0003_resethidio_ack(&mut self, _data: h0003::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::ResetHidIo,
-            HidIoPacketType::ACK,
+            HidIoCommandId::ResetHidIo,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0003_resethidio_nak(&mut self, _data: h0003::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::ResetHidIo,
-            HidIoPacketType::NAK,
+            HidIoCommandId::ResetHidIo,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0003_resethidio_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1129,9 +1129,9 @@ where
                 Ok(_ack) => self.empty_ack(buf.id),
                 Err(_nak) => self.empty_nak(buf.id),
             },
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => self.h0003_resethidio_ack(h0003::Ack {}),
-            HidIoPacketType::NAK => self.h0003_resethidio_nak(h0003::Nak {}),
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => self.h0003_resethidio_ack(h0003::Ack {}),
+            HidIoPacketType::Nak => self.h0003_resethidio_nak(h0003::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1139,7 +1139,7 @@ where
     fn h0016_flashmode(&mut self, _data: h0016::Cmd) -> Result<(), CommandError> {
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::FlashMode,
+            id: HidIoCommandId::FlashMode,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Ready
@@ -1155,14 +1155,14 @@ where
     }
     fn h0016_flashmode_ack(&mut self, _data: h0016::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::FlashMode,
-            HidIoPacketType::ACK,
+            HidIoCommandId::FlashMode,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0016_flashmode_nak(&mut self, _data: h0016::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::FlashMode,
-            HidIoPacketType::NAK,
+            HidIoCommandId::FlashMode,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0016_flashmode_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1172,8 +1172,8 @@ where
                 Ok(ack) => self.short_ack(buf.id, ack.scancode),
                 Err(nak) => self.byte_nak(buf.id, nak.error as u8),
             },
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => {
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => {
                 if buf.data.len() < 2 {
                     return Err(CommandError::DataVecNoData);
                 }
@@ -1181,7 +1181,7 @@ where
                 let scancode = u16::from_le_bytes(buf.data[0..2].try_into().unwrap());
                 self.h0016_flashmode_ack(h0016::Ack { scancode })
             }
-            HidIoPacketType::NAK => {
+            HidIoPacketType::Nak => {
                 if buf.data.len() < 1 {
                     return Err(CommandError::DataVecNoData);
                 }
@@ -1202,7 +1202,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::UnicodeText,
+            id: HidIoCommandId::UnicodeText,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -1211,7 +1211,7 @@ where
 
         // Set NA (no-ack)
         if na {
-            buf.ptype = HidIoPacketType::NAData;
+            buf.ptype = HidIoPacketType::NaData;
         }
 
         // Build payload
@@ -1227,20 +1227,20 @@ where
     }
     fn h0017_unicodetext_nacmd(&mut self, _data: h0017::Cmd<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::UnicodeText,
-            HidIoPacketType::NAData,
+            HidIoCommandId::UnicodeText,
+            HidIoPacketType::NaData,
         ))
     }
     fn h0017_unicodetext_ack(&mut self, _data: h0017::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::UnicodeText,
-            HidIoPacketType::ACK,
+            HidIoCommandId::UnicodeText,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0017_unicodetext_nak(&mut self, _data: h0017::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::UnicodeText,
-            HidIoPacketType::NAK,
+            HidIoCommandId::UnicodeText,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0017_unicodetext_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1262,7 +1262,7 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => {
+            HidIoPacketType::NaData => {
                 // Copy data into struct
                 let cmd = h0017::Cmd::<H> {
                     string: match String::from_utf8(buf.data) {
@@ -1275,8 +1275,8 @@ where
 
                 self.h0017_unicodetext_nacmd(cmd)
             }
-            HidIoPacketType::ACK => self.h0017_unicodetext_ack(h0017::Ack {}),
-            HidIoPacketType::NAK => self.h0017_unicodetext_nak(h0017::Nak {}),
+            HidIoPacketType::Ack => self.h0017_unicodetext_ack(h0017::Ack {}),
+            HidIoPacketType::Nak => self.h0017_unicodetext_nak(h0017::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1285,7 +1285,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::UnicodeState,
+            id: HidIoCommandId::UnicodeState,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -1294,7 +1294,7 @@ where
 
         // Set NA (no-ack)
         if na {
-            buf.ptype = HidIoPacketType::NAData;
+            buf.ptype = HidIoPacketType::NaData;
         }
 
         // Build payload
@@ -1310,20 +1310,20 @@ where
     }
     fn h0018_unicodestate_nacmd(&mut self, _data: h0018::Cmd<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::UnicodeState,
-            HidIoPacketType::NAData,
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::NaData,
         ))
     }
     fn h0018_unicodestate_ack(&mut self, _data: h0018::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::UnicodeState,
-            HidIoPacketType::ACK,
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0018_unicodestate_nak(&mut self, _data: h0018::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::UnicodeState,
-            HidIoPacketType::NAK,
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0018_unicodestate_handler(
@@ -1348,7 +1348,7 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => {
+            HidIoPacketType::NaData => {
                 // Copy data into struct
                 let cmd = h0018::Cmd::<H> {
                     symbols: match String::from_utf8(buf.data) {
@@ -1361,8 +1361,8 @@ where
 
                 self.h0018_unicodestate_nacmd(cmd)
             }
-            HidIoPacketType::ACK => self.h0018_unicodestate_ack(h0018::Ack {}),
-            HidIoPacketType::NAK => self.h0018_unicodestate_nak(h0018::Nak {}),
+            HidIoPacketType::Ack => self.h0018_unicodestate_ack(h0018::Ack {}),
+            HidIoPacketType::Nak => self.h0018_unicodestate_nak(h0018::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1370,7 +1370,7 @@ where
     fn h001a_sleepmode(&mut self, _data: h001a::Cmd) -> Result<(), CommandError> {
         self.tx_packetbuffer_send(&mut HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::SleepMode,
+            id: HidIoCommandId::SleepMode,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Ready
@@ -1386,14 +1386,14 @@ where
     }
     fn h001a_sleepmode_ack(&mut self, _data: h001a::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::FlashMode,
-            HidIoPacketType::ACK,
+            HidIoCommandId::FlashMode,
+            HidIoPacketType::Ack,
         ))
     }
     fn h001a_sleepmode_nak(&mut self, _data: h001a::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::FlashMode,
-            HidIoPacketType::NAK,
+            HidIoCommandId::FlashMode,
+            HidIoPacketType::Nak,
         ))
     }
     fn h001a_sleepmode_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1403,9 +1403,9 @@ where
                 Ok(_ack) => self.empty_ack(buf.id),
                 Err(nak) => self.byte_nak(buf.id, nak.error as u8),
             },
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => self.h001a_sleepmode_ack(h001a::Ack {}),
-            HidIoPacketType::NAK => {
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => self.h001a_sleepmode_ack(h001a::Ack {}),
+            HidIoPacketType::Nak => {
                 if buf.data.len() < 1 {
                     return Err(CommandError::DataVecNoData);
                 }
@@ -1426,7 +1426,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::TerminalCmd,
+            id: HidIoCommandId::TerminalCmd,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -1435,7 +1435,7 @@ where
 
         // Set NA (no-ack)
         if na {
-            buf.ptype = HidIoPacketType::NAData;
+            buf.ptype = HidIoPacketType::NaData;
         }
 
         // Build payload
@@ -1451,20 +1451,20 @@ where
     }
     fn h0031_terminalcmd_nacmd(&mut self, _data: h0031::Cmd<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TerminalCmd,
-            HidIoPacketType::NAData,
+            HidIoCommandId::TerminalCmd,
+            HidIoPacketType::NaData,
         ))
     }
     fn h0031_terminalcmd_ack(&mut self, _data: h0031::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TerminalCmd,
-            HidIoPacketType::ACK,
+            HidIoCommandId::TerminalCmd,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0031_terminalcmd_nak(&mut self, _data: h0031::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TerminalCmd,
-            HidIoPacketType::NAK,
+            HidIoCommandId::TerminalCmd,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0031_terminalcmd_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1486,7 +1486,7 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => {
+            HidIoPacketType::NaData => {
                 // Copy data into struct
                 let cmd = h0031::Cmd::<H> {
                     command: match String::from_utf8(buf.data) {
@@ -1499,8 +1499,8 @@ where
 
                 self.h0031_terminalcmd_nacmd(cmd)
             }
-            HidIoPacketType::ACK => self.h0031_terminalcmd_ack(h0031::Ack {}),
-            HidIoPacketType::NAK => self.h0031_terminalcmd_nak(h0031::Nak {}),
+            HidIoPacketType::Ack => self.h0031_terminalcmd_ack(h0031::Ack {}),
+            HidIoPacketType::Nak => self.h0031_terminalcmd_nak(h0031::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1509,7 +1509,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::TerminalOut,
+            id: HidIoCommandId::TerminalOut,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -1518,7 +1518,7 @@ where
 
         // Set NA (no-ack)
         if na {
-            buf.ptype = HidIoPacketType::NAData;
+            buf.ptype = HidIoPacketType::NaData;
         }
 
         // Build payload
@@ -1534,20 +1534,20 @@ where
     }
     fn h0034_terminalout_nacmd(&mut self, _data: h0034::Cmd<H>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TerminalOut,
-            HidIoPacketType::NAData,
+            HidIoCommandId::TerminalOut,
+            HidIoPacketType::NaData,
         ))
     }
     fn h0034_terminalout_ack(&mut self, _data: h0034::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TerminalOut,
-            HidIoPacketType::ACK,
+            HidIoCommandId::TerminalOut,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0034_terminalout_nak(&mut self, _data: h0034::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::TerminalOut,
-            HidIoPacketType::NAK,
+            HidIoCommandId::TerminalOut,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0034_terminalout_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -1569,7 +1569,7 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => {
+            HidIoPacketType::NaData => {
                 // Copy data into struct
                 let cmd = h0034::Cmd::<H> {
                     output: match String::from_utf8(buf.data) {
@@ -1582,8 +1582,8 @@ where
 
                 self.h0034_terminalout_nacmd(cmd)
             }
-            HidIoPacketType::ACK => self.h0034_terminalout_ack(h0034::Ack {}),
-            HidIoPacketType::NAK => self.h0034_terminalout_nak(h0034::Nak {}),
+            HidIoPacketType::Ack => self.h0034_terminalout_ack(h0034::Ack {}),
+            HidIoPacketType::Nak => self.h0034_terminalout_nak(h0034::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1592,7 +1592,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::ManufacturingTest,
+            id: HidIoCommandId::ManufacturingTest,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -1616,14 +1616,14 @@ where
     }
     fn h0050_manufacturing_ack(&mut self, _data: h0050::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::ManufacturingTest,
-            HidIoPacketType::ACK,
+            HidIoCommandId::ManufacturingTest,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0050_manufacturing_nak(&mut self, _data: h0050::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::ManufacturingTest,
-            HidIoPacketType::NAK,
+            HidIoCommandId::ManufacturingTest,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0050_manufacturing_handler(
@@ -1646,9 +1646,9 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => self.h0050_manufacturing_ack(h0050::Ack {}),
-            HidIoPacketType::NAK => self.h0050_manufacturing_nak(h0050::Nak {}),
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => self.h0050_manufacturing_ack(h0050::Ack {}),
+            HidIoPacketType::Nak => self.h0050_manufacturing_nak(h0050::Nak {}),
             _ => Ok(()),
         }
     }
@@ -1660,7 +1660,7 @@ where
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
-            id: HidIoCommandID::ManufacturingResult,
+            id: HidIoCommandId::ManufacturingResult,
             // Detect max size
             max_len: self.default_packet_chunk(),
             // Use defaults for other fields
@@ -1693,14 +1693,14 @@ where
     }
     fn h0051_manufacturingres_ack(&mut self, _data: h0051::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::ManufacturingTest,
-            HidIoPacketType::ACK,
+            HidIoCommandId::ManufacturingTest,
+            HidIoPacketType::Ack,
         ))
     }
     fn h0051_manufacturingres_nak(&mut self, _data: h0051::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandID::ManufacturingTest,
-            HidIoPacketType::NAK,
+            HidIoCommandId::ManufacturingTest,
+            HidIoPacketType::Nak,
         ))
     }
     fn h0051_manufacturingres_handler(
@@ -1735,9 +1735,9 @@ where
                     Err(_nak) => self.empty_nak(buf.id),
                 }
             }
-            HidIoPacketType::NAData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
-            HidIoPacketType::ACK => self.h0051_manufacturingres_ack(h0051::Ack {}),
-            HidIoPacketType::NAK => self.h0051_manufacturingres_nak(h0051::Nak {}),
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => self.h0051_manufacturingres_ack(h0051::Ack {}),
+            HidIoPacketType::Nak => self.h0051_manufacturingres_nak(h0051::Nak {}),
             _ => Ok(()),
         }
     }

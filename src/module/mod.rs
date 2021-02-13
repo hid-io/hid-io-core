@@ -22,29 +22,18 @@ pub mod vhid;
 use crate::api;
 use crate::device;
 use crate::mailbox;
-use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
+use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use tokio::stream::StreamExt;
-
-/* TODO Removeme?
-fn as_u8_slice(v: &[u16]) -> &[u8] {
-    unsafe {
-        std::slice::from_raw_parts(
-            v.as_ptr() as *const u8,
-            v.len() * std::mem::size_of::<u16>(),
-        )
-    }
-}
-*/
 
 /// Supported Ids by this module
 /// recursive option applies supported ids from child modules as well
-pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandID> {
+pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandId> {
     let mut ids = vec![
-        HidIoCommandID::GetProperties,
-        HidIoCommandID::HostMacro,
-        HidIoCommandID::KLLState,
-        HidIoCommandID::OpenURL,
-        HidIoCommandID::SupportedIDs,
+        HidIoCommandId::GetProperties,
+        HidIoCommandId::HostMacro,
+        HidIoCommandId::KllState,
+        HidIoCommandId::OpenUrl,
+        HidIoCommandId::SupportedIds,
     ];
     if recursive {
         ids.extend(displayserver::supported_ids().iter().cloned());
@@ -77,7 +66,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                 )
                 .filter(|msg| msg.dst == mailbox::Address::Module || msg.dst == mailbox::Address::All)
                 .filter(|msg| supported_ids(false).contains(&msg.data.id))
-                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
+                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NaData);
         }
 
         // Process filtered message stream
@@ -86,7 +75,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
             debug!("Processing command: {:?}", msg.data.id);
             /* TODO
             match msg.data.id {
-                HidIoCommandID::SupportedIDs => {
+                HidIoCommandId::SupportedIDs => {
                     let ids = supported_ids(false)
                         .iter()
                         .map(|x| *x as u16)
@@ -94,7 +83,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                     trace!("Acking SupportedIDs");
                     msg.send_ack(sender.clone(), as_u8_slice(&ids).to_vec());
                 }
-                HidIoCommandID::GetProperties => {
+                HidIoCommandId::GetProperties => {
                     use crate::built_info;
                     let property: HidIoPropertyID = unsafe { std::mem::transmute(mydata[0]) };
                     info!("Get prop {:?}", property);
@@ -141,22 +130,22 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                     };
                     trace!("Acking GetProperties");
                 }
-                HidIoCommandID::HostMacro => {
+                HidIoCommandId::HostMacro => {
                     warn!("Host Macro not implemented");
                     msg.send_nak(sender.clone(), vec![]);
                 }
-                HidIoCommandID::KLLState => {
+                HidIoCommandId::KLLState => {
                     warn!("KLL State not implemented");
                     msg.send_nak(sender.clone(), vec![]);
                 }
-                HidIoCommandID::OpenURL => {
+                HidIoCommandId::OpenURL => {
                     let s = String::from_utf8(mydata).unwrap();
                     println!("Open url: {}", s);
                     open::that(s).unwrap();
                     trace!("Acking OpenURL");
                     msg.send_ack(sender.clone(), vec![]);
                 }
-                HidIoCommandID::TerminalOut => {
+                HidIoCommandId::TerminalOut => {
                     if msg.data.ptype == HidIoPacketType::Data {
                         trace!("Acking TerminalOut");
                         msg.send_ack(sender.clone(), vec![]);
@@ -186,13 +175,13 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
                     api::supported_ids().contains(&msg.data.id) ||
                     device::supported_ids(true).contains(&msg.data.id)
                 ))
-                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NAData);
+                .filter(|msg| msg.data.ptype == HidIoPacketType::Data || msg.data.ptype == HidIoPacketType::NaData);
         }
 
         // Process filtered message stream
         while let Some(msg) = stream.next().await {
             warn!("Unknown command ID: {:?} ({})", msg.data.id, msg.data.ptype);
-            // Only send NAK with Data packets (NAData packets don't have acknowledgements, so just
+            // Only send NAK with Data packets (NaData packets don't have acknowledgements, so just
             // warn)
             if msg.data.ptype == HidIoPacketType::Data {
                 msg.send_nak(sender.clone(), vec![]);
@@ -213,10 +202,10 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
 #[cfg(not(feature = "displayserver"))]
 mod displayserver {
     use crate::mailbox;
-    use hid_io_protocol::HidIoCommandID;
+    use hid_io_protocol::HidIoCommandId;
 
     pub async fn initialize(_mailbox: mailbox::Mailbox) {}
-    pub fn supported_ids() -> Vec<HidIoCommandID> {
+    pub fn supported_ids() -> Vec<HidIoCommandId> {
         vec![]
     }
 }

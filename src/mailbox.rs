@@ -21,7 +21,7 @@
 use crate::api::Endpoint;
 use heapless::consts::U500;
 use hid_io_protocol::commands::CommandError;
-use hid_io_protocol::{HidIoCommandID, HidIoPacketType};
+use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokio::stream::StreamExt;
@@ -192,13 +192,13 @@ impl Mailbox {
     }
 
     /// Convenience function to send a HidIo Command to device using the mailbox
-    /// Returns the ACK message if enabled.
-    /// ACK will timeout if it exceeds self.ack_timeout
+    /// Returns the Ack message if enabled.
+    /// Ack will timeout if it exceeds self.ack_timeout
     pub async fn send_command(
         &self,
         src: Address,
         dst: Address,
-        id: HidIoCommandID,
+        id: HidIoCommandId,
         data: Vec<u8>,
         ack: bool,
     ) -> Result<Option<Message>, AckWaitError> {
@@ -246,7 +246,7 @@ impl Mailbox {
             return Err(AckWaitError::NoActiveReceivers);
         }
 
-        // No ACK data packet command, no ACK to wait for
+        // No Ack data packet command, no Ack to wait for
         if !ack {
             return Ok(None);
         }
@@ -266,13 +266,13 @@ impl Mailbox {
                 Ok(msg) => {
                     if let Some(msg) = msg {
                         match msg.data.ptype {
-                            HidIoPacketType::ACK => {
+                            HidIoPacketType::Ack => {
                                 return Ok(Some(msg));
                             }
-                            // We may still want the message data from a NAK
-                            HidIoPacketType::NAK => {
+                            // We may still want the message data from a Nak
+                            HidIoPacketType::Nak => {
                                 let msg = Box::new(msg);
-                                return Err(AckWaitError::NAKReceived { msg });
+                                return Err(AckWaitError::NakReceived { msg });
                             }
                             _ => {}
                         }
@@ -281,7 +281,7 @@ impl Mailbox {
                     }
                 }
                 Err(_) => {
-                    warn!("Timeout ({:?}) receiving ACK for: {}", ack_timeout, data);
+                    warn!("Timeout ({:?}) receiving Ack for: {}", ack_timeout, data);
                     return Err(AckWaitError::Timeout);
                 }
             }
@@ -289,7 +289,7 @@ impl Mailbox {
     }
 
     /// Convenience function to send a HidIoPacketBuffer using the mailbox
-    /// Returns the ACK message if available and applicable
+    /// Returns the Ack message if available and applicable
     pub fn try_send_message(&self, msg: Message) -> Result<Option<Message>, CommandError> {
         // Check receiver count
         if self.sender.receiver_count() == 0 {
@@ -323,7 +323,7 @@ impl Mailbox {
             // Check for timeout
             if start_time.elapsed() >= *self.ack_timeout.read().unwrap() {
                 warn!(
-                    "Timeout ({:?}) receiving ACK for command: src:{:?} dst:{:?}",
+                    "Timeout ({:?}) receiving Ack for command: src:{:?} dst:{:?}",
                     *self.ack_timeout.read().unwrap(),
                     msg.src,
                     msg.dst
@@ -340,7 +340,7 @@ impl Mailbox {
                         && rcvmsg.data.id == msg.data.id
                     {
                         match rcvmsg.data.ptype {
-                            HidIoPacketType::ACK | HidIoPacketType::NAK => {
+                            HidIoPacketType::Ack | HidIoPacketType::Nak => {
                                 return Ok(Some(rcvmsg));
                             }
                             _ => {}
@@ -362,14 +362,14 @@ impl Mailbox {
     }
 
     /// Convenience function to send a HidIo Command to device using the mailbox
-    /// Returns the ACK message if enabled.
+    /// Returns the Ack message if enabled.
     /// This is the blocking version of send_command().
-    /// ACK will timeout if it exceeds self.ack_timeout
+    /// Ack will timeout if it exceeds self.ack_timeout
     pub fn try_send_command(
         &self,
         src: Address,
         dst: Address,
-        id: HidIoCommandID,
+        id: HidIoCommandId,
         data: Vec<u8>,
         ack: bool,
     ) -> Result<Option<Message>, AckWaitError> {
@@ -413,7 +413,7 @@ impl Mailbox {
             return Err(AckWaitError::NoActiveReceivers);
         }
 
-        // No ACK data packet command, no ACK to wait for
+        // No Ack data packet command, no Ack to wait for
         if !ack {
             return Ok(None);
         }
@@ -424,7 +424,7 @@ impl Mailbox {
             // Check for timeout
             if start_time.elapsed() >= *self.ack_timeout.read().unwrap() {
                 warn!(
-                    "Timeout ({:?}) receiving ACK for command: src:{:?} dst:{:?}",
+                    "Timeout ({:?}) receiving Ack for command: src:{:?} dst:{:?}",
                     *self.ack_timeout.read().unwrap(),
                     src,
                     dst
@@ -439,13 +439,13 @@ impl Mailbox {
                     // The HIDIO device does not keep track of senders, so it will be all
                     if msg.dst == Address::All && msg.src == dst && msg.data.id == id {
                         match msg.data.ptype {
-                            HidIoPacketType::ACK => {
+                            HidIoPacketType::Ack => {
                                 return Ok(Some(msg));
                             }
-                            // We may still want the message data from a NAK
-                            HidIoPacketType::NAK => {
+                            // We may still want the message data from a Nak
+                            HidIoPacketType::Nak => {
                                 let msg = Box::new(msg);
-                                return Err(AckWaitError::NAKReceived { msg });
+                                return Err(AckWaitError::NakReceived { msg });
                             }
                             _ => {}
                         }
@@ -532,7 +532,7 @@ impl Message {
 
         // Construct ack packet
         let data = HidIoPacketBuffer {
-            ptype: HidIoPacketType::ACK,
+            ptype: HidIoPacketType::Ack,
             id: self.data.id, // id,
             max_len: 64,      // Default
             data: heapless::Vec::from_slice(&data).unwrap(),
@@ -547,14 +547,14 @@ impl Message {
         }
     }
 
-    /// Rejection/NAK of a HidIo packet
+    /// Rejection/Nak of a HidIo packet
     pub fn send_nak(&self, sender: broadcast::Sender<Message>, data: Vec<u8>) {
         let src = self.dst;
         let dst = self.src;
 
         // Construct ack packet
         let data = HidIoPacketBuffer {
-            ptype: HidIoPacketType::NAK,
+            ptype: HidIoPacketType::Nak,
             id: self.data.id, // id,
             max_len: 64,      // Default
             data: heapless::Vec::from_slice(&data).unwrap(),
@@ -573,7 +573,7 @@ impl Message {
 #[derive(Debug)]
 pub enum AckWaitError {
     TooManySyncs,
-    NAKReceived { msg: Box<Message> },
+    NakReceived { msg: Box<Message> },
     Invalid,
     NoActiveReceivers,
     Timeout,

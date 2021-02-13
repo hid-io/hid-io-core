@@ -24,7 +24,7 @@ use futures::{AsyncReadExt, FutureExt};
 use hid_io_core::common_capnp::NodeType;
 use hid_io_core::hidio_capnp::hid_io;
 use hid_io_core::hidio_capnp::hid_io_server;
-use hid_io_protocol::HidIoCommandID;
+use hid_io_protocol::HidIoCommandId;
 use rand::Rng;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -120,7 +120,7 @@ impl NodesSubscriberImpl {
                 src_node_type,
                 dst,
                 dst_node_type,
-                HidIoCommandID::try_from(packet.get_id()).unwrap_or(HidIoCommandID::Unused),
+                HidIoCommandId::try_from(packet.get_id()).unwrap_or(HidIoCommandId::Unused),
                 packet.get_id(),
                 datalen,
             )
@@ -133,7 +133,7 @@ impl NodesSubscriberImpl {
                 src_node_type,
                 dst,
                 dst_node_type,
-                HidIoCommandID::try_from(packet.get_id()).unwrap_or(HidIoCommandID::Unused),
+                HidIoCommandId::try_from(packet.get_id()).unwrap_or(HidIoCommandId::Unused),
                 packet.get_id(),
                 datalen,
                 datastr,

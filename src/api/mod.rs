@@ -25,7 +25,7 @@ mod capnp;
 pub use crate::common_capnp;
 
 use crate::mailbox;
-use hid_io_protocol::HidIoCommandID;
+use hid_io_protocol::HidIoCommandId;
 use std::time::Instant;
 
 // ----- Functions -----
@@ -133,9 +133,9 @@ impl EvdevInfo {
     }
 }
 
-/// HIDAPI Information
+/// HidApi Information
 #[derive(Debug, Clone, Default)]
-pub struct HIDAPIInfo {
+pub struct HidApiInfo {
     pub path: String,
     pub vendor_id: u16,
     pub product_id: u16,
@@ -148,7 +148,7 @@ pub struct HIDAPIInfo {
     pub interface_number: i32,
 }
 
-impl HIDAPIInfo {
+impl HidApiInfo {
     /// Generate a unique string based off of hidapi information (excluding path/physical location)
     pub fn key(&mut self) -> String {
         format!(
@@ -165,8 +165,8 @@ impl HIDAPIInfo {
     }
 
     #[cfg(feature = "hidapi-devices")]
-    pub fn new(device_info: &hidapi::DeviceInfo) -> HIDAPIInfo {
-        HIDAPIInfo {
+    pub fn new(device_info: &hidapi::DeviceInfo) -> HidApiInfo {
+        HidApiInfo {
             path: format!("{:#?}", device_info.path()),
             vendor_id: device_info.vendor_id(),
             product_id: device_info.product_id(),
@@ -212,7 +212,7 @@ pub struct Endpoint {
     serial: String, // Used for hidio (e.g. hidioDaemon, hidioApi) types
     pub uid: u64,
     created: Instant,
-    hidapi: HIDAPIInfo,
+    hidapi: HidApiInfo,
     evdev: EvdevInfo,
     uhid: UhidInfo,
 }
@@ -263,7 +263,7 @@ impl Endpoint {
             serial: "".to_string(),
             uid,
             created: Instant::now(),
-            hidapi: HIDAPIInfo {
+            hidapi: HidApiInfo {
                 ..Default::default()
             },
             evdev: EvdevInfo {
@@ -291,7 +291,7 @@ impl Endpoint {
         self.serial = serial;
     }
 
-    pub fn set_hidapi_params(&mut self, info: HIDAPIInfo) {
+    pub fn set_hidapi_params(&mut self, info: HidApiInfo) {
         self.hidapi = info;
         self.name = self.name();
         self.serial = self.serial();
@@ -372,12 +372,12 @@ impl Endpoint {
 
 /// Supported Ids by this module
 #[cfg(feature = "api")]
-pub fn supported_ids() -> Vec<HidIoCommandID> {
+pub fn supported_ids() -> Vec<HidIoCommandId> {
     capnp::supported_ids()
 }
 
 #[cfg(not(feature = "api"))]
-pub fn supported_ids() -> Vec<HidIoCommandID> {
+pub fn supported_ids() -> Vec<HidIoCommandId> {
     vec![]
 }
 

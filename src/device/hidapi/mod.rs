@@ -19,7 +19,7 @@
 
 use crate::api::common_capnp::NodeType;
 use crate::api::Endpoint;
-use crate::api::HIDAPIInfo;
+use crate::api::HidApiInfo;
 use crate::device::*;
 use crate::RUNNING;
 use lazy_static::lazy_static;
@@ -35,19 +35,19 @@ const USB_FULLSPEED_PACKET_SIZE: usize = 64;
 const ENUMERATE_DELAY_MS: u64 = 1000;
 const TIMEOUT_MS: i32 = 500;
 
-pub struct HIDAPIDevice {
+pub struct HidApiDevice {
     device: ::hidapi::HidDevice,
     timeout: i32,
 }
 
-impl HIDAPIDevice {
-    pub fn new(device: ::hidapi::HidDevice, timeout: i32) -> HIDAPIDevice {
+impl HidApiDevice {
+    pub fn new(device: ::hidapi::HidDevice, timeout: i32) -> HidApiDevice {
         device.set_blocking_mode(true).unwrap(); // Enable blocking mode, use timeouts to unblock
-        HIDAPIDevice { device, timeout }
+        HidApiDevice { device, timeout }
     }
 }
 
-impl std::io::Read for HIDAPIDevice {
+impl std::io::Read for HidApiDevice {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self.device.read_timeout(buf, self.timeout) {
             Ok(len) => {
@@ -67,7 +67,7 @@ impl std::io::Read for HIDAPIDevice {
         }
     }
 }
-impl std::io::Write for HIDAPIDevice {
+impl std::io::Write for HidApiDevice {
     fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
         let buf = {
             #[allow(clippy::needless_bool)]
@@ -120,7 +120,7 @@ impl std::io::Write for HIDAPIDevice {
     }
 }
 
-impl HidIoTransport for HIDAPIDevice {}
+impl HidIoTransport for HidApiDevice {}
 
 fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
     let mut string = format!(
@@ -215,7 +215,7 @@ async fn processing(mailbox: mailbox::Mailbox) {
             }
 
             // Build set of HID info to make unique comparisons
-            let mut info = HIDAPIInfo::new(device_info);
+            let mut info = HidApiInfo::new(device_info);
 
             // Determine if id can be reused
             // Criteria
@@ -277,7 +277,7 @@ async fn processing(mailbox: mailbox::Mailbox) {
                     match hid_device {
                         Ok(device) => {
                             println!("Connected to {}", node);
-                            let device = HIDAPIDevice::new(device, TIMEOUT_MS);
+                            let device = HidApiDevice::new(device, TIMEOUT_MS);
                             let mut device = HidIoEndpoint::new(
                                 Box::new(device),
                                 USB_FULLSPEED_PACKET_SIZE as u32,

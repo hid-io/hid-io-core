@@ -71,25 +71,25 @@ macro_rules! error {
 pub enum HidIoPacketType {
     /// Data packet
     Data = 0,
-    /// ACK packet
-    ACK = 1,
-    /// NAK packet
-    NAK = 2,
+    /// Ack packet
+    Ack = 1,
+    /// Nak packet
+    Nak = 2,
     /// Sync packet
     Sync = 3,
     /// Continued packet
     Continued = 4,
     /// No acknowledgement data packet
-    NAData = 5,
+    NaData = 5,
     /// No acknowledgement continued packet
-    NAContinued = 6,
+    NaContinued = 6,
 }
 
 #[repr(u32)]
 #[derive(PartialEq, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
 /// Requests for to perform a specific action
-pub enum HidIoCommandID {
-    SupportedIDs = 0x00,
+pub enum HidIoCommandId {
+    SupportedIds = 0x00,
     GetInfo = 0x01,
     TestPacket = 0x02,
     ResetHidIo = 0x03,
@@ -100,32 +100,32 @@ pub enum HidIoCommandID {
     KeyboardLayout = 0x12,
     KeyLayout = 0x13,
     KeyShapes = 0x14,
-    LEDLayout = 0x15,
+    LedLayout = 0x15,
     FlashMode = 0x16,
     UnicodeText = 0x17,
     UnicodeState = 0x18,
     HostMacro = 0x19,
     SleepMode = 0x1A,
 
-    KLLState = 0x20,
+    KllState = 0x20,
     PixelSetting = 0x21,
     PixelSet1c8b = 0x22,
     PixelSet3c8b = 0x23,
     PixelSet1c16b = 0x24,
     PixelSet3c16b = 0x25,
 
-    OpenURL = 0x30,
+    OpenUrl = 0x30,
     TerminalCmd = 0x31,
     GetInputLayout = 0x32,
     SetInputLayout = 0x33,
     TerminalOut = 0x34,
 
-    HIDKeyboard = 0x40,
-    HIDKeyboardLED = 0x41,
-    HIDMouse = 0x42,
-    HIDJoystick = 0x43,
-    HIDSystemCtrl = 0x44,
-    HIDConsumerCtrl = 0x45,
+    HidKeyboard = 0x40,
+    HidKeyboardLed = 0x41,
+    HidMouse = 0x42,
+    HidJoystick = 0x43,
+    HidSystemCtrl = 0x44,
+    HidConsumerCtrl = 0x45,
 
     ManufacturingTest = 0x50,
     ManufacturingResult = 0x51,
@@ -168,7 +168,7 @@ pub struct HidIoPacketBuffer<H: ArrayLength<u8>> {
     /// Type of packet (Continued is automatically set if needed)
     pub ptype: HidIoPacketType,
     /// Packet Id
-    pub id: HidIoCommandID,
+    pub id: HidIoCommandId,
     /// Packet length for serialization (in bytes)
     pub max_len: u32,
     /// Payload data, chunking is done automatically by serializer
@@ -208,12 +208,12 @@ pub fn packet_type(packet_data: &[u8]) -> Result<HidIoPacketType, HidIoParseErro
     // Convert to HidIoPacketType enum
     match ptype {
         0 => Ok(HidIoPacketType::Data),
-        1 => Ok(HidIoPacketType::ACK),
-        2 => Ok(HidIoPacketType::NAK),
+        1 => Ok(HidIoPacketType::Ack),
+        2 => Ok(HidIoPacketType::Nak),
         3 => Ok(HidIoPacketType::Sync),
         4 => Ok(HidIoPacketType::Continued),
-        5 => Ok(HidIoPacketType::NAData),
-        6 => Ok(HidIoPacketType::NAContinued),
+        5 => Ok(HidIoPacketType::NaData),
+        6 => Ok(HidIoPacketType::NaContinued),
         _ => Err(HidIoParseError::InvalidPacketType(ptype)),
     }
 }
@@ -449,7 +449,7 @@ where
     fn default() -> Self {
         HidIoPacketBuffer {
             ptype: HidIoPacketType::Data,
-            id: HidIoCommandID::try_from(0).unwrap(),
+            id: HidIoCommandId::try_from(0).unwrap(),
             max_len: 64, // Default size
             data: Vec::new(),
             done: false,
@@ -597,10 +597,10 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
 
         // Get packet Id
         let id_num = packet_id(packet_data)?;
-        let id = match HidIoCommandID::try_from(id_num) {
+        let id = match HidIoCommandId::try_from(id_num) {
             Ok(id) => id,
             Err(e) => {
-                error!("Failed to convert {} to HidIoCommandID: {}", id_num, e);
+                error!("Failed to convert {} to HidIoCommandId: {}", id_num, e);
                 return Err(HidIoParseError::InvalidHidIoCommandId(id_num));
             }
         };
@@ -608,7 +608,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         // Is this a new packet?
         // More information to set, if initializing buffer
         if self.data.is_empty()
-            && (ptype != HidIoPacketType::Continued && ptype != HidIoPacketType::NAContinued)
+            && (ptype != HidIoPacketType::Continued && ptype != HidIoPacketType::NaContinued)
         {
             // Set packet type
             self.ptype = ptype;
@@ -623,15 +623,15 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
                 warn!("Dropping. Invalid packet type when initializing buffer, HidIoPacketType::Continued");
                 return Ok(packet_len);
             }
-            if self.data.is_empty() && ptype == HidIoPacketType::NAContinued {
-                warn!("Dropping. Invalid packet type when initializing buffer, HidIoPacketType::NAContinued");
+            if self.data.is_empty() && ptype == HidIoPacketType::NaContinued {
+                warn!("Dropping. Invalid packet type when initializing buffer, HidIoPacketType::NaContinued");
                 return Ok(packet_len);
             }
 
             // Check if not a continued packet, and we have a payload
             if !self.data.is_empty() {
                 match ptype {
-                    HidIoPacketType::Continued | HidIoPacketType::NAContinued => {}
+                    HidIoPacketType::Continued | HidIoPacketType::NaContinued => {}
                     _ => {
                         warn!("Dropping. Invalid packet type (non-HidIoPacketType::Continued) on a already initialized buffer: {} {}", ptype, self.data.is_empty());
                         return Ok(packet_len);
@@ -776,12 +776,12 @@ where
         // Determine ptype
         let ptype: u8 = match self.ptype {
             HidIoPacketType::Data => 0,
-            HidIoPacketType::ACK => 1,
-            HidIoPacketType::NAK => 2,
+            HidIoPacketType::Ack => 1,
+            HidIoPacketType::Nak => 2,
             HidIoPacketType::Sync => 3,
             HidIoPacketType::Continued => 4,
-            HidIoPacketType::NAData => 5,
-            HidIoPacketType::NAContinued => 6,
+            HidIoPacketType::NaData => 5,
+            HidIoPacketType::NaContinued => 6,
         };
 
         // Convert Id into bytes
@@ -864,10 +864,10 @@ where
 
             // Continued Packet
             let ptype = match self.ptype {
-                HidIoPacketType::ACK | HidIoPacketType::NAK | HidIoPacketType::Data => {
+                HidIoPacketType::Ack | HidIoPacketType::Nak | HidIoPacketType::Data => {
                     HidIoPacketType::Continued as u8
                 }
-                HidIoPacketType::NAData => HidIoPacketType::NAContinued as u8,
+                HidIoPacketType::NaData => HidIoPacketType::NaContinued as u8,
                 _ => {
                     warn!("Dropping. Invalid continued packet type: {:?}", self.ptype);
                     break;
@@ -940,12 +940,12 @@ impl fmt::Display for HidIoPacketType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptype_name = match *self {
             HidIoPacketType::Data => "HidIoPacketBuffer::Data",
-            HidIoPacketType::ACK => "HidIoPacketBuffer::ACK",
-            HidIoPacketType::NAK => "HidIoPacketBuffer::NAK",
+            HidIoPacketType::Ack => "HidIoPacketBuffer::Ack",
+            HidIoPacketType::Nak => "HidIoPacketBuffer::Nak",
             HidIoPacketType::Sync => "HidIoPacketBuffer::Sync",
             HidIoPacketType::Continued => "HidIoPacketBuffer::Continued",
-            HidIoPacketType::NAData => "HidIoPacketBuffer::NAData",
-            HidIoPacketType::NAContinued => "HidIoPacketBuffer::NAContinued",
+            HidIoPacketType::NaData => "HidIoPacketBuffer::NaData",
+            HidIoPacketType::NaContinued => "HidIoPacketBuffer::NaContinued",
         };
         write!(f, "{}", ptype_name)
     }
