@@ -484,6 +484,20 @@ pub unsafe extern "C" fn h0001_info_data(info: *mut HidioHostInfo) -> bool {
         }
     };
 
+    // Set string pointers
+    intf.hostinfo.os_version = match CUtf8::from_str(intf.os_version.as_str()) {
+        Ok(cstr) => cstr.as_bytes_with_nul().as_ptr() as *const c_char,
+        Err(_) => {
+            return false;
+        }
+    };
+    intf.hostinfo.host_software_name = match CUtf8::from_str(intf.host_software_name.as_str()) {
+        Ok(cstr) => cstr.as_bytes_with_nul().as_ptr() as *const c_char,
+        Err(_) => {
+            return false;
+        }
+    };
+
     *info = intf.hostinfo.clone();
     true
 }
@@ -609,6 +623,46 @@ pub unsafe extern "C" fn hidio_h0034_terminalout(output: *const c_char) -> Hidio
     HidioStatus::Success
 }
 
+/// # Safety
+/// Sends the result of a manufacturing test
+/// Will return an ACK, but this confirmation isn't used
+#[no_mangle]
+pub unsafe extern "C" fn hidio_h0051_manufacturingres(
+    command: u16,
+    argument: u16,
+    data: *mut u8,
+    len: u16,
+) -> HidioStatus {
+    use h0051::*;
+
+    // Retrieve interface
+    let intf = match INTF.as_mut() {
+        Some(intf) => intf,
+        None => {
+            return HidioStatus::ErrorNotInitialized;
+        }
+    };
+
+    // Prepare data
+    let data = match Vec::from_slice(core::slice::from_raw_parts(data, len as usize)) {
+        Ok(vec) => vec,
+        Err(_) => {
+            return HidioStatus::ErrorBufSizeTooSmall;
+        }
+    };
+
+    // Send command
+    if let Err(err) = intf.h0051_manufacturingres(Cmd {
+        command,
+        argument,
+        data,
+    }) {
+        return intf.error_handler(err);
+    }
+
+    HidioStatus::Success
+}
+
 // ----- Command Interface -----
 
 struct CommandInterface<
@@ -675,8 +729,8 @@ where
             minor_version: 0,
             patch_version: 0,
             os: 0,
-            os_version: os_version.as_ptr() as *const c_char,
-            host_software_name: host_software_name.as_ptr() as *const c_char,
+            os_version: core::ptr::null(),
+            host_software_name: core::ptr::null(),
         };
 
         Ok(CommandInterface {
@@ -1094,5 +1148,9 @@ where
                 Err(h0050::Nak {})
             }
         }
+    }
+
+    fn h0051_manufacturingres_ack(&mut self, _data: h0051::Ack) -> Result<(), CommandError> {
+        Ok(())
     }
 }
