@@ -40,10 +40,6 @@ use heapless::Vec;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::ser::{self, Serialize, SerializeSeq, Serializer};
 
-#[cfg(all(not(test), target_feature = "thumb-mode"))]
-#[cfg(feature = "device")]
-use core::panic::PanicInfo;
-
 #[cfg(feature = "server")]
 use log::{error, warn};
 
@@ -599,8 +595,8 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         let id_num = packet_id(packet_data)?;
         let id = match HidIoCommandId::try_from(id_num) {
             Ok(id) => id,
-            Err(e) => {
-                error!("Failed to convert {} to HidIoCommandId: {}", id_num, e);
+            Err(_e) => {
+                error!("Failed to convert {} to HidIoCommandId: {}", id_num, _e);
                 return Err(HidIoParseError::InvalidHidIoCommandId(id_num));
             }
         };
@@ -688,8 +684,8 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
         // Serialize
         match serialize(&self, &mut writer, options) {
             Ok(_) => {}
-            Err(e) => {
-                error!("Parse error: {:?}", e);
+            Err(_e) => {
+                error!("Parse error: {:?}", _e);
                 return Err(HidIoParseError::SerializationError);
             }
         };
@@ -960,16 +956,4 @@ impl<H: ArrayLength<u8>> fmt::Display for HidIoPacketBuffer<H> {
             self.ptype, self.id, self.max_len, self.done, self.data,
         )
     }
-}
-
-#[cfg(all(not(test), target_feature = "thumb-mode"))]
-#[cfg(all(not(test), feature = "device"))]
-#[lang = "eh_personality"]
-fn eh_personality() {}
-
-#[cfg(all(not(test), target_feature = "thumb-mode"))]
-#[cfg(all(not(test), feature = "device"))]
-#[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
 }

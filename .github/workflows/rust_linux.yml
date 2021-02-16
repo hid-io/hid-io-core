@@ -146,7 +146,6 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
-          target: thumbv7em-none-eabi
           override: true
       - uses: actions-rs/cargo@v1
         with:

@@ -18,7 +18,6 @@ default-run   = "hid-io-core"
 
 [workspace]
 members = [
-  "hid-io-kiibohd",
   "hid-io-protocol",
 ]
 
@@ -98,7 +97,7 @@ flexi_logger    = "^0.16"
 futures         = { version = "^0.3", optional = true }
 futures-util    = { version = "^0.3", optional = true }
 glob            = { version = "^0.3", optional = true }
-heapless        = { version = "^0.5" }
+heapless        = { version = "^0.6" }
 hidapi          = { version = "1.2.4", default-features = false, features = ["linux-static-hidraw"], optional = true }
 hid-io-protocol = { path = "hid-io-protocol" }
 libc            = { version = "^0.2", optional = true }
