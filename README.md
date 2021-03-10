@@ -1,12 +1,12 @@
 # hid-io core
 
+[![Visit our IRC channel](https://img.shields.io/badge/KiwiIRC-%23hid--io-%235D7E23)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 [![Linux Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![macOS Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![Windows Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![Doc Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Doc%20Deploy/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/hid-io/hid-io-core.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hid-io/hid-io-core/alerts/)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/hid-io/hid-io-core.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hid-io/hid-io-core/context:python)
-[![Visit our IRC channel](https://img.shields.io/badge/KiwiIRC-%23hid--io-%235D7E23)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 
 HID-IO Client Side Library and Daemon
 
