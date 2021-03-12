@@ -1,0 +1,217 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/runner/.cargo/registry/src/github.com-1ecc6299db9ec823/flexi_logger-0.17.1/src/writers.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>writers.rs - source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../flexi_logger/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+</pre><div class="example-wrap"><pre class="rust ">
+<span class="doccomment">//! Contains the trait [`LogWriter`](crate::writers::LogWriter) for extending `flexi_logger`</span>
+<span class="doccomment">//! with additional log writers,</span>
+<span class="doccomment">//! and two concrete implementations</span>
+<span class="doccomment">//! for writing to files</span>
+<span class="doccomment">//! ([`FileLogWriter`](crate::writers::FileLogWriter))</span>
+<span class="doccomment">//! or to the syslog</span>
+<span class="doccomment">//! ([`SyslogWriter`](crate::writers::SyslogWriter)).</span>
+<span class="doccomment">//! You can also use your own implementations of `LogWriter`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! Such log writers can be used in two ways:</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * With [`Logger::log_target()`](crate::Logger::log_target)</span>
+<span class="doccomment">//!   you can influence to which output stream normal log messages will be written,</span>
+<span class="doccomment">//!   i.e. from log macro calls without explicit target specification.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   See [`LogTarget`](crate::LogTarget) for the available options.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   These log calls will only be written if they match the current</span>
+<span class="doccomment">//!   [log specification](crate::LogSpecification).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! * [`Logger::add_writer()`](crate::Logger::add_writer)</span>
+<span class="doccomment">//!   can be used to register an additional log writer under a target name.</span>
+<span class="doccomment">//!   The target name can then be used in calls to the</span>
+<span class="doccomment">//!   [log macro](https://docs.rs/log/latest/log/macro.log.html)</span>
+<span class="doccomment">//!   for directing log messages to the desired writers.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   A log call with a target value that has the form `{Name1,Name2,...}`, i.e.,</span>
+<span class="doccomment">//!   a comma-separated list of target names, within braces, is not sent to the default logger,</span>
+<span class="doccomment">//!   but to the loggers specified explicitly in the list.</span>
+<span class="doccomment">//!   In such a list you can again specify the default logger with the target name `_Default`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   These log calls will not be affected by the value of `flexi_logger`&#39;s log specification;</span>
+<span class="doccomment">//!   they will always be written, as you might want it for alerts or auditing.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   In the following example we define an alert writer, and a macro to facilitate using it</span>
+<span class="doccomment">//!   (and avoid using the explicit target specification in the macro call), and</span>
+<span class="doccomment">//!   show some example calls.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   ```rust</span>
+<span class="doccomment">//!   use log::*;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   use flexi_logger::Logger;</span>
+<span class="doccomment">//!   use flexi_logger::writers::FileLogWriter;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   // Configure a FileLogWriter for alert messages</span>
+<span class="doccomment">//!   pub fn alert_logger() -&gt; Box&lt;FileLogWriter&gt; {</span>
+<span class="doccomment">//!       Box::new(FileLogWriter::builder()</span>
+<span class="doccomment">//!           .discriminant(&quot;Alert&quot;)</span>
+<span class="doccomment">//!           .suffix(&quot;alerts&quot;)</span>
+<span class="doccomment">//!           .print_message()</span>
+<span class="doccomment">//!           .try_build()</span>
+<span class="doccomment">//!           .unwrap())</span>
+<span class="doccomment">//!   }</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   // Define a macro for writing messages to the alert log and to the normal log</span>
+<span class="doccomment">//!   #[macro_use]</span>
+<span class="doccomment">//!   mod macros {</span>
+<span class="doccomment">//!       #[macro_export]</span>
+<span class="doccomment">//!       macro_rules! alert_error {</span>
+<span class="doccomment">//!           ($($arg:tt)*) =&gt; (</span>
+<span class="doccomment">//!               error!(target: &quot;{Alert,_Default}&quot;, $($arg)*);</span>
+<span class="doccomment">//!           )</span>
+<span class="doccomment">//!       }</span>
+<span class="doccomment">//!   }</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   fn main() {</span>
+<span class="doccomment">//!       Logger::with_env_or_str(&quot;info&quot;)</span>
+<span class="doccomment">//!           .print_message()</span>
+<span class="doccomment">//!           .log_to_file()</span>
+<span class="doccomment">//!           .add_writer(&quot;Alert&quot;, alert_logger())</span>
+<span class="doccomment">//!           .start()</span>
+<span class="doccomment">//!           .unwrap_or_else(|e| panic!(&quot;Logger initialization failed with {}&quot;, e));</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!       // Explicitly send logs to different loggers</span>
+<span class="doccomment">//!       error!(target : &quot;{Alert}&quot;, &quot;This is only an alert&quot;);</span>
+<span class="doccomment">//!       error!(target : &quot;{Alert,_Default}&quot;, &quot;This is an alert and log message&quot;);</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!       // Nicer: use the explicit macro</span>
+<span class="doccomment">//!       alert_error!(&quot;This is another alert and log message&quot;);</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!       // Standard log macros write only to the normal log</span>
+<span class="doccomment">//!       error!(&quot;This is a normal error message&quot;);</span>
+<span class="doccomment">//!       warn!(&quot;This is a warning&quot;);</span>
+<span class="doccomment">//!       info!(&quot;This is an info message&quot;);</span>
+<span class="doccomment">//!       debug!(&quot;This is a debug message - you will not see it&quot;);</span>
+<span class="doccomment">//!       trace!(&quot;This is a trace message - you will not see it&quot;);</span>
+<span class="doccomment">//!   }</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//!   ```</span>
+<span class="doccomment">//!</span>
+
+<span class="kw">mod</span> <span class="ident">file_log_writer</span>;
+<span class="kw">mod</span> <span class="ident">log_writer</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;syslog_writer&quot;</span>)]</span>
+<span class="kw">mod</span> <span class="ident">syslog_writer</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;syslog_writer&quot;</span>)]</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">syslog_writer</span>::{
+    <span class="ident">LevelToSyslogSeverity</span>, <span class="ident">SyslogConnector</span>, <span class="ident">SyslogFacility</span>, <span class="ident">SyslogSeverity</span>, <span class="ident">SyslogWriter</span>,
+};
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">file_log_writer</span>::{<span class="ident">FileLogWriter</span>, <span class="ident">FileLogWriterBuilder</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">log_writer</span>::<span class="ident">LogWriter</span>;
+</pre></div>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="flexi_logger" data-search-js="../../search-index.js"></div>
+    <script src="../../main.js"></script><script src="../../source-script.js"></script><script src="../../source-files.js"></script></body></html>

@@ -1,0 +1,4 @@
+(function() {var implementors = {};
+implementors["bincode_core"] = [{"text":"impl&lt;W:&nbsp;<a class=\"trait\" href=\"bincode_core/trait.CoreWrite.html\" title=\"trait bincode_core::CoreWrite\">CoreWrite</a>&gt; <a class=\"trait\" href=\"serde/ser/trait.Error.html\" title=\"trait serde::ser::Error\">Error</a> for <a class=\"enum\" href=\"bincode_core/enum.SerializeError.html\" title=\"enum bincode_core::SerializeError\">SerializeError</a>&lt;W&gt;","synthetic":false,"types":["bincode_core::serialize::SerializeError"]}];
+implementors["serde"] = [];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

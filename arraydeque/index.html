@@ -1,0 +1,65 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A circular buffer with fixed capacity. Requires Rust 1.20+"><meta name="keywords" content="rust, rustlang, rust-lang, arraydeque"><title>arraydeque - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../arraydeque/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><p class="location">Crate arraydeque</p><div class="block version"><p>Version 0.4.5</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all arraydeque's items</p></a><div class="block items"><ul><li><a href="#reexports">Re-exports</a></li><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="arraydeque" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">arraydeque</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/arraydeque/lib.rs.html#1-2931" title="goto source code">[src]</a></span></h1><div class="docblock"><p>A circular buffer with fixed capacity.
+Requires Rust 1.20+</p>
+<p>It can be stored directly on the stack if needed.</p>
+<p>This queue has <code>O(1)</code> amortized inserts and removals from both ends of the
+container. It also has <code>O(1)</code> indexing like a vector. The contained elements
+are not required to be copyable</p>
+<p>This crate is inspired by <a href="https://github.com/bluss/arrayvec"><strong>bluss/arrayvec</strong></a></p>
+<h1 id="feature-flags" class="section-header"><a href="#feature-flags">Feature Flags</a></h1>
+<p>The <strong>arraydeque</strong> crate has the following cargo feature flags:</p>
+<ul>
+<li>
+<p><code>std</code></p>
+<ul>
+<li>Optional, enabled by default</li>
+<li>Conversions between <code>ArrayDeque</code> and <code>Vec</code></li>
+<li>Use libstd</li>
+</ul>
+</li>
+<li>
+<p><code>use_generic_array</code></p>
+<ul>
+<li>Optional</li>
+<li>Allow to use <code>GenericArray</code></li>
+</ul>
+</li>
+</ul>
+<h1 id="usage" class="section-header"><a href="#usage">Usage</a></h1>
+<p>First, add the following to your <code>Cargo.toml</code>:</p>
+<pre><code class="language-toml">[dependencies]
+arraydeque = &quot;0.4&quot;
+</code></pre>
+<p>Next, add this to your crate root:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">arraydeque</span>;</pre></div>
+<p>Currently arraydeque by default links to the standard library, but if you would
+instead like to use arraydeque in a <code>#![no_std]</code> situation or crate you can
+request this via:</p>
+<pre><code class="language-toml">[dependencies]
+arraydeque = { version = &quot;0.4&quot;, default-features = false }
+</code></pre>
+<h1 id="behaviors" class="section-header"><a href="#behaviors">Behaviors</a></h1>
+<p><code>ArrayDeque</code> provides two different behaviors, <code>Saturating</code> and <code>Wrapping</code>,
+determining whether to remove existing element automatically when pushing
+to a full deque.</p>
+<p>See the <a href="behavior/index.html">behavior module documentation</a> for more.</p>
+</div><h2 id="reexports" class="section-header"><a href="#reexports">Re-exports</a></h2>
+<table><tr><td><code>pub use behavior::<a class="struct" href="../arraydeque/behavior/struct.Saturating.html" title="struct arraydeque::behavior::Saturating">Saturating</a>;</code></td></tr><tr><td><code>pub use behavior::<a class="struct" href="../arraydeque/behavior/struct.Wrapping.html" title="struct arraydeque::behavior::Wrapping">Wrapping</a>;</code></td></tr></table><h2 id="modules" class="section-header"><a href="#modules">Modules</a></h2>
+<table><tr class="module-item"><td><a class="mod" href="behavior/index.html" title="arraydeque::behavior mod">behavior</a></td><td class="docblock-short"><p>Behavior semantics for <code>ArrayDeque</code>.</p>
+</td></tr></table><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<table><tr class="module-item"><td><a class="struct" href="struct.ArrayDeque.html" title="arraydeque::ArrayDeque struct">ArrayDeque</a></td><td class="docblock-short"><p>A fixed capacity ring buffer.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.CapacityError.html" title="arraydeque::CapacityError struct">CapacityError</a></td><td class="docblock-short"><p>Error value indicating insufficient capacity</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Drain.html" title="arraydeque::Drain struct">Drain</a></td><td class="docblock-short"><p>Draining <code>ArrayDeque</code> iterator</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.IntoIter.html" title="arraydeque::IntoIter struct">IntoIter</a></td><td class="docblock-short"><p>By-value <code>ArrayDeque</code> iterator</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Iter.html" title="arraydeque::Iter struct">Iter</a></td><td class="docblock-short"><p><code>ArrayDeque</code> iterator</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.IterMut.html" title="arraydeque::IterMut struct">IterMut</a></td><td class="docblock-short"><p><code>ArrayDeque</code> mutable iterator</p>
+</td></tr></table><h2 id="traits" class="section-header"><a href="#traits">Traits</a></h2>
+<table><tr class="module-item"><td><a class="trait" href="trait.Array.html" title="arraydeque::Array trait">Array</a></td><td class="docblock-short"><p>Trait for fixed size arrays.</p>
+</td></tr><tr class="module-item"><td><a class="trait" href="trait.RangeArgument.html" title="arraydeque::RangeArgument trait">RangeArgument</a></td><td class="docblock-short"><p><strong>RangeArgument</strong> is implemented by Rust’s built-in range types, produced
+by range syntax like <code>..</code>, <code>a..</code>, <code>..b</code> or <code>c..d</code>.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="arraydeque" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>

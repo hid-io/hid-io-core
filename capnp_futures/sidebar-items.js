@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["write_queue","Creates a new WriteQueue that wraps the given writer."]],"mod":[["serialize","Asynchronous reading and writing of messages using the standard stream framing."]],"struct":[["ReadStream",""],["Sender","A handle that allows message to be sent to a write queue`."]]});

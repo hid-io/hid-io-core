@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["UInputDevice","Opaque struct representing an evdev uinput device"]]});

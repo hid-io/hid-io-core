@@ -1,0 +1,93 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A library for reading and writing ASN.1 data."><meta name="keywords" content="rust, rustlang, rust-lang, yasna"><title>yasna - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../yasna/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><p class="location">Crate yasna</p><div class="block version"><p>Version 0.3.2</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all yasna's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="yasna" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">yasna</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/yasna/lib.rs.html#9-196" title="goto source code">[src]</a></span></h1><div class="docblock"><p>A library for reading and writing ASN.1 data.</p>
+<h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1><h2 id="encodingdecoding-simple-data" class="section-header"><a href="#encodingdecoding-simple-data">Encoding/decoding simple data</a></h2>
+<p>A type implementing <a href="trait.DEREncodable.html"><code>DEREncodable</code></a> can be easily encoded:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">yasna</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">der</span> <span class="op">=</span> <span class="ident">yasna</span>::<span class="ident">encode_der</span>(<span class="kw-2">&amp;</span>(<span class="number">10</span>, <span class="bool-val">true</span>));
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;(10, true) = {:?}&quot;</span>, <span class="ident">der</span>);
+}</pre></div>
+<p>Similarly, a type implementing <a href="trait.BERDecodable.html"><code>BERDecodable</code></a> can be
+easily decoded:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">yasna</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">asn</span>: (<span class="ident">i64</span>, <span class="ident">bool</span>) <span class="op">=</span> <span class="ident">yasna</span>::<span class="ident">decode_der</span>(
+        <span class="kw-2">&amp;</span>[<span class="number">48</span>, <span class="number">6</span>, <span class="number">2</span>, <span class="number">1</span>, <span class="number">10</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">255</span>]).<span class="ident">unwrap</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?} = [48, 6, 2, 1, 10, 1, 1, 255]&quot;</span>, <span class="ident">asn</span>);
+}</pre></div>
+<h2 id="encodingdecoding-by-hand" class="section-header"><a href="#encodingdecoding-by-hand">Encoding/decoding by hand</a></h2>
+<p>Default <code>DEREncodable</code>/<code>BERDecodable</code> implementations can’t handle
+all ASN.1 type. In many cases you have to write your reader/writer
+by hand.</p>
+<p>To serialize ASN.1 data, you can use <a href="fn.construct_der.html"><code>construct_der</code></a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">yasna</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">der</span> <span class="op">=</span> <span class="ident">yasna</span>::<span class="ident">construct_der</span>(<span class="op">|</span><span class="ident">writer</span><span class="op">|</span> {
+        <span class="ident">writer</span>.<span class="ident">write_sequence</span>(<span class="op">|</span><span class="ident">writer</span><span class="op">|</span> {
+            <span class="ident">writer</span>.<span class="ident">next</span>().<span class="ident">write_i64</span>(<span class="number">10</span>);
+            <span class="ident">writer</span>.<span class="ident">next</span>().<span class="ident">write_bool</span>(<span class="bool-val">true</span>);
+        })
+    });
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;(10, true) = {:?}&quot;</span>, <span class="ident">der</span>);
+}</pre></div>
+<p>To deserialize ASN.1 data, you can use <a href="fn.parse_ber.html"><code>parse_ber</code></a>
+or <a href="fn.parse_der.html"><code>parse_der</code></a>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">yasna</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">asn</span> <span class="op">=</span> <span class="ident">yasna</span>::<span class="ident">parse_der</span>(<span class="kw-2">&amp;</span>[<span class="number">48</span>, <span class="number">6</span>, <span class="number">2</span>, <span class="number">1</span>, <span class="number">10</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">255</span>], <span class="op">|</span><span class="ident">reader</span><span class="op">|</span> {
+        <span class="ident">reader</span>.<span class="ident">read_sequence</span>(<span class="op">|</span><span class="ident">reader</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">i</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">reader</span>.<span class="ident">next</span>().<span class="ident">read_i64</span>());
+            <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">reader</span>.<span class="ident">next</span>().<span class="ident">read_bool</span>());
+            <span class="kw">return</span> <span class="prelude-val">Ok</span>((<span class="ident">i</span>, <span class="ident">b</span>));
+        })
+    }).<span class="ident">unwrap</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?} = [48, 6, 2, 1, 10, 1, 1, 255]&quot;</span>, <span class="ident">asn</span>);
+}</pre></div>
+</div><h2 id="modules" class="section-header"><a href="#modules">Modules</a></h2>
+<table><tr class="module-item"><td><a class="mod" href="models/index.html" title="yasna::models mod">models</a></td><td class="docblock-short"><p>Provides datatypes which correspond to ASN.1 types.</p>
+</td></tr><tr class="module-item"><td><a class="mod" href="tags/index.html" title="yasna::tags mod">tags</a></td><td class="docblock-short"><p>Provides universal tag constants.</p>
+</td></tr></table><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<table><tr class="module-item"><td><a class="struct" href="struct.ASN1Error.html" title="yasna::ASN1Error struct">ASN1Error</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="struct" href="struct.BERReader.html" title="yasna::BERReader struct">BERReader</a></td><td class="docblock-short"><p>A reader object for BER/DER-encoded ASN.1 data.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.BERReaderSeq.html" title="yasna::BERReaderSeq struct">BERReaderSeq</a></td><td class="docblock-short"><p>A reader object for a sequence of BER/DER-encoded ASN.1 data.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.BERReaderSet.html" title="yasna::BERReaderSet struct">BERReaderSet</a></td><td class="docblock-short"><p>A reader object for a set of BER/DER-encoded ASN.1 data.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.DERWriter.html" title="yasna::DERWriter struct">DERWriter</a></td><td class="docblock-short"><p>A writer object that accepts an ASN.1 value.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.DERWriterSeq.html" title="yasna::DERWriterSeq struct">DERWriterSeq</a></td><td class="docblock-short"><p>A writer object that accepts ASN.1 values.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.DERWriterSet.html" title="yasna::DERWriterSet struct">DERWriterSet</a></td><td class="docblock-short"><p>A writer object that accepts ASN.1 values.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Tag.html" title="yasna::Tag struct">Tag</a></td><td class="docblock-short"><p>An ASN.1 tag.</p>
+</td></tr></table><h2 id="enums" class="section-header"><a href="#enums">Enums</a></h2>
+<table><tr class="module-item"><td><a class="enum" href="enum.ASN1ErrorKind.html" title="yasna::ASN1ErrorKind enum">ASN1ErrorKind</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="enum" href="enum.BERMode.html" title="yasna::BERMode enum">BERMode</a></td><td class="docblock-short"><p>Used by <a href="struct.BERReader.html"><code>BERReader</code></a> to determine whether or not to enforce
+DER restrictions when parsing.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.PCBit.html" title="yasna::PCBit enum">PCBit</a></td><td class="docblock-short"><p>A value of the ASN.1 primitive/constructed (“P/C”) bit.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.TagClass.html" title="yasna::TagClass enum">TagClass</a></td><td class="docblock-short"><p>An ASN.1 tag class, used in <a href="struct.Tag.html"><code>Tag</code></a>.</p>
+</td></tr></table><h2 id="traits" class="section-header"><a href="#traits">Traits</a></h2>
+<table><tr class="module-item"><td><a class="trait" href="trait.BERDecodable.html" title="yasna::BERDecodable trait">BERDecodable</a></td><td class="docblock-short"><p>Types decodable in BER.</p>
+</td></tr><tr class="module-item"><td><a class="trait" href="trait.DEREncodable.html" title="yasna::DEREncodable trait">DEREncodable</a></td><td class="docblock-short"><p>Types encodable in DER.</p>
+</td></tr></table><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<table><tr class="module-item"><td><a class="fn" href="fn.construct_der.html" title="yasna::construct_der fn">construct_der</a></td><td class="docblock-short"><p>Constructs DER-encoded data as <code>Vec&lt;u8&gt;</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.construct_der_seq.html" title="yasna::construct_der_seq fn">construct_der_seq</a></td><td class="docblock-short"><p>Constructs DER-encoded sequence of data as <code>Vec&lt;u8&gt;</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.decode_ber.html" title="yasna::decode_ber fn">decode_ber</a></td><td class="docblock-short"><p>Reads an ASN.1 value from <code>&amp;[u8]</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.decode_ber_general.html" title="yasna::decode_ber_general fn">decode_ber_general</a></td><td class="docblock-short"><p>Decodes DER/BER-encoded data.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.decode_der.html" title="yasna::decode_der fn">decode_der</a></td><td class="docblock-short"><p>Reads an ASN.1 value from <code>&amp;[u8]</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.encode_der.html" title="yasna::encode_der fn">encode_der</a></td><td class="docblock-short"><p>Encodes a value to DER-encoded ASN.1 data.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.parse_ber.html" title="yasna::parse_ber fn">parse_ber</a></td><td class="docblock-short"><p>Parses BER-encoded data.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.parse_ber_general.html" title="yasna::parse_ber_general fn">parse_ber_general</a></td><td class="docblock-short"><p>Parses DER/BER-encoded data.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.parse_der.html" title="yasna::parse_der fn">parse_der</a></td><td class="docblock-short"><p>Parses DER-encoded data.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.try_construct_der.html" title="yasna::try_construct_der fn">try_construct_der</a></td><td class="docblock-short"><p>Tries to construct DER-encoded data as <code>Vec&lt;u8&gt;</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.try_construct_der_seq.html" title="yasna::try_construct_der_seq fn">try_construct_der_seq</a></td><td class="docblock-short"><p>Tries to construct a DER-encoded sequence of data as <code>Vec&lt;u8&gt;</code>.</p>
+</td></tr></table><h2 id="types" class="section-header"><a href="#types">Type Definitions</a></h2>
+<table><tr class="module-item"><td><a class="type" href="type.ASN1Result.html" title="yasna::ASN1Result type">ASN1Result</a></td><td class="docblock-short"></td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="yasna" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>

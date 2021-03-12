@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["BuilderArenaImpl",""],["BuilderArenaImplInner",""],["NullArena",""],["ReadLimiter",""],["ReaderArenaImpl",""]],"trait":[["BuilderArena",""],["ReaderArena",""]],"type":[["SegmentId",""]]});

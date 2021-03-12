@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["accept",""],["bootstrap",""],["call",""],["cap_descriptor",""],["disembargo",""],["exception",""],["finish",""],["join",""],["message",""],["message_target",""],["payload",""],["promised_answer",""],["provide",""],["release",""],["resolve",""],["return_",""],["third_party_cap_descriptor",""]]});

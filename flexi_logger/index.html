@@ -1,0 +1,95 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A flexible and easy-to-use logger that writes logs to stderr and/or to files or other output streams."><meta name="keywords" content="rust, rustlang, rust-lang, flexi_logger"><title>flexi_logger - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../flexi_logger/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><p class="location">Crate flexi_logger</p><div class="block version"><p>Version 0.17.1</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all flexi_logger's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#functions">Functions</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="flexi_logger" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">flexi_logger</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/flexi_logger/lib.rs.html#1-70" title="goto source code">[src]</a></span></h1><div class="docblock"><p>A flexible and easy-to-use logger that writes logs to stderr and/or to files
+or other output streams.</p>
+<p>To read the log specification from an environment variable and get the log written to <code>stderr</code>,
+start <code>flexi_logger</code> e.g. like this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">flexi_logger</span>::<span class="ident">Logger</span>::<span class="ident">with_env</span>().<span class="ident">start</span>().<span class="ident">unwrap</span>();</pre></div>
+<p>See</p>
+<ul>
+<li><a href="../flexi_logger/struct.Logger.html">Logger</a> for a full description of all configuration options,</li>
+<li>and the <a href="../flexi_logger/writers/index.html">writers</a> module for the usage of additional log writers,</li>
+<li>and <a href="https://crates.io/crates/flexi_logger">the homepage</a> for how to get started.</li>
+</ul>
+<p>There are configuration options to e.g.</p>
+<ul>
+<li>decide whether you want to write your logs to stderr or to a file,</li>
+<li>configure the path and the filenames of the log files,</li>
+<li>use file rotation,</li>
+<li>specify the line format for the log lines,</li>
+<li>define additional log output streams, e.g for alert or security messages,</li>
+<li>support changing the log specification while the program is running,</li>
+</ul>
+<p><code>flexi_logger</code> uses a similar syntax as <a href="http://crates.io/crates/env_logger/"><code>env_logger</code></a>
+for specifying which logs should really be written (but is more graceful with the syntax,
+and can provide error information).</p>
+<p>By default, i.e. if feature <code>colors</code> is not switched off, the log lines that appear on your
+terminal are coloured. In case the chosen colors don’t fit to your terminal’s color theme,
+you can adapt the colors to improve readability.
+See the documentation of method <a href="../flexi_logger/fn.style.html">style</a>
+for a description how this can be done.</p>
+</div><h2 id="modules" class="section-header"><a href="#modules">Modules</a></h2>
+<table><tr class="module-item"><td><a class="mod" href="code_examples/index.html" title="flexi_logger::code_examples mod">code_examples</a></td><td class="docblock-short"><p>Here are some examples for the <code>flexi_logger</code> initialization.</p>
+</td></tr><tr class="module-item"><td><a class="mod" href="writers/index.html" title="flexi_logger::writers mod">writers</a></td><td class="docblock-short"><p>Contains the trait <a href="../flexi_logger/writers/trait.LogWriter.html"><code>LogWriter</code></a> for extending <code>flexi_logger</code>
+with additional log writers,
+and two concrete implementations
+for writing to files
+(<a href="../flexi_logger/writers/struct.FileLogWriter.html"><code>FileLogWriter</code></a>)
+or to the syslog
+(<a href="crate::writers::SyslogWriter"><code>SyslogWriter</code></a>).
+You can also use your own implementations of <code>LogWriter</code>.</p>
+</td></tr></table><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<table><tr class="module-item"><td><a class="struct" href="struct.DeferredNow.html" title="flexi_logger::DeferredNow struct">DeferredNow</a></td><td class="docblock-short"><p>Deferred timestamp creation.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.LogSpecBuilder.html" title="flexi_logger::LogSpecBuilder struct">LogSpecBuilder</a></td><td class="docblock-short"><p>Builder for <code>LogSpecification</code>.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.LogSpecification.html" title="flexi_logger::LogSpecification struct">LogSpecification</a></td><td class="docblock-short"><p>Immutable struct that defines which loglines are to be written,
+based on the module, the log level, and the text.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Logger.html" title="flexi_logger::Logger struct">Logger</a></td><td class="docblock-short"><p>The entry-point for using <code>flexi_logger</code>.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.LoggerHandle.html" title="flexi_logger::LoggerHandle struct">LoggerHandle</a></td><td class="docblock-short"><p>Allows reconfiguring the logger programmatically.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.ModuleFilter.html" title="flexi_logger::ModuleFilter struct">ModuleFilter</a></td><td class="docblock-short"><p>Defines which loglevel filter to use for the specified module.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Record.html" title="flexi_logger::Record struct">Record</a></td><td class="docblock-short"><p>Re-exports from log crate</p>
+</td></tr></table><h2 id="enums" class="section-header"><a href="#enums">Enums</a></h2>
+<table><tr class="module-item"><td><a class="enum" href="enum.AdaptiveFormat.html" title="flexi_logger::AdaptiveFormat enum">AdaptiveFormat</a></td><td class="docblock-short"><p>Specifies the <code>FormatFunction</code> and decides if coloring should be used.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.Age.html" title="flexi_logger::Age enum">Age</a></td><td class="docblock-short"><p>The age after which a log file rotation will be triggered,
+when <a href="../flexi_logger/enum.Criterion.html#variant.Age"><code>Criterion::Age</code></a> is chosen.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.Cleanup.html" title="flexi_logger::Cleanup enum">Cleanup</a></td><td class="docblock-short"><p>Defines the strategy for handling older log files.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.Criterion.html" title="flexi_logger::Criterion enum">Criterion</a></td><td class="docblock-short"><p>Criterion when to rotate the log file.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.Duplicate.html" title="flexi_logger::Duplicate enum">Duplicate</a></td><td class="docblock-short"><p>Used to control which messages are to be duplicated to stderr, when <code>log_to_file()</code> is used.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.FlexiLoggerError.html" title="flexi_logger::FlexiLoggerError enum">FlexiLoggerError</a></td><td class="docblock-short"><p>Describes errors in the initialization of <code>flexi_logger</code>.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.Level.html" title="flexi_logger::Level enum">Level</a></td><td class="docblock-short"><p>Re-exports from log crate</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.LevelFilter.html" title="flexi_logger::LevelFilter enum">LevelFilter</a></td><td class="docblock-short"><p>Re-exports from log crate</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.LogTarget.html" title="flexi_logger::LogTarget enum">LogTarget</a></td><td class="docblock-short"><p>Describes the default log target.</p>
+</td></tr><tr class="module-item"><td><a class="enum" href="enum.Naming.html" title="flexi_logger::Naming enum">Naming</a></td><td class="docblock-short"><p>The naming convention for rotated log files.</p>
+</td></tr></table><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<table><tr class="module-item"><td><a class="fn" href="fn.colored_default_format.html" title="flexi_logger::colored_default_format fn">colored_default_format</a></td><td class="docblock-short"><p>A colored version of the logline-formatter <code>default_format</code>
+that produces log lines like <br>
+<code><span style="color:red">ERROR</span> [my_prog::some_submodule] <span
+style="color:red">File not found</span></code></p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.colored_detailed_format.html" title="flexi_logger::colored_detailed_format fn">colored_detailed_format</a></td><td class="docblock-short"><p>A colored version of the logline-formatter <code>detailed_format</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.colored_opt_format.html" title="flexi_logger::colored_opt_format fn">colored_opt_format</a></td><td class="docblock-short"><p>A colored version of the logline-formatter <code>opt_format</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.colored_with_thread.html" title="flexi_logger::colored_with_thread fn">colored_with_thread</a></td><td class="docblock-short"><p>A colored version of the logline-formatter <code>with_thread</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.default_format.html" title="flexi_logger::default_format fn">default_format</a></td><td class="docblock-short"><p>A logline-formatter that produces log lines like <br>
+<code>INFO [my_prog::some_submodule] Task successfully read from conf.json</code></p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.detailed_format.html" title="flexi_logger::detailed_format fn">detailed_format</a></td><td class="docblock-short"><p>A logline-formatter that produces log lines like
+<br>
+<code>[2016-01-13 15:25:01.640870 +01:00] INFO [foo::bar] src/foo/bar.rs:26: Task successfully read from conf.json</code>
+<br>
+i.e. with timestamp, module path and file location.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.opt_format.html" title="flexi_logger::opt_format fn">opt_format</a></td><td class="docblock-short"><p>A logline-formatter that produces log lines with timestamp and file location, like
+<br>
+<code>[2016-01-13 15:25:01.640870 +01:00] INFO [src/foo/bar:26] Task successfully read from conf.json</code>
+<br></p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.style.html" title="flexi_logger::style fn">style</a></td><td class="docblock-short"><p>Helper function that is used in the provided coloring format functions to apply
+colors based on the log level and the effective color palette.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.with_thread.html" title="flexi_logger::with_thread fn">with_thread</a></td><td class="docblock-short"><p>A logline-formatter that produces log lines like
+<br>
+<code>[2016-01-13 15:25:01.640870 +01:00] T[taskreader] INFO [src/foo/bar:26] Task successfully read from conf.json</code>
+<br>
+i.e. with timestamp, thread name and file location.</p>
+</td></tr></table><h2 id="types" class="section-header"><a href="#types">Type Definitions</a></h2>
+<table><tr class="module-item"><td><a class="type" href="type.FormatFunction.html" title="flexi_logger::FormatFunction type">FormatFunction</a></td><td class="docblock-short"><p>Function type for Format functions.</p>
+</td></tr><tr class="module-item"><td><a class="type" href="type.ReconfigurationHandle.html" title="flexi_logger::ReconfigurationHandle type">ReconfigurationHandle</a></td><td class="docblock-short"><span class="stab deprecated" title="">Deprecated</span><p>For backwards compatibility.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="flexi_logger" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>

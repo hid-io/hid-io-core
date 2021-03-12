@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Buffer","HID-IO byte buffer This buffer is a queue of vecs with static allocation Each vec is fixed sized as HID-IO interface has a fixed transport payload (even if the actual size of the message is less). This buffer has no notion of packet size so it must store the full transport payload. In the minimal scenario a queue size of 1 is used."]]});

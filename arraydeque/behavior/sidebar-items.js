@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Saturating","Behavior for `ArrayDeque` that specifies saturating write semantics."],["Wrapping","Behavior for `ArrayDeque` that specifies wrapping write semantics."]],"trait":[["Behavior","Marker trait for indicating behaviors of `ArrayDeque`."]]});

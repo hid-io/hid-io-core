@@ -1,0 +1,106 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A tiny, secure, URL-friendly, unique string ID generator"><meta name="keywords" content="rust, rustlang, rust-lang, nanoid"><title>nanoid - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../nanoid/index.html'><div class='logo-container'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk.png' alt='logo'></div></a><p class="location">Crate nanoid</p><div class="block version"><p>Version 0.3.0</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all nanoid's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#functions">Functions</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="nanoid" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">nanoid</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/nanoid/lib.rs.html#1-241" title="goto source code">[src]</a></span></h1><div class="docblock"><p>A tiny, secure, URL-friendly, unique string ID generator</p>
+<p><strong>Safe.</strong> It uses cryptographically strong random APIs
+and guarantees a proper distribution of symbols.</p>
+<p><strong>Compact.</strong> It uses a larger alphabet than UUID (<code>A-Za-z0-9_~</code>)
+and has a similar number of unique IDs in just 21 symbols instead of 36.</p>
+<pre><code class="language-toml">[dependencies]
+nanoid = &quot;0.1.3&quot;
+</code></pre>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">nanoid</span>;
+<span class="kw">use</span> <span class="ident">nanoid</span>::<span class="ident">nanoid</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+   <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="macro">nanoid</span><span class="macro">!</span>(); <span class="comment">//=&gt; &quot;Uakgb_J5m9g~0JDMbcJqLJ&quot;</span>
+}</pre></div>
+<h2 id="usage" class="section-header"><a href="#usage">Usage</a></h2><h3 id="simple" class="section-header"><a href="#simple">Simple</a></h3>
+<p>The main module uses URL-friendly symbols (<code>A-Za-z0-9_~</code>) and returns an ID
+with 21 characters.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">nanoid</span>;
+<span class="kw">use</span> <span class="ident">nanoid</span>::<span class="ident">nanoid</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+   <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="macro">nanoid</span><span class="macro">!</span>(); <span class="comment">//=&gt; &quot;Uakgb_J5m9g~0JDMbcJqLJ&quot;</span>
+}</pre></div>
+<p>Symbols <code>-,.()</code> are not encoded in the URL. If used at the end of a link
+they could be identified as a punctuation symbol.</p>
+<h3 id="custom-length" class="section-header"><a href="#custom-length">Custom length</a></h3>
+<p>If you want to reduce ID length (and increase collisions probability),
+you can pass the length as an argument generate function:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">nanoid</span>;
+<span class="kw">use</span> <span class="ident">nanoid</span>::<span class="ident">nanoid</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+   <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="macro">nanoid</span><span class="macro">!</span>(<span class="number">10</span>); <span class="comment">//=&gt; &quot;IRFa~VaY2b&quot;</span>
+}</pre></div>
+<h3 id="custom-alphabet-or-length" class="section-header"><a href="#custom-alphabet-or-length">Custom Alphabet or Length</a></h3>
+<p>If you want to change the ID’s alphabet or length
+you can use the low-level <code>custom</code> module.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">nanoid</span>;
+<span class="kw">use</span> <span class="ident">nanoid</span>::<span class="ident">nanoid</span>;
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">alphabet</span>: [<span class="ident">char</span>; <span class="number">16</span>] <span class="op">=</span> [
+        <span class="string">&#39;1&#39;</span>, <span class="string">&#39;2&#39;</span>, <span class="string">&#39;3&#39;</span>, <span class="string">&#39;4&#39;</span>, <span class="string">&#39;5&#39;</span>, <span class="string">&#39;6&#39;</span>, <span class="string">&#39;7&#39;</span>, <span class="string">&#39;8&#39;</span>, <span class="string">&#39;9&#39;</span>, <span class="string">&#39;0&#39;</span>, <span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>, <span class="string">&#39;f&#39;</span>
+    ];
+
+   <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="macro">nanoid</span><span class="macro">!</span>(<span class="number">10</span>, <span class="kw-2">&amp;</span><span class="ident">alphabet</span>); <span class="comment">//=&gt; &quot;4f90d13a42&quot;</span>
+}</pre></div>
+<p>Alphabet must contain 256 symbols or less.
+Otherwise, the generator will not be secure.</p>
+<h3 id="custom-random-bytes-generator" class="section-header"><a href="#custom-random-bytes-generator">Custom Random Bytes Generator</a></h3>
+<p>You can replace the default safe random generator using the <code>complex</code> module.
+For instance, to use a seed-based generator.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">nanoid</span>;
+<span class="kw">use</span> <span class="ident">nanoid</span>::<span class="ident">nanoid</span>;
+
+<span class="kw">fn</span> <span class="ident">randomByte</span> () <span class="op">-</span><span class="op">&gt;</span> <span class="ident">u8</span> {
+    <span class="number">0</span>
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">fn</span> <span class="ident">random</span> (<span class="ident">size</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>];
+
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">size</span> {
+            <span class="ident">bytes</span>[<span class="ident">i</span>] <span class="op">=</span> <span class="ident">randomByte</span>();
+        }
+
+        <span class="ident">bytes</span>
+    }
+
+    <span class="macro">nanoid</span><span class="macro">!</span>(<span class="number">10</span>, <span class="kw-2">&amp;</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>, <span class="string">&#39;e&#39;</span>, <span class="string">&#39;f&#39;</span>], <span class="ident">random</span>); <span class="comment">//=&gt; &quot;fbaefaadeb&quot;</span>
+}</pre></div>
+<p><code>random</code> function must accept the array size and return an vector
+with random numbers.</p>
+<p>If you want to use the same URL-friendly symbols with <code>format</code>,
+you can get the default alphabet from the <code>url</code> module:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">nanoid</span>;
+<span class="kw">use</span> <span class="ident">nanoid</span>::<span class="ident">nanoid</span>;
+
+<span class="kw">fn</span> <span class="ident">random</span> (<span class="ident">size</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">result</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="ident">size</span>];
+
+    <span class="ident">result</span>
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="macro">nanoid</span><span class="macro">!</span>(<span class="number">10</span>, <span class="kw-2">&amp;</span><span class="ident">nanoid</span>::<span class="ident">alphabet</span>::<span class="ident">SAFE</span>, <span class="ident">random</span>); <span class="comment">//=&gt; &quot;93ce_Ltuub&quot;</span>
+}</pre></div>
+</div><h2 id="modules" class="section-header"><a href="#modules">Modules</a></h2>
+<table><tr class="module-item"><td><a class="mod" href="alphabet/index.html" title="nanoid::alphabet mod">alphabet</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="mod" href="rngs/index.html" title="nanoid::rngs mod">rngs</a></td><td class="docblock-short"></td></tr></table><h2 id="macros" class="section-header"><a href="#macros">Macros</a></h2>
+<table><tr class="module-item"><td><a class="macro" href="macro.nanoid.html" title="nanoid::nanoid macro">nanoid</a></td><td class="docblock-short"></td></tr></table><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<table><tr class="module-item"><td><a class="fn" href="fn.format.html" title="nanoid::format fn">format</a></td><td class="docblock-short"></td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="nanoid" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>

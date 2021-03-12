@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["MIN_MAJOR_XKB_VERSION",""],["MIN_MINOR_XKB_VERSION",""]],"enum":[["SetupXkbExtensionFlags",""]],"fn":[["get_core_keyboard_device_id",""],["keymap_new_from_device",""],["setup_xkb_extension",""],["state_new_from_device",""]],"mod":[["ffi",""]]});

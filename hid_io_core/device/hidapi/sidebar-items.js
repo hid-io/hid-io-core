@@ -1,0 +1,1 @@
+initSidebarItems({"constant":[["USAGE",""],["USAGE_PAGE",""]],"fn":[["initialize","hidapi initialization"]],"struct":[["HidApiDevice",""]]});

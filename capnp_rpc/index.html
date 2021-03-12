@@ -1,0 +1,54 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="An implementation of the Cap’n Proto remote procedure call protocol. Includes all Level 1 features."><meta name="keywords" content="rust, rustlang, rust-lang, capnp_rpc"><title>capnp_rpc - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../capnp_rpc/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><p class="location">Crate capnp_rpc</p><div class="block version"><p>Version 0.13.1</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all capnp_rpc's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="capnp_rpc" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">capnp_rpc</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/capnp_rpc/lib.rs.html#21-369" title="goto source code">[src]</a></span></h1><div class="docblock"><p>An implementation of the <a href="https://capnproto.org/rpc.html">Cap’n Proto remote procedure call</a>
+protocol. Includes all <a href="https://capnproto.org/rpc.html#protocol-features">Level 1</a> features.</p>
+<h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<pre><code class="language-capnp"># Cap'n Proto schema
+interface Foo {
+    identity @0 (x: UInt32) -&gt; (y: UInt32);
+}
+</code></pre>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="comment">// Rust server defining an implementation of Foo.</span>
+<span class="kw">struct</span> <span class="ident">FooImpl</span>;
+<span class="kw">impl</span> <span class="ident">foo</span>::<span class="ident">Server</span> <span class="kw">for</span> <span class="ident">FooImpl</span> {
+    <span class="kw">fn</span> <span class="ident">identity</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+                <span class="ident">params</span>: <span class="ident">foo</span>::<span class="ident">IdentityParams</span>,
+                <span class="kw-2">mut</span> <span class="ident">results</span>: <span class="ident">foo</span>::<span class="ident">IdentityResults</span>)
+                <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Promise</span><span class="op">&lt;</span>(), ::<span class="ident">capnp</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    {
+        <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="macro">pry</span><span class="macro">!</span>(<span class="ident">params</span>.<span class="ident">get</span>()).<span class="ident">get_x</span>();
+        <span class="ident">results</span>.<span class="ident">get</span>().<span class="ident">set_y</span>(<span class="ident">x</span>);
+        <span class="ident">Promise</span>::<span class="ident">ok</span>(())
+    }
+}</pre></div>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="comment">// Rust client calling a remote implementation of Foo.</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">foo_client</span>.<span class="ident">identity_request</span>();
+<span class="ident">request</span>.<span class="ident">get</span>().<span class="ident">set_x</span>(<span class="number">123</span>);
+<span class="kw">let</span> <span class="ident">promise</span> <span class="op">=</span> <span class="ident">request</span>.<span class="ident">send</span>().<span class="ident">promise</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">response</span><span class="op">|</span> {
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;results = {}&quot;</span>, <span class="ident">response</span>.<span class="ident">get</span>()<span class="question-mark">?</span>.<span class="ident">get_y</span>());
+    <span class="prelude-val">Ok</span>(())
+});</pre></div>
+<p>For a more complete example, see https://github.com/capnproto/capnproto-rust/tree/master/capnp-rpc/examples/calculator</p>
+</div><h2 id="modules" class="section-header"><a href="#modules">Modules</a></h2>
+<table><tr class="module-item"><td><a class="mod" href="rpc_capnp/index.html" title="capnp_rpc::rpc_capnp mod">rpc_capnp</a></td><td class="docblock-short"><p>Code generated from [rpc.capnp]
+(https://github.com/sandstorm-io/capnproto/blob/master/c%2B%2B/src/capnp/rpc.capnp).</p>
+</td></tr><tr class="module-item"><td><a class="mod" href="rpc_twoparty_capnp/index.html" title="capnp_rpc::rpc_twoparty_capnp mod">rpc_twoparty_capnp</a></td><td class="docblock-short"><p>Code generated from [rpc-twoparty.capnp]
+(https://github.com/sandstorm-io/capnproto/blob/master/c%2B%2B/src/capnp/rpc-twoparty.capnp).</p>
+</td></tr><tr class="module-item"><td><a class="mod" href="twoparty/index.html" title="capnp_rpc::twoparty mod">twoparty</a></td><td class="docblock-short"><p>An implementation of <code>VatNetwork</code> for the common case of a client-server connection.</p>
+</td></tr></table><h2 id="macros" class="section-header"><a href="#macros">Macros</a></h2>
+<table><tr class="module-item"><td><a class="macro" href="macro.pry.html" title="capnp_rpc::pry macro">pry</a></td><td class="docblock-short"><p>Like <code>try!()</code>, but for functions that return a <code>Promise&lt;T, E&gt;</code> rather than a <code>Result&lt;T, E&gt;</code>.</p>
+</td></tr></table><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<table><tr class="module-item"><td><a class="struct" href="struct.Disconnector.html" title="capnp_rpc::Disconnector struct">Disconnector</a></td><td class="docblock-short"><p>A <code>Future</code> that can be run to disconnect an <code>RpcSystem</code>’s ConnectionState and wait for it to be closed.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.ImbuedMessageBuilder.html" title="capnp_rpc::ImbuedMessageBuilder struct">ImbuedMessageBuilder</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="struct" href="struct.RpcSystem.html" title="capnp_rpc::RpcSystem struct">RpcSystem</a></td><td class="docblock-short"><p>A portal to objects available on the network.</p>
+</td></tr></table><h2 id="traits" class="section-header"><a href="#traits">Traits</a></h2>
+<table><tr class="module-item"><td><a class="trait" href="trait.Connection.html" title="capnp_rpc::Connection trait">Connection</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="trait" href="trait.IncomingMessage.html" title="capnp_rpc::IncomingMessage trait">IncomingMessage</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="trait" href="trait.OutgoingMessage.html" title="capnp_rpc::OutgoingMessage trait">OutgoingMessage</a></td><td class="docblock-short"></td></tr><tr class="module-item"><td><a class="trait" href="trait.VatNetwork.html" title="capnp_rpc::VatNetwork trait">VatNetwork</a></td><td class="docblock-short"></td></tr></table><h2 id="functions" class="section-header"><a href="#functions">Functions</a></h2>
+<table><tr class="module-item"><td><a class="fn" href="fn.new_client.html" title="capnp_rpc::new_client fn">new_client</a></td><td class="docblock-short"><p>Creates a new local RPC client of type <code>C</code> out of an object that implements a server trait <code>S</code>.</p>
+</td></tr><tr class="module-item"><td><a class="fn" href="fn.new_promise_client.html" title="capnp_rpc::new_promise_client fn">new_promise_client</a></td><td class="docblock-short"><p>Converts a promise for a client into a client that queues up any calls that arrive
+before the promise resolves.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="capnp_rpc" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>

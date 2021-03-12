@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["read_message","Reads a packed message from a stream using the provided options."],["try_read_message","Like read_message(), but returns None instead of an error if there are zero bytes left in `read`."],["write_message","Writes a packed message to a stream."]]});

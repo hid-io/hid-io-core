@@ -1,0 +1,1 @@
+initSidebarItems({"mod":[["_private",""],["update_params",""],["update_results",""]],"struct":[["Client",""],["Owned",""],["ServerDispatch",""]],"trait":[["Server",""]],"type":[["UpdateParams",""],["UpdateResults",""]]});

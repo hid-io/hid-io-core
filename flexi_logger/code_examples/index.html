@@ -1,0 +1,253 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Here are some examples for the `flexi_logger` initialization."><meta name="keywords" content="rust, rustlang, rust-lang, code_examples"><title>flexi_logger::code_examples - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../../ayu.css" disabled ><script id="default-settings"></script><script src="../../storage.js"></script><script src="../../crates.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../../flexi_logger/index.html'><div class='logo-container rust-logo'><img src='../../rust-logo.png' alt='logo'></div></a><p class="location">Module code_examples</p><div class="sidebar-elems"><p class="location"><a href="../index.html">flexi_logger</a></p><div id="sidebar-vars" data-name="code_examples" data-ty="mod" data-relpath="../"></div><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Module <a href="../index.html">flexi_logger</a>::<wbr><a class="mod" href="">code_examples</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../../src/flexi_logger/code_examples.rs.html#1-355" title="goto source code">[src]</a></span></h1><div class="docblock"><p>Here are some examples for the <code>flexi_logger</code> initialization.</p>
+<h2 id="contents" class="section-header"><a href="#contents">Contents</a></h2>
+<ul>
+<li><a href="#write-logs-to-stderr">Write logs to stderr</a></li>
+<li><a href="#choose-the-log-output-channel">Choose the log output channel</a></li>
+<li><a href="#use-buffering-to-reduce-io-overhead">Use buffering to reduce I/O overhead</a></li>
+<li><a href="#influence-the-location-and-name-of-the-log-file">Influence the location and name of the log file</a></li>
+<li><a href="#specify-the-format-for-the-log-lines-explicitly">Specify the format for the log lines explicitly</a></li>
+<li><a href="#use-a-fixed-log-file-and-truncate-or-append-the-file-on-each-program-start">Use a fixed log file, and truncate or append the file on each program start</a></li>
+<li><a href="#rotate-the-log-file">Rotate the log file</a></li>
+<li><a href="#reconfigure-the-log-specification-programmatically">Reconfigure the log specification programmatically</a></li>
+<li><a href="#reconfigure-the-log-specification-dynamically-by-editing-a-spec-file">Reconfigure the log specification dynamically by editing a spec-file</a></li>
+</ul>
+<h2 id="write-logs-to-stderr" class="section-header"><a href="#write-logs-to-stderr">Write logs to stderr</a></h2>
+<p>Expect the log specification in the environment variable <code>RUST_LOG</code>:</p>
+<p><code> Logger::</code><a href="../../flexi_logger/struct.Logger.html#method.with_env"><code>with_env()</code></a><code>.start()?;</code></p>
+<p>(if <code>RUST_LOG</code> is not set, or if its value cannot be interpreted, nothing is logged)</p>
+<p>or provide the log spec programmatically:</p>
+<p><code> Logger::</code><a href="../../flexi_logger/struct.Logger.html#method.with_str"><code>with_str(&quot;info&quot;)</code></a><code>.start()?;</code></p>
+<p>or combine both options:</p>
+<p><code> Logger::</code><a href="../../flexi_logger/struct.Logger.html#method.with_env_or_str"><code>with_env_or_str(&quot;info&quot;)</code></a><code>.start()?;</code></p>
+<p>After that, you just use the log-macros from the log crate.</p>
+<h2 id="choose-the-log-output-channel" class="section-header"><a href="#choose-the-log-output-channel">Choose the log output channel</a></h2>
+<p>By default, logs are written to <code>stderr</code>.
+With <a href="../../flexi_logger/struct.Logger.html#method.log_target"><code>Logger::log_target</code></a>
+you can send the logs to <code>stdout</code>, a file, an implementation of <code>LogWriter</code>,
+or write them not at all.</p>
+<p>When writing to files, you sometimes want to have parts of the log still on the terminal;
+this can be achieved with
+<a href="../../flexi_logger/struct.Logger.html#method.duplicate_to_stderr"><code>Logger::duplicate_to_stderr</code></a> or
+<a href="../../flexi_logger/struct.Logger.html#method.duplicate_to_stdout"><code>Logger::duplicate_to_stdout</code></a>,
+which duplicate log messages to the terminal.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)
+   .<span class="ident">log_target</span>(<span class="ident">LogTarget</span>::<span class="ident">File</span>)              <span class="comment">// write logs to file</span>
+   .<span class="ident">duplicate_to_stderr</span>(<span class="ident">Duplicate</span>::<span class="ident">Warn</span>)     <span class="comment">// print warnings and errors also to the console</span>
+   .<span class="ident">start</span>()<span class="question-mark">?</span>;</pre></div>
+<h2 id="use-buffering-to-reduce-io-overhead" class="section-header"><a href="#use-buffering-to-reduce-io-overhead">Use buffering to reduce I/O overhead</a></h2>
+<p>By default, every log line is directly written to the output, without buffering.
+This allows seeing new log lines in real time.</p>
+<p>Using buffering reduces the program’s I/O overhead, and thus increases overall performance,
+which can be important if logging is used heavily.</p>
+<p><strong>Note</strong> that with buffering you should keep the <a href="../../flexi_logger/struct.LoggerHandle.html"><code>LoggerHandle</code></a> and call
+<a href="../../flexi_logger/struct.LoggerHandle.html#method.shutdown"><code>shutdown</code></a> at the very end of your program
+to ensure that all buffered log lines are flushed before the program terminates.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">fn</span> <span class="ident">main</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">logger</span> <span class="op">=</span> <span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)
+       .<span class="ident">log_target</span>(<span class="ident">LogTarget</span>::<span class="ident">File</span>)
+       .<span class="ident">use_buffering</span>(<span class="bool-val">true</span>)
+       .<span class="ident">start</span>()<span class="question-mark">?</span>;
+    <span class="comment">// ... do all your work ...</span>
+    <span class="ident">logger</span>.<span class="ident">shutdown</span>();
+    <span class="prelude-val">Ok</span>(())
+}</pre></div>
+<p>If logging is used with low frequency, buffering can delay the appearance of log lines
+significantly. To avoid that, you can get the buffers flushed automatically in regular
+intervals.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">fn</span> <span class="ident">main</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="kw">dyn</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span><span class="op">&gt;</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">logger</span> <span class="op">=</span> <span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)
+       .<span class="ident">log_target</span>(<span class="ident">LogTarget</span>::<span class="ident">File</span>)
+       .<span class="ident">buffer_and_flush</span>()
+       .<span class="ident">start</span>()<span class="question-mark">?</span>;
+    <span class="comment">// ... do all your work ...</span>
+    <span class="ident">logger</span>.<span class="ident">shutdown</span>();
+    <span class="prelude-val">Ok</span>(())
+}</pre></div>
+<h2 id="influence-the-location-and-name-of-the-log-file" class="section-header"><a href="#influence-the-location-and-name-of-the-log-file">Influence the location and name of the log file</a></h2>
+<p>By default, the log files are created in the current directory (where the program was started).
+With <a href="../../flexi_logger/struct.Logger.html#method.directory"><code>Logger:directory</code></a>
+you can specify a concrete folder in which the files should be created.</p>
+<p>Using <a href="../../flexi_logger/struct.Logger.html#method.discriminant"><code>Logger::discriminant</code></a>
+you can add a discriminating infix to the log file name.</p>
+<p>With <a href="../../flexi_logger/struct.Logger.html#method.suffix"><code>Logger::suffix</code></a>
+you can change the suffix that is used for the log files.</p>
+<p>When writing to files, especially when they are in a distant folder, you may want to let the
+user know where the log file is.</p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.print_message"><code>Logger::print_message</code></a>
+prints an info to <code>stdout</code> to which file the log is written.</p>
+<p><code>create_symlink(path)</code> creates (on unix-systems only) a symbolic link at the
+specified path that points to the log file.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)
+   .<span class="ident">log_to_file</span>()                            <span class="comment">// write logs to file</span>
+   .<span class="ident">directory</span>(<span class="string">&quot;traces&quot;</span>)                      <span class="comment">// create files in folder ./traces</span>
+   .<span class="ident">discriminant</span>(<span class="string">&quot;Sample4711A&quot;</span>)              <span class="comment">// use infix in log file name</span>
+   .<span class="ident">suffix</span>(<span class="string">&quot;trc&quot;</span>)                            <span class="comment">// use suffix .trc instead of .log</span>
+   .<span class="ident">print_message</span>()                          <span class="comment">//</span>
+   .<span class="ident">create_symlink</span>(<span class="string">&quot;current_run&quot;</span>)            <span class="comment">// create a symbolic link to the current log file</span>
+   .<span class="ident">start</span>()<span class="question-mark">?</span>;</pre></div>
+<p>This example will print a message
+“Log is written to <code>./traces/foo_Sample4711A_2020-11-17_19-24-35.trc</code>”
+and, on unix, create a symbolic link called <code>current_run</code>.</p>
+<h2 id="specify-the-format-for-the-log-lines-explicitly" class="section-header"><a href="#specify-the-format-for-the-log-lines-explicitly">Specify the format for the log lines explicitly</a></h2>
+<p>With <a href="../../flexi_logger/struct.Logger.html#method.format"><code>Logger::format</code></a>
+you set the format for all used output channels of <code>flexi_logger</code>.</p>
+<p><code>flexi_logger</code> provides a couple of format functions, and you can also create and use your own,
+e.g. by copying and modifying one of the provided format functions.</p>
+<p>Depending on the configuration, <code>flexi_logger</code> can write logs to multiple channels
+(stdout, stderr, files, or additional writers)
+at the same time. You can control the format for each output channel individually, using
+<a href="../../flexi_logger/struct.Logger.html#method.format_for_files"><code>Logger::format_for_files</code></a>,
+<a href="../../flexi_logger/struct.Logger.html#method.format_for_stderr"><code>Logger::format_for_stderr</code></a>,
+<a href="../../flexi_logger/struct.Logger.html#method.format_for_stdout"><code>Logger::format_for_stdout</code></a>, or
+<a href="../../flexi_logger/struct.Logger.html#method.format_for_writer"><code>Logger::format_for_writer</code></a>.</p>
+<p>As argument for these functions you can use one of the provided non-coloring format functions</p>
+<ul>
+<li><a href="../../flexi_logger/fn.default_format.html"><code>default_format</code></a></li>
+<li><a href="../../flexi_logger/fn.detailed_format.html"><code>detailed_format</code></a></li>
+<li><a href="../../flexi_logger/fn.opt_format.html"><code>opt_format</code></a></li>
+<li><a href="../../flexi_logger/fn.with_thread.html"><code>with_thread</code></a>,</li>
+</ul>
+<p>or one of their coloring pendants</p>
+<ul>
+<li><a href="../../flexi_logger/fn.colored_default_format.html"><code>colored_default_format</code></a></li>
+<li><a href="../../flexi_logger/fn.colored_detailed_format.html"><code>colored_detailed_format</code></a></li>
+<li><a href="../../flexi_logger/fn.colored_opt_format.html"><code>colored_opt_format</code></a>.</li>
+<li><a href="../../flexi_logger/fn.colored_with_thread.html"><code>colored_with_thread</code></a>.</li>
+</ul>
+<h3 id="adaptive-coloring" class="section-header"><a href="#adaptive-coloring">Adaptive Coloring</a></h3>
+<p>You can use coloring for <code>stdout</code> and/or <code>stderr</code>
+conditionally, such that colors are used when the output goes to a tty,
+and suppressed if you e.g. pipe the output to some other program.
+With
+<a href="../../flexi_logger/struct.Logger.html#method.adaptive_format_for_stderr"><code>Logger::adaptive_format_for_stderr</code></a> or
+<a href="../../flexi_logger/struct.Logger.html#method.adaptive_format_for_stdout"><code>Logger::adaptive_format_for_stdout</code></a>
+you can specify one of the provided format pairs
+(which are based on the format functions listed above),
+or you can provide your own colored and non-colored format functions.</p>
+<h3 id="defaults" class="section-header"><a href="#defaults">Defaults</a></h3>
+<p><code>flexi_logger</code> initializes by default equivalently to this:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+    .<span class="ident">adaptive_format_for_stderr</span>(<span class="ident">AdaptiveFormat</span>::<span class="ident">Default</span>)
+    .<span class="ident">adaptive_format_for_stdout</span>(<span class="ident">AdaptiveFormat</span>::<span class="ident">Default</span>)
+    .<span class="ident">format_for_files</span>(<span class="ident">default_format</span>)
+    .<span class="ident">format_for_writer</span>(<span class="ident">default_format</span>)</pre></div>
+<h2 id="use-a-fixed-log-file-and-truncate-or-append-the-file-on-each-program-start" class="section-header"><a href="#use-a-fixed-log-file-and-truncate-or-append-the-file-on-each-program-start">Use a fixed log file, and truncate or append the file on each program start</a></h2>
+<p>With <a href="../../flexi_logger/struct.Logger.html#method.log_to_file"><code>Logger::log_to_file</code></a> and without rotation,
+<code>flexi_logger</code> uses by default files with a timestamp in the name, like
+<code>foo_2020-11-16_08-37-44.log</code> (for a program called <code>foo</code>), which are quite unique for each
+program start.</p>
+<p>With <a href="../../flexi_logger/struct.Logger.html#method.suppress_timestamp"><code>Logger::suppress_timestamp</code></a>
+you get a simple fixed filename, like <code>foo.log</code>.</p>
+<p>In that case, a restart of the program will truncate an existing log file.</p>
+<p>Use additionally <a href="../../flexi_logger/struct.Logger.html#method.append"><code>Logger::append</code></a>
+to append the logs of each new run to the existing file.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)      <span class="comment">// Write all error, warn, and info messages</span>
+    .<span class="ident">log_to_file</span>()            <span class="comment">// Write the log to a file</span>
+    .<span class="ident">suppress_timestamp</span>()     <span class="comment">// use a simple filename without a timestamp</span>
+    .<span class="ident">append</span>()                 <span class="comment">// do not truncate the log file when the program is restarted</span>
+    .<span class="ident">start</span>()<span class="question-mark">?</span>;
+</pre></div>
+<h2 id="rotate-the-log-file" class="section-header"><a href="#rotate-the-log-file">Rotate the log file</a></h2>
+<p>With rotation, the logs are always written to a file
+with the infix <code>rCURRENT</code>, like e.g. <code>foo_rCURRENT.log</code>.</p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.rotate"><code>Logger::rotate</code></a>
+takes three enum arguments to define its behavior:</p>
+<ul>
+<li>
+<p><a href="../../flexi_logger/enum.Criterion.html"><code>Criterion</code></a></p>
+<ul>
+<li>with <code>Criterion::Age</code> the rotation happens
+when the clock switches to a new day, hour, minute, or second</li>
+<li>with <code>Criterion::Size</code> the rotation happens when the current log file exceeds
+the specified limit</li>
+<li>with <code>Criterion::AgeOrSize</code> the rotation happens when either of the two limits is reached</li>
+</ul>
+</li>
+<li>
+<p><a href="../../flexi_logger/enum.Naming.html"><code>Naming</code></a><br>The current file is then renamed</p>
+<ul>
+<li>with <code>Naming::Timestamps</code> to something like <code>foo_r2020-11-16_08-56-52.log</code></li>
+<li>with <code>Naming::Numbers</code> to something like <code>foo_r00000.log</code></li>
+</ul>
+<p>and a fresh <code>rCURRENT</code> file is created.</p>
+</li>
+<li>
+<p><a href="../../flexi_logger/enum.Cleanup.html"><code>Cleanup</code></a> defines if and how you
+avoid accumulating log files indefinitely:</p>
+<ul>
+<li>with <code>Cleanup::KeepLogFiles</code> you specify the number of log files that should be retained;
+if there are more, the older ones are getting deleted</li>
+<li>with <code>Cleanup::KeepCompressedFiles</code> you specify the number of log files that should be
+retained, and these are being compressed additionally</li>
+<li>with <code>Cleanup::KeepLogAndCompressedFiles</code> you specify the number of log files that should be
+retained as is, and an additional number that are being compressed</li>
+<li>with <code>Cleanup::Never</code> no cleanup is done, all files are retained.</li>
+</ul>
+</li>
+</ul>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)          <span class="comment">// Write all error, warn, and info messages</span>
+    .<span class="ident">log_to_file</span>()                <span class="comment">// Write the log to a file</span>
+    .<span class="ident">rotate</span>(                      <span class="comment">// If the program runs long enough,</span>
+        <span class="ident">Criterion</span>::<span class="ident">Age</span>(<span class="ident">Age</span>::<span class="ident">Day</span>), <span class="comment">// - create a new file every day</span>
+        <span class="ident">Naming</span>::<span class="ident">Timestamps</span>,       <span class="comment">// - let the rotated files have a timestamp in their name</span>
+        <span class="ident">Cleanup</span>::<span class="ident">KeepLogFiles</span>(<span class="number">7</span>), <span class="comment">// - keep at most 7 log files</span>
+    )
+    .<span class="ident">start</span>()<span class="question-mark">?</span>;
+</pre></div>
+<h2 id="reconfigure-the-log-specification-programmatically" class="section-header"><a href="#reconfigure-the-log-specification-programmatically">Reconfigure the log specification programmatically</a></h2>
+<p>This can be especially handy in debugging situations where you want to see
+traces only for a short instant.</p>
+<p>Obtain the <code>LoggerHandle</code></p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">logger</span> <span class="op">=</span> <span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)
+    <span class="comment">// ... logger configuration ...</span>
+    .<span class="ident">start</span>()
+    .<span class="ident">unwrap</span>();</pre></div>
+<p>and modify the effective log specification from within your code:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="comment">// ...</span>
+<span class="ident">logger</span>.<span class="ident">parse_and_push_temp_spec</span>(<span class="string">&quot;info, critical_mod = trace&quot;</span>);
+<span class="comment">// ... critical calls ...</span>
+<span class="ident">logger</span>.<span class="ident">pop_temp_spec</span>();
+<span class="comment">// ... continue with the log spec you had before.</span></pre></div>
+<h2 id="reconfigure-the-log-specification-dynamically-by-editing-a-spec-file" class="section-header"><a href="#reconfigure-the-log-specification-dynamically-by-editing-a-spec-file">Reconfigure the log specification dynamically by editing a spec-file</a></h2>
+<p>If you start <code>flexi_logger</code> with a specfile,</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="ident">Logger</span>::<span class="ident">with_str</span>(<span class="string">&quot;info&quot;</span>)
+    <span class="comment">// ... logger configuration ...</span>
+   .<span class="ident">start_with_specfile</span>(<span class="string">&quot;/server/config/logspec.toml&quot;</span>)
+   .<span class="ident">unwrap</span>();</pre></div>
+<p>then you can change the log specification dynamically, <em>while your program is running</em>,
+by editing the specfile. This can be a great help e.g. if you want to get detailed traces
+for <em>some</em> requests to a long running server.</p>
+<p>See <a href="crate::Logger::start_with_specfile"><code>Logger::start_with_specfile</code></a>
+for more information.</p>
+<h2 id="miscellaneous" class="section-header"><a href="#miscellaneous">Miscellaneous</a></h2>
+<p>For the sake of completeness, we refer here to some more configuration methods.
+See their documentation for more details.</p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.check_parser_error"><code>Logger::check_parser_error</code></a></p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.set_palette"><code>Logger::set_palette</code></a></p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.cleanup_in_background_thread"><code>Logger::cleanup_in_background_thread</code></a></p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.use_windows_line_ending"><code>Logger::use_windows_line_ending</code></a></p>
+<p><a href="../../flexi_logger/struct.Logger.html#method.add_writer"><code>Logger::add_writer</code></a></p>
+</div></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../../" data-current-crate="flexi_logger" data-search-js="../../search-index.js"></div>
+    <script src="../../main.js"></script></body></html>

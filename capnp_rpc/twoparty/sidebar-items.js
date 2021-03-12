@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["VatNetwork","A vat networks with two parties, the client and the server."]],"type":[["VatId",""]]});

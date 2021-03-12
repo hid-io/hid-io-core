@@ -1,0 +1,155 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A dead simple ANSI terminal color painting library."><meta name="keywords" content="rust, rustlang, rust-lang, yansi"><title>yansi - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../light.css"  id="themeStyle"><link rel="stylesheet" type="text/css" href="../dark.css" disabled ><link rel="stylesheet" type="text/css" href="../ayu.css" disabled ><script id="default-settings"></script><script src="../storage.js"></script><script src="../crates.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="alternate icon" type="image/png" href="../favicon-16x16.png">
+<link rel="alternate icon" type="image/png" href="../favicon-32x32.png"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu" role="button">&#9776;</div><a href='../yansi/index.html'><div class='logo-container rust-logo'><img src='../rust-logo.png' alt='logo'></div></a><p class="location">Crate yansi</p><div class="block version"><p>Version 0.5.0</p></div><div class="sidebar-elems"><a id="all-types" href="all.html"><p>See all yansi's items</p></a><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div><p class="location"></p><div id="sidebar-vars" data-name="yansi" data-ty="mod" data-relpath="../"></div></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!" aria-haspopup="menu"><img src="../brush.svg" width="18" height="18" alt="Pick another theme!"></button><div id="theme-choices" role="menu"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><button type="button" class="help-button">?</button>
+                <a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" height="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class="fqn"><span class="in-band">Crate <a class="mod" href="">yansi</a></span><span class="out-of-band"><span id="render-detail"><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span><a class="srclink" href="../src/yansi/lib.rs.html#1-216" title="goto source code">[src]</a></span></h1><div class="docblock"><p>A dead simple ANSI terminal color painting library.</p>
+<h1 id="usage" class="section-header"><a href="#usage">Usage</a></h1>
+<p>Usage is best illustrated via a quick example:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::{<span class="ident">Paint</span>, <span class="ident">Color</span>};
+
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Testing, {}, {}, {}!&quot;</span>,
+    <span class="ident">Paint</span>::<span class="ident">red</span>(<span class="number">1</span>),
+    <span class="ident">Paint</span>::<span class="ident">green</span>(<span class="number">2</span>).<span class="ident">bold</span>().<span class="ident">underline</span>(),
+    <span class="ident">Paint</span>::<span class="ident">blue</span>(<span class="string">&quot;3&quot;</span>).<span class="ident">bg</span>(<span class="ident">Color</span>::<span class="ident">White</span>).<span class="ident">italic</span>());</pre></div>
+<h2 id="paint" class="section-header"><a href="#paint">Paint</a></h2>
+<p>The main entry point into this library is the <a href="../yansi/struct.Paint.html" title="Paint"><code>Paint</code></a> type. <code>Paint</code>
+encapsulates a value of any type that implements the <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html"><code>Display</code></a> or
+<a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html"><code>Debug</code></a> trait. When a <code>Paint</code> is <code>Display</code>ed or <code>Debug</code>ed, the appropriate
+ANSI escape characters are emitted before and after the wrapped type’s <code>fmt</code>
+implementation.</p>
+<p><code>Paint</code> can be constructed via <a href="struct.Paint.html#unstyled-constructors">a myriad of methods</a>. In addition to these
+constructors, you can also use the <a href="../yansi/enum.Color.html#method.paint"><code>color.paint()</code></a> method
+on a given <a href="../yansi/enum.Color.html" title="Color"><code>Color</code></a> value to construct a <code>Paint</code> type. Both of these
+approaches are shown below:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Paint</span>;
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Color</span>::<span class="ident">Red</span>;
+
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;I&#39;m {}!&quot;</span>, <span class="ident">Paint</span>::<span class="ident">red</span>(<span class="string">&quot;red&quot;</span>).<span class="ident">bold</span>());
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;I&#39;m also {}!&quot;</span>, <span class="ident">Red</span>.<span class="ident">paint</span>(<span class="string">&quot;red&quot;</span>).<span class="ident">bold</span>());</pre></div>
+<h2 id="styling" class="section-header"><a href="#styling">Styling</a></h2>
+<p>Modifications to the styling of an item can be made via <a href="struct.Paint.html#setters">a number of
+chainable methods</a> on <code>Paint</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Paint</span>;
+
+<span class="ident">Paint</span>::<span class="ident">new</span>(<span class="string">&quot;hi&quot;</span>).<span class="ident">underline</span>().<span class="ident">invert</span>().<span class="ident">italic</span>().<span class="ident">dimmed</span>().<span class="ident">bold</span>();</pre></div>
+<p>Styling can also be created independently from a <code>Paint</code> structure via the
+<a href="../yansi/struct.Style.html" title="Style"><code>Style</code></a> structure. This allows common styling to be stored and reused. A
+<code>Style</code> can be applied via the <a href="../yansi/struct.Style.html#method.paint"><code>style.paint()</code></a> method or the
+<a href="../yansi/struct.Paint.html#method.with_style"><code>paint.with_style()</code></a> method:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::{<span class="ident">Paint</span>, <span class="ident">Color</span>, <span class="ident">Style</span>};
+
+<span class="comment">// A bold, itatlic style with red foreground.</span>
+<span class="kw">let</span> <span class="ident">alert</span> <span class="op">=</span> <span class="ident">Style</span>::<span class="ident">new</span>(<span class="ident">Color</span>::<span class="ident">Red</span>).<span class="ident">bold</span>().<span class="ident">italic</span>();
+
+<span class="comment">// Using `style.paint()`; this is preferred.</span>
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Alert! {}&quot;</span>, <span class="ident">alert</span>.<span class="ident">paint</span>(<span class="string">&quot;This is serious business!&quot;</span>));
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Hi! {}&quot;</span>, <span class="ident">alert</span>.<span class="ident">underline</span>().<span class="ident">paint</span>(<span class="string">&quot;Super serious!&quot;</span>));
+
+<span class="comment">// Using `paint.with_style()`.</span>
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Alert! {}&quot;</span>, <span class="ident">Paint</span>::<span class="ident">new</span>(<span class="string">&quot;Yet another.&quot;</span>).<span class="ident">with_style</span>(<span class="ident">alert</span>));</pre></div>
+<h1 id="disabling" class="section-header"><a href="#disabling">Disabling</a></h1>
+<p>Painting can be disabled globally via the <a href="../yansi/struct.Paint.html#method.disable" title="Paint::disable()"><code>Paint::disable()</code></a> method. When
+painting is disabled, the <code>Display</code> and <code>Debug</code> implementations for <code>Paint</code>
+will emit the <code>Display</code> or <code>Debug</code> of the contained object and nothing else.
+Painting can be reenabled via the <a href="../yansi/struct.Paint.html#method.enable" title="Paint::enable()"><code>Paint::enable()</code></a> method.</p>
+<p>One potential use of this feature is to allow users to control color ouput
+via an environment variable. For instance, to disable coloring if the
+<code>CLICOLOR</code> variable is set to <code>0</code>, you might write:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Paint</span>;
+
+<span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) <span class="op">=</span> <span class="ident">std</span>::<span class="ident">env</span>::<span class="ident">var</span>(<span class="string">&quot;CLICOLOR&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span> <span class="op">=</span><span class="op">=</span> <span class="string">&quot;0&quot;</span>) {
+    <span class="ident">Paint</span>::<span class="ident">disable</span>();
+}</pre></div>
+<h2 id="masking" class="section-header"><a href="#masking">Masking</a></h2>
+<p>Items can be arbitrarily <em>masked</em>. When an item is masked and painting is
+disabled, the <code>Display</code> and <code>Debug</code> implementations of <code>Paint</code> write
+nothing. This allows you to selectively omit output when painting is
+disabled. Values can be masked using the <a href="../yansi/struct.Paint.html#method.masked" title="Paint::masked()"><code>Paint::masked()</code></a> and
+[<code>Style::masked()</code>]constructors or <a href="../yansi/struct.Paint.html#method.mask"><code>paint.mask()</code></a> and <a href="../yansi/struct.Style.html#method.mask"><code>style.mask()</code></a>
+style setters.</p>
+<p>One use for this feature is to print certain characters only when painting
+is enabled. For instance, you might wish to emit the 🎨 emoji when
+coloring is enabled but not otherwise. This can be accomplished by masking
+the emoji:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Paint</span>;
+
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;I like colors!{}&quot;</span>, <span class="ident">Paint</span>::<span class="ident">masked</span>(<span class="string">&quot; 🎨&quot;</span>));</pre></div>
+<p>This will print “I like colors! 🎨” when painting is enabled and “I like
+colors!” when painting is disabled.</p>
+<h2 id="wrapping" class="section-header"><a href="#wrapping">Wrapping</a></h2>
+<p>Styling can be set to <em>wrap</em> existing styles using either the
+<a href="../yansi/struct.Paint.html#method.wrapping" title="Paint::wrapping()"><code>Paint::wrapping()</code></a> constructor or the <a href="../yansi/struct.Paint.html#method.wrap"><code>paint.wrap()</code></a> and
+<a href="../yansi/struct.Style.html#method.wrap"><code>style.wrap()</code></a> style setters. When a style is <em>wrapping</em>, all color
+resets written out by the internal item’s <code>Display</code> or <code>Debug</code>
+implementation are set to the styling of the wrapping style itself. In other
+words, the “default” style of the wrapped item is modified to be the
+wrapping style. This allows for easy wrapping of other colored text. Without
+this feature, the console would reset styling to the terminal’s default
+style instead of the wrapping style.</p>
+<p>One use for this feature is to ensure that styling is consistently set
+across items that may already be styled, such as when logging.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::{<span class="ident">Paint</span>, <span class="ident">Color</span>};
+
+<span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} and {}&quot;</span>, <span class="ident">Paint</span>::<span class="ident">red</span>(<span class="string">&quot;Stop&quot;</span>), <span class="ident">Paint</span>::<span class="ident">green</span>(<span class="string">&quot;Go&quot;</span>));
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Hey! {}&quot;</span>, <span class="ident">Paint</span>::<span class="ident">wrapping</span>(<span class="ident">inner</span>).<span class="ident">fg</span>(<span class="ident">Color</span>::<span class="ident">Blue</span>));</pre></div>
+<p>This will print ‘Hey!’ unstyled, “Stop” in red, “and” in blue, and “Go” in
+green. Without wrapping, “and” would be unstyled as <code>Paint::red()</code> resets
+the style after printing the internal item.</p>
+<h1 id="windows" class="section-header"><a href="#windows">Windows</a></h1>
+<p>Coloring is supported on Windows beginning with the Windows 10 anniversary
+update. Since this update, Windows consoles support ANSI escape sequences.
+This support, however, must be explicitly enabled. <code>yansi</code> provides the
+<a href="../yansi/struct.Paint.html#method.enable_windows_ascii"><code>Paint::enable_windows_ascii()</code></a> method to enable ASCII support on Windows
+consoles when available.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Paint</span>;
+
+<span class="comment">// Enable ASCII escape sequence support on Windows consoles.</span>
+<span class="ident">Paint</span>::<span class="ident">enable_windows_ascii</span>();</pre></div>
+<p>You may wish to disable coloring on unsupported Windows consoles to avoid
+emitting unrecognized ASCII escape sequences:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">yansi</span>::<span class="ident">Paint</span>;
+
+<span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">windows</span>) <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">Paint</span>::<span class="ident">enable_windows_ascii</span>() {
+    <span class="ident">Paint</span>::<span class="ident">disable</span>();
+}</pre></div>
+<h1 id="why" class="section-header"><a href="#why">Why?</a></h1>
+<p>Several terminal coloring libraries exist (<a href="https://crates.io/crates/ansi_term"><code>ansi_term</code></a>, <a href="https://crates.io/crates/colored"><code>colored</code></a>,
+<a href="https://crates.io/crates/term-painter"><code>term_painter</code></a>, to name a few), begging the question: why yet another?
+Here are a few reasons:</p>
+<ul>
+<li>This library is <em>much</em> simpler: there are three types!</li>
+<li>Unlike <a href="https://crates.io/crates/ansi_term"><code>ansi_term</code></a> or <a href="https://crates.io/crates/colored"><code>colored</code></a>, <em>any</em> type implementing <code>Display</code>
+or <code>Debug</code> can be stylized, not only strings.</li>
+<li>Styling can be enabled and disabled globally, on the fly.</li>
+<li>Arbitrary items can be <a href="#masking"><em>masked</em></a> for selective disabling.</li>
+<li>Styling can <a href="#wrapping"><em>wrap</em></a> any arbitrarily styled item.</li>
+<li>Typically only one type needs to be imported: <a href="../yansi/struct.Paint.html" title="Paint"><code>Paint</code></a>.</li>
+<li>Zero dependencies. It really is simple.</li>
+<li>The name <code>yansi</code> is pretty short.</li>
+</ul>
+<p>All that being said, this library borrows API ideas from the three libraries
+as well as implementation details from <a href="https://crates.io/crates/ansi_term"><code>ansi_term</code></a>.</p>
+</div><h2 id="structs" class="section-header"><a href="#structs">Structs</a></h2>
+<table><tr class="module-item"><td><a class="struct" href="struct.Paint.html" title="yansi::Paint struct">Paint</a></td><td class="docblock-short"><p>A structure encapsulating an item and styling.</p>
+</td></tr><tr class="module-item"><td><a class="struct" href="struct.Style.html" title="yansi::Style struct">Style</a></td><td class="docblock-short"><p>Represents a set of styling options.</p>
+</td></tr></table><h2 id="enums" class="section-header"><a href="#enums">Enums</a></h2>
+<table><tr class="module-item"><td><a class="enum" href="enum.Color.html" title="yansi::Color enum">Color</a></td><td class="docblock-short"><p>An enum representing an ANSI color code.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><div id="rustdoc-vars" data-root-path="../" data-current-crate="yansi" data-search-js="../search-index.js"></div>
+    <script src="../main.js"></script></body></html>

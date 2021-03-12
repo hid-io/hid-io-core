@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Device","Opaque struct representing an evdev device"]]});

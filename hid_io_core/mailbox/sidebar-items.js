@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["AckWaitError",""],["Address",""]],"struct":[["Mailbox","HID-IO Mailbox"],["Message","Container for HidIoPacketBuffer Used to indicate the source and destinations inside of hid-io-core. Also contains a variety of convenience functions using the src and dst information."]],"type":[["HidIoPacketBuffer",""],["HidIoPacketBufferDataSize",""]]});
