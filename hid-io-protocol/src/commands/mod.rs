@@ -1693,13 +1693,13 @@ where
     }
     fn h0051_manufacturingres_ack(&mut self, _data: h0051::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::ManufacturingTest,
+            HidIoCommandId::ManufacturingResult,
             HidIoPacketType::Ack,
         ))
     }
     fn h0051_manufacturingres_nak(&mut self, _data: h0051::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::ManufacturingTest,
+            HidIoCommandId::ManufacturingResult,
             HidIoPacketType::Nak,
         ))
     }

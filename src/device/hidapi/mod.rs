@@ -199,7 +199,7 @@ async fn processing(mailbox: mailbox::Mailbox) {
         api.refresh_devices().unwrap();
 
         // Iterate over found USB interfaces and select usable ones
-        debug!("Scanning for devices");
+        trace!("Scanning for devices");
         for device_info in api.device_list() {
             let device_str = format!(
                 "Device: {:#?}\n    {} R:{}",
@@ -207,7 +207,7 @@ async fn processing(mailbox: mailbox::Mailbox) {
                 device_name(device_info),
                 device_info.release_number()
             );
-            debug!("{}", device_str);
+            trace!("{}", device_str);
 
             // Use usage page and usage for matching HID-IO compatible device
             if !match_device(device_info) {

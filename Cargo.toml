@@ -93,7 +93,7 @@ capnp-rpc       = { version = "^0.13", optional = true }
 clap            = "^2.33"
 ctrlc           = "^3.1"
 lazy_static     = "^1.4"
-flexi_logger    = "^0.16"
+flexi_logger    = "^0.17"
 futures         = { version = "^0.3", optional = true }
 futures-util    = { version = "^0.3", optional = true }
 glob            = { version = "^0.3", optional = true }

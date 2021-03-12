@@ -134,8 +134,8 @@ impl HidIoController {
         let last_sync = Instant::now();
         HidIoController {
             mailbox,
-            device,
             uid,
+            device,
             received,
             receiver,
             last_sync,

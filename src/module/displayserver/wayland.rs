@@ -69,9 +69,9 @@ impl Keymap {
         Keymap {
             automatic_layout_regen,
             base_time,
-            virtual_keyboard,
             keysym_lookup,
             unused_keycodes,
+            virtual_keyboard,
         }
     }
 

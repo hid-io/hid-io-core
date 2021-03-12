@@ -625,7 +625,7 @@ Various test commands used during manufacturing to validate the hardware.
             * 0x0001 - Enable
             * 0x0002 - Activate LED short test (see 0x51 for result)
             * 0x0003 - Activate LED open circuit test (see 0x51 for result)
-            
+
  * 0x0002 - LED cycle on keypress test
             Used with shake tests to determine if there are hair-trigger switches.
             On each press or release event, cycle to a different LED event.
@@ -635,9 +635,10 @@ Various test commands used during manufacturing to validate the hardware.
  * 0x0003 - Hall Effect sensor test
             Used to check the status of each sensor.
             Args:
-            * 0x0000 - Pass/Fail test
-            * 0x0001 - Level check
-            
+            * 0x0000 - Disable all
+            * 0x0001 - Pass/Fail test (toggle)
+            * 0x0002 - Level check (toggle)
+
 Any return values will be sent as a Manufacturing Test Result (0x51).
 
 +> (No payload)
@@ -669,10 +670,10 @@ Various test commands used during manufacturing to validate the hardware.
  * 0x0003 - Hall Effect sensor test
             Used to check the status of each sensor
             Args:
-            * 0x0000 - Pass/Fail test
-              Payload: List of failed sensors positions, each sensor has a 16-bit scancode
-            * 0x0001 - Level test, number of scancodes is determined by the device.
-              Payload: [<scancode:16 bits> <level:16 bits>...]
+            * 0x0001 - Pass/Fail test
+              Payload: List of failed sensors positions, index starts from 0 and goes to max sensor index.
+            * 0x0002 - Level test, number of scancodes is determined by the device. Index starts from 0 and goes to max sensor index.
+              Payload: [<level:16 bits>...]
 
 +> (No payload)
 -> (No payload)

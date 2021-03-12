@@ -129,6 +129,27 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                 .help("Lists currently connected hid-io enabled devices."),
         )
         .subcommand(SubCommand::with_name("flash").about("Attempt to enable flash mode on device"))
+        .subcommand(SubCommand::with_name("info").about("Query information on device"))
+        .subcommand(
+            SubCommand::with_name("manufacturing")
+                .about("Send manufacturing commands to the device")
+                .arg(
+                    Arg::with_name("cmd")
+                        .short("c")
+                        .long("cmd")
+                        .takes_value(true)
+                        .required(true)
+                        .help("Manufacturing command id (16-int integer)"),
+                )
+                .arg(
+                    Arg::with_name("arg")
+                        .short("a")
+                        .long("arg")
+                        .takes_value(true)
+                        .required(true)
+                        .help("Manufacturing command arg (16-int integer)"),
+                ),
+        )
         .subcommand(SubCommand::with_name("sleep").about("Attempt to enable sleep mode on device"))
         .get_matches();
 
@@ -319,6 +340,47 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         //serial = format!("{}", device.get_serial().unwrap());
 
         match matches.subcommand() {
+            ("info", Some(_)) => {
+                // Flash mode command
+                if let Ok(nodetype) = device.get_node().which() {
+                    match nodetype {
+                        hid_io_core::common_capnp::destination::node::Which::Keyboard(node) => {
+                            let node = node?;
+
+                            let info_resp = {
+                                // Cast/transform keyboard node to a hidio node
+                                let request = hidio_capnp::node::Client {
+                                    client: node.client,
+                                }
+                                .info_request();
+                                match request.send().promise.await {
+                                    Ok(response) => response,
+                                    Err(e) => {
+                                        eprintln!("Info request failed: {}", e);
+                                        ::std::process::exit(1);
+                                    }
+                                }
+                            };
+                            // TODO Fully implement info response
+                            let info = info_resp.get().unwrap().get_info().unwrap();
+                            println!(
+                                "Version:          {}.{}.{}",
+                                info.get_hidio_major_version(),
+                                info.get_hidio_minor_version(),
+                                info.get_hidio_patch_version()
+                            );
+                            println!("Device Name:      {}", info.get_device_name().unwrap());
+                            println!("Device Vendor:    {}", info.get_device_vendor().unwrap());
+                            println!("Device Serial:    {}", info.get_device_serial().unwrap());
+                            println!("Device Version:   {}", info.get_device_version().unwrap());
+                            println!("Device MCU:       {}", info.get_device_mcu().unwrap());
+                            println!("Firmware Name:    {}", info.get_firmware_name().unwrap());
+                            println!("Firmware Version: {}", info.get_firmware_version().unwrap());
+                        }
+                        _ => {}
+                    }
+                }
+            }
             ("flash", Some(_)) => {
                 // Flash mode command
                 if let Ok(nodetype) = device.get_node().which() {
@@ -349,6 +411,50 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                 .has_success()
                             {
                                 println!("Flash mode set");
+                            }
+                            // TODO Implement errors
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            ("manufacturing", Some(submatches)) => {
+                // Flash mode command
+                if let Ok(nodetype) = device.get_node().which() {
+                    match nodetype {
+                        hid_io_core::common_capnp::destination::node::Which::Keyboard(node) => {
+                            let node = node?;
+
+                            // Retrieve arguments
+                            let cmd: u16 = submatches.value_of("cmd").unwrap().parse().unwrap();
+                            let arg: u16 = submatches.value_of("arg").unwrap().parse().unwrap();
+
+                            let manufacturing_test_resp = {
+                                // Cast/transform keyboard node to a hidio node
+                                let mut request = hidio_capnp::node::Client {
+                                    client: node.client,
+                                }
+                                .manufacturing_test_request();
+                                request.get().set_cmd(cmd);
+                                request.get().set_arg(arg);
+
+                                // Send command
+                                match request.send().promise.await {
+                                    Ok(response) => response,
+                                    Err(e) => {
+                                        eprintln!("Manufacturing Test request failed: {}", e);
+                                        ::std::process::exit(1);
+                                    }
+                                }
+                            };
+                            if manufacturing_test_resp
+                                .get()
+                                .unwrap()
+                                .get_status()
+                                .unwrap()
+                                .has_success()
+                            {
+                                println!("Manufacturing Test set: {}:{}", cmd, arg);
                             }
                             // TODO Implement errors
                         }

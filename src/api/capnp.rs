@@ -900,7 +900,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn info(
         &mut self,
         _params: hidio_capnp::node::InfoParams,
-        results: hidio_capnp::node::InfoResults,
+        mut results: hidio_capnp::node::InfoResults,
     ) -> Promise<(), Error> {
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::DeviceHidio { uid: self.uid };
@@ -936,7 +936,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             {
                 use h0001::Property;
 
-                let mut info = self.results.get().init_info();
+                let mut info = self.results.get().get_info().unwrap();
                 match data.property {
                     Property::MajorVersion => info.set_hidio_major_version(data.number),
                     Property::MinorVersion => info.set_hidio_minor_version(data.number),
@@ -954,6 +954,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 Ok(())
             }
         }
+        results.get().init_info();
         let mut intf = CommandInterface {
             src,
             dst,
@@ -1728,9 +1729,12 @@ async fn server_subscriptions_keyboard(
             //  kll trigger (TODO)
             //  layer (TODO)
             let mut stream = stream.filter(|msg| {
-                msg.data.id == HidIoCommandId::TerminalOut
-                    || msg.data.id == HidIoCommandId::KllState
-                    || msg.data.id == HidIoCommandId::HostMacro
+                (msg.data.ptype == HidIoPacketType::Data
+                    || msg.data.ptype == HidIoPacketType::NaData)
+                    && (msg.data.id == HidIoCommandId::TerminalOut
+                        || msg.data.id == HidIoCommandId::KllState
+                        || msg.data.id == HidIoCommandId::HostMacro
+                        || msg.data.id == HidIoCommandId::ManufacturingResult)
             });
 
             // Handle stream
@@ -2156,8 +2160,11 @@ async fn server_subscriptions(
 pub fn supported_ids() -> Vec<HidIoCommandId> {
     vec![
         HidIoCommandId::FlashMode,
+        HidIoCommandId::GetInfo,
         HidIoCommandId::HostMacro,
         HidIoCommandId::KllState,
+        HidIoCommandId::ManufacturingTest,
+        HidIoCommandId::ManufacturingResult,
         HidIoCommandId::SleepMode,
         HidIoCommandId::TerminalCmd,
         HidIoCommandId::TerminalOut,

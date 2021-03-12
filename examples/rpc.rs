@@ -79,6 +79,44 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                     print!("{}", cli.get_output().unwrap());
                     std::io::stdout().flush().unwrap();
                 }
+                hid_io_core::keyboard_capnp::keyboard::signal::data::Which::Manufacturing(res) => {
+                    let res = res.unwrap();
+                    println!("{}:{} => ", res.get_cmd(), res.get_arg());
+                    match res.get_cmd() {
+                        3 => match res.get_arg() {
+                            2 => {
+                                let split = res.get_data().unwrap().len() / 2 / 6;
+                                let mut tmp = vec![];
+                                let mut pos = 0;
+                                for byte in res.get_data().unwrap() {
+                                    tmp.push(byte);
+                                    if tmp.len() == 2 {
+                                        print!("{:>4} ", u16::from_le_bytes([tmp[0], tmp[1]]));
+                                        tmp.clear();
+                                        pos += 1;
+                                        if pos % split == 0 {
+                                            println!("");
+                                        }
+                                    }
+                                }
+                                println!("");
+                            }
+                            _ => {
+                                for byte in res.get_data().unwrap() {
+                                    print!("{} ", byte);
+                                }
+                                println!("");
+                            }
+                        },
+                        _ => {
+                            for byte in res.get_data().unwrap() {
+                                print!("{} ", byte);
+                            }
+                            println!("");
+                        }
+                    }
+                    std::io::stdout().flush().unwrap();
+                }
                 _ => {}
             }
         }
