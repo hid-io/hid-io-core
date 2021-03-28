@@ -1439,7 +1439,7 @@ where
         }
 
         // Build payload
-        if !buf.append_payload(&data.command.as_bytes()) {
+        if !buf.append_payload(data.command.as_bytes()) {
             return Err(CommandError::DataVecTooSmall);
         }
         buf.done = true;
@@ -1522,7 +1522,7 @@ where
         }
 
         // Build payload
-        if !buf.append_payload(&data.output.as_bytes()) {
+        if !buf.append_payload(data.output.as_bytes()) {
             return Err(CommandError::DataVecTooSmall);
         }
         buf.done = true;

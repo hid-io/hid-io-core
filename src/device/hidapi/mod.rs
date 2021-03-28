@@ -132,7 +132,7 @@ fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
         device_info.interface_number(),
     );
     if let Some(m) = &device_info.manufacturer_string() {
-        string += &m;
+        string += m;
     }
     if let Some(p) = &device_info.product_string() {
         string += &format!(" {}", p);
