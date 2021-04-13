@@ -50,7 +50,7 @@ Instead, the spec proposes a very simple sideband protocol that input devices ca
 
 In order to communicate between the host and the device an interface is needed.
 
-On USB this means some sort of descriptor is required to open up a communication pipe. Ideally, we would be able to use a special provision in HID called Raw HID. Raw HID is just a couple USB interrupt endpoints (Tx and Rx) that supports sending fixed sized data packets. In terms of data rate, minimal descriptor and code size, this would be an ideal interface to use. On Windows Raw HID is even driver-less. For Linux hidapi (https://github.com/signal11/hidapi) exists, and while it's not well maintained anymore it should provide a good interface to hidraw. On macOS hidapi uses IOHidManager which may work well, but since macOS changes the driver stack often it may be necessary to maintain a macOS driver.
+On USB this means some sort of descriptor is required to open up a communication pipe. Ideally, we would be able to use a special provision in HID called Raw HID. Raw HID is just a couple USB interrupt endpoints (Tx and Rx) that supports sending fixed sized data packets. In terms of data rate, minimal descriptor and code size, this would be an ideal interface to use. On Windows Raw HID is even driver-less. For Linux [hidapi](https://github.com/signal11/hidapi) exists, and while it's not well maintained anymore it should provide a good interface to hidraw. On macOS hidapi uses IOHidManager which may work well, but since macOS changes the driver stack often it may be necessary to maintain a macOS driver.
 
 ```
 |Interrupt Max Packet Sizes|
@@ -71,8 +71,8 @@ In order to identify that a specific device interface is available to client sid
 * Usage Page (0xFF1C) - Read as FFK
 * Usage (0x1100) - Read as II 0
 
-PJRC recommends that the Usage Page be between 0xFF00 and 0xFFFF and the Usage be between 0x0100 and 0xFFFF (https://github.com/PaulStoffregen/cores/blob/master/teensy3/usb_desc.h#L531).
-The Usage Pages (https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf Section 3) 0xFF00 to 0xFFFF are deemed as Vendor-defined and are safe to use.
+PJRC [recommends](https://github.com/PaulStoffregen/cores/blob/1.53/teensy3/usb_desc.h#L612) that the Usage Page be between 0xFF00 and 0xFFFF and the Usage be between 0x0100 and 0xFFFF.
+In section 3 of the [HID Usage Page Table](https://www.usb.org/sites/default/files/documents/hut1_12v2.pdf#page=14) 0xFF00 to 0xFFFF are listed as Vendor-defined and are safe to use.
 It is still not apparent why the Usage should be greater than 0x0100, but it is likely for OS compatibility reasons.
 
 
@@ -80,7 +80,7 @@ It is still not apparent why the Usage should be greater than 0x0100, but it is 
 
 **Note:** The reason for not using a Vendor Specific interface is to simplify Windows driver integration (which is painful). And make sure that there is a minimum permissions level such that random applications cannot attach to the HID-IO interface and build keyloggers directly.
 
-A good (and similar) alternative is called a Vendor Specific interface which I'll refer from now on as Raw IO. Raw IO defines two interrupt transfer endpoints, Rx and Tx, and a given max packet size. This is very similar to Raw HID, but has the added bonus of not requiring a driver on Mac or Linux. Windows requires a WinUSB/libusb shim driver (what the zadig (http://zadig.akeo.ie/) loader is for) unfortunately, but no reboot is required and this part can be automated due to the client side software also needing to be installed. Utilizing libusb (or similar) generic drivers the client side code base can be dramatically simplified. The max packet size may be set to whatever is ideal for the input device and still adheres to the USB spec. For Full-speed USB 2.0 this is a maximum of 64 bytes.
+A good (and similar) alternative is called a Vendor Specific interface which I'll refer from now on as Raw IO. Raw IO defines two interrupt transfer endpoints, Rx and Tx, and a given max packet size. This is very similar to Raw HID, but has the added bonus of not requiring a driver on Mac or Linux. Windows requires a WinUSB/libusb shim driver (what the [zadig](https://zadig.akeo.ie/) loader is for) unfortunately, but no reboot is required and this part can be automated due to the client side software also needing to be installed. Utilizing libusb (or similar) generic drivers the client side code base can be dramatically simplified. The max packet size may be set to whatever is ideal for the input device and still adheres to the USB spec. For Full-speed USB 2.0 this is a maximum of 64 bytes.
 
 In order to identify that a specific device interface is available to client side software. We'll be using three interface descriptor fields.
 
@@ -88,7 +88,7 @@ In order to identify that a specific device interface is available to client sid
 * bInterfaceSubClass (0x49)
 * bInterfaceProtocol (0x4F)
 
-According to the USB spec, to use the Vendor Specific/Raw IO interface **bInterfaceClass** must be set to [0xFF](http://www.usb.org/developers/defined_class/#BaseClassFFh). While both **bInterfaceSubClass** and **bInterfaceProtocol** may be set to any value. Most Vendor Specific interfaces set all 3 values to 0xFF, so to differentiate against these devices HID-IO requires 0x49 (ASCII I) and 0x4F (ASCII O) be set.
+According to the USB spec, to use the Vendor Specific/Raw IO interface **bInterfaceClass** must be set to [0xFF](https://www.usb.org/defined-class-codes#anchor_BaseClassFFh). While both **bInterfaceSubClass** and **bInterfaceProtocol** may be set to any value. Most Vendor Specific interfaces set all 3 values to 0xFF, so to differentiate against these devices HID-IO requires 0x49 (ASCII I) and 0x4F (ASCII O) be set.
 Any versioning will be done using the spec protocol, so it shouldn't be necessary to add any more subclass and protocol values.
 
 For more reliable host side USB device keying, it is recommended that the host program to locate at least 1 USB HID interface first, before looking for the Raw IO interface.
