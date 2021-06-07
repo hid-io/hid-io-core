@@ -34,8 +34,6 @@ pub mod test;
 use bincode_core::{serialize, BufferWriter};
 use core::convert::TryFrom;
 use core::fmt;
-use heapless::consts::{U32, U4};
-use heapless::ArrayLength;
 use heapless::Vec;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 use serde::ser::{self, Serialize, SerializeSeq, Serializer};
@@ -160,7 +158,7 @@ pub enum HidIoParseError {
 /// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
 #[repr(C)]
 #[derive(PartialEq, Clone, Debug)]
-pub struct HidIoPacketBuffer<H: ArrayLength<u8>> {
+pub struct HidIoPacketBuffer<const H: usize> {
     /// Type of packet (Continued is automatically set if needed)
     pub ptype: HidIoPacketType,
     /// Packet Id
@@ -231,6 +229,7 @@ pub fn packet_type(packet_data: &[u8]) -> Result<HidIoPacketType, HidIoParseErro
 ///    uint8_t           len;         // Lower 8 bits of length field
 ///    ...
 /// };
+/// ```
 pub fn payload_len(packet_data: &[u8]) -> Result<u32, HidIoParseError> {
     let packet_data_len = packet_data.len();
 
@@ -263,6 +262,7 @@ pub fn payload_len(packet_data: &[u8]) -> Result<u32, HidIoParseError> {
 ///    uint8_t           id_width:1;  // 0 - 16bits, 1 - 32bits
 ///    ...
 /// };
+/// ```
 pub fn packet_id_width(packet_data: &[u8]) -> Result<usize, HidIoParseError> {
     let packet_data_len = packet_data.len();
 
@@ -295,6 +295,7 @@ pub fn packet_id_width(packet_data: &[u8]) -> Result<usize, HidIoParseError> {
 ///    uint16_t/uint32_t id;          // Id field (check id_width to see which struct to use)
 ///    ...
 /// };
+/// ```
 pub fn packet_id(packet_data: &[u8]) -> Result<u32, HidIoParseError> {
     let packet_data_len = packet_data.len();
 
@@ -341,6 +342,7 @@ pub fn packet_id(packet_data: &[u8]) -> Result<u32, HidIoParseError> {
 ///    uint8_t           cont:1;      // 0 - Only packet, 1 continued packet following
 ///    ...
 /// };
+/// ```
 pub fn continued_packet(packet_data: &[u8]) -> Result<bool, HidIoParseError> {
     let packet_data_len = packet_data.len() as u32;
 
@@ -394,8 +396,8 @@ pub fn payload_start(packet_data: &[u8]) -> Result<usize, HidIoParseError> {
 ///       technically this could be a maximum of 256, but that
 ///       is both impractical and unlikely. i.e. we only have 10
 ///       fingers.
-pub fn hid_bitmask2vec(bitmask: &[u8]) -> Result<Vec<u8, U32>, HidIoParseError> {
-    let mut data: Vec<u8, U32> = Vec::new();
+pub fn hid_bitmask2vec(bitmask: &[u8]) -> Result<Vec<u8, 32>, HidIoParseError> {
+    let mut data: Vec<u8, 32> = Vec::new();
 
     // Iterate over each byte of the bitmask adding a code for each found bit
     for (byte_pos, byte) in bitmask.iter().enumerate() {
@@ -421,8 +423,8 @@ pub fn hid_bitmask2vec(bitmask: &[u8]) -> Result<Vec<u8, U32>, HidIoParseError> 
 ///
 /// # Remarks
 /// Opposite of keyboard_bitmask2vec.
-pub fn hid_vec2bitmask(codes: &[u8]) -> Result<Vec<u8, U32>, HidIoParseError> {
-    let mut data: Vec<u8, U32> = Vec::new(); // Maximum of 32 bytes when dealing with 8 bit codes
+pub fn hid_vec2bitmask(codes: &[u8]) -> Result<Vec<u8, 32>, HidIoParseError> {
+    let mut data: Vec<u8, 32> = Vec::new(); // Maximum of 32 bytes when dealing with 8 bit codes
     if data.resize_default(32).is_err() {
         return Err(HidIoParseError::VecResizeFailed);
     }
@@ -438,10 +440,7 @@ pub fn hid_vec2bitmask(codes: &[u8]) -> Result<Vec<u8, U32>, HidIoParseError> {
 
 // ----- Implementations -----
 
-impl<H> Default for HidIoPacketBuffer<H>
-where
-    H: ArrayLength<u8>,
-{
+impl<const H: usize> Default for HidIoPacketBuffer<H> {
     fn default() -> Self {
         HidIoPacketBuffer {
             ptype: HidIoPacketType::Data,
@@ -453,7 +452,7 @@ where
     }
 }
 
-impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
+impl<const H: usize> HidIoPacketBuffer<H> {
     /// Constructor for HidIoPacketBuffer
     ///
     /// # Remarks
@@ -709,10 +708,7 @@ impl<H: ArrayLength<u8>> HidIoPacketBuffer<H> {
     }
 }
 
-impl<H> Serialize for HidIoPacketBuffer<H>
-where
-    H: ArrayLength<u8>,
-{
+impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
     /// Serializer for HidIoPacketBuffer
     ///
     /// # Remarks
@@ -781,7 +777,7 @@ where
         };
 
         // Convert Id into bytes
-        let mut id_vec: Vec<u8, U4> = Vec::new();
+        let mut id_vec: Vec<u8, 4> = Vec::new();
         for idx in 0..id_width_len {
             let id = (self.id as u32 >> (idx * 8)) as u8;
             if id_vec.push(id).is_err() {
@@ -947,7 +943,7 @@ impl fmt::Display for HidIoPacketType {
     }
 }
 
-impl<H: ArrayLength<u8>> fmt::Display for HidIoPacketBuffer<H> {
+impl<const H: usize> fmt::Display for HidIoPacketBuffer<H> {
     /// Display formatter for HidIoPacketBuffer
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(

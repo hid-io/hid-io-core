@@ -21,7 +21,6 @@
 
 // ----- Crates -----
 
-use super::*;
 use heapless::spsc::Queue;
 use heapless::Vec;
 
@@ -47,23 +46,21 @@ use heapless::Vec;
 /// - 1024 bytes (USB 2.0 HS)
 ///
 /// The maximum queue size is 255
-pub struct Buffer<Q: ArrayLength<Vec<u8, N>>, N: ArrayLength<u8>> {
-    queue: Queue<Vec<u8, N>, Q, u8>,
+pub struct Buffer<const Q: usize, const N: usize> {
+    queue: Queue<Vec<u8, N>, Q>,
 }
 
 // ----- Implementations -----
 
-impl<Q, N> Default for Buffer<Q, N>
-where
-    Q: ArrayLength<Vec<u8, N>>,
-    N: ArrayLength<u8>,
-{
+impl<const Q: usize, const N: usize> Default for Buffer<Q, N> {
     fn default() -> Self {
-        Buffer { queue: Queue::u8() }
+        Buffer {
+            queue: Queue::new(),
+        }
     }
 }
 
-impl<Q: ArrayLength<Vec<u8, N>>, N: ArrayLength<u8>> Buffer<Q, N> {
+impl<const Q: usize, const N: usize> Buffer<Q, N> {
     /// Constructor for Buffer
     ///
     /// # Remarks
@@ -103,12 +100,12 @@ impl<Q: ArrayLength<Vec<u8, N>>, N: ArrayLength<u8>> Buffer<Q, N> {
     }
 
     /// Capacity of buffer
-    pub fn capacity(&self) -> u8 {
+    pub fn capacity(&self) -> usize {
         self.queue.capacity()
     }
 
     /// Number of elements stored in the buffer
-    pub fn len(&self) -> u8 {
+    pub fn len(&self) -> usize {
         self.queue.len()
     }
 

@@ -25,7 +25,6 @@
 
 use super::*;
 use flexi_logger::Logger;
-use heapless::consts::{U0, U1, U110, U170, U240, U60, U7};
 
 // ----- Enumerations -----
 
@@ -50,10 +49,7 @@ fn setup_logging_lite() -> Result<(), LogError> {
 
 /// Loopback helper
 /// Serializes, deserializes, then checks if same as original
-fn loopback_serializer<H: ArrayLength<u8> + core::cmp::PartialEq>(
-    mut buffer: HidIoPacketBuffer<H>,
-    data: &mut [u8],
-) {
+fn loopback_serializer<const H: usize>(mut buffer: HidIoPacketBuffer<H>, data: &mut [u8]) {
     // Serialize
     let data = match buffer.serialize_buffer(data) {
         Ok(data) => data,
@@ -113,7 +109,7 @@ fn sync_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U1> {
+    let buffer = HidIoPacketBuffer::<1> {
         // Data packet
         ptype: HidIoPacketType::Sync,
         // Ready to go
@@ -135,7 +131,7 @@ fn no_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U0> {
+    let buffer = HidIoPacketBuffer::<0> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
@@ -160,7 +156,7 @@ fn single_byte_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U1> {
+    let buffer = HidIoPacketBuffer::<1> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
@@ -185,7 +181,7 @@ fn full_packet_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U60> {
+    let buffer = HidIoPacketBuffer::<60> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
@@ -210,7 +206,7 @@ fn two_packet_continued_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U110> {
+    let buffer = HidIoPacketBuffer::<110> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
@@ -235,7 +231,7 @@ fn three_packet_continued_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U170> {
+    let buffer = HidIoPacketBuffer::<170> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
@@ -259,7 +255,7 @@ fn four_packet_continued_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<U240> {
+    let buffer = HidIoPacketBuffer::<240> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id
@@ -282,7 +278,7 @@ fn four_packet_continued_payload_test() {
 fn hid_vec2bitmask2vec_test() {
     setup_logging_lite().ok();
 
-    let inputvec: Vec<u8, U7> = Vec::from_slice(&[1, 2, 3, 4, 5, 100, 255]).unwrap();
+    let inputvec: Vec<u8, 7> = Vec::from_slice(&[1, 2, 3, 4, 5, 100, 255]).unwrap();
 
     // Convert, then convert back
     let bitmask = match hid_vec2bitmask(&inputvec) {

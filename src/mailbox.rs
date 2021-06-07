@@ -19,7 +19,6 @@
 /// Uses a broadcast channel to handle communication
 // ----- Modules -----
 use crate::api::Endpoint;
-use heapless::consts::U500;
 use hid_io_protocol::commands::CommandError;
 use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use std::collections::HashMap;
@@ -29,8 +28,8 @@ use tokio::sync::broadcast;
 
 // ----- Types -----
 
-pub type HidIoPacketBufferDataSize = U500;
-pub type HidIoPacketBuffer = hid_io_protocol::HidIoPacketBuffer<HidIoPacketBufferDataSize>;
+pub const HIDIO_PKT_BUF_DATA_SIZE: usize = 500;
+pub type HidIoPacketBuffer = hid_io_protocol::HidIoPacketBuffer<HIDIO_PKT_BUF_DATA_SIZE>;
 
 // ----- Enumerations -----
 

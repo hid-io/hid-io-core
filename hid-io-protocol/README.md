@@ -56,12 +56,12 @@ In each way a CommandInterface struct is created and the Commands trait is imple
 Option 1 is simpler as hid-io-protocol can handle all processing from a hidraw interface. Device libraries usually go for this.
 
 ```rust
-type BufChunk = U64;
-type IdLen = U10;
-type MessageLen = U256;
-type RxBuf = U8;
-type SerializationLen = U276;
-type TxBuf = U8;
+const BufChunk: usize = U64;
+const IdLen: usize = U10;
+const MessageLen: usize = U256;
+const RxBuf: usize = U8;
+const SerializationLen: usize = U276;
+const TxBuf: usize = U8;
 
 let ids = [
     HidIoCommandID::SupportedIDs,
@@ -69,7 +69,7 @@ let ids = [
     /* This is the master list, if it's not listed here comamnds will not work */
 ];
 
-let intf = CommandInterface::<TxBuf, RxBuf, BufChunk, MessageLen, SerializationLen, IdLen>::new(&ids).unwrap();
+let intf = CommandInterface::<TxBuf, RxBuf, BufChunk, MessageLen, {MessageLen - 1}, {MessageLen - 4}, SerializationLen, IdLen>::new(&ids).unwrap();
 }
 
 // The max length must equal BufChunk (e.g. 64 bytes)
@@ -101,16 +101,15 @@ match intf.tx_bytebuf.dequeue() {
 }
 
 struct CommandInterface<
-    TX: ArrayLength<Vec<u8, N>>,
-    RX: ArrayLength<Vec<u8, N>>,
-    N: ArrayLength<u8>,
-    H: ArrayLength<u8>,
-    S: ArrayLength<u8>,
-    ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
-> where
-    H: core::fmt::Debug,
-    H: Sub<B1>,
-{
+    const TX: usize,
+    const RX: usize,
+    const N: usize,
+    const H: usize,
+    const HSUB1: usize,
+    const HSUB4: usize,
+    const S: usize,
+    const ID: usize,
+> {
     ids: Vec<HidIoCommandID, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
     rx_packetbuf: HidIoPacketBuffer<H>,
@@ -119,20 +118,19 @@ struct CommandInterface<
 }
 
 impl<
-        TX: ArrayLength<Vec<u8, N>>,
-        RX: ArrayLength<Vec<u8, N>>,
-        N: ArrayLength<u8>,
-        H: ArrayLength<u8>,
-        S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
-    > CommandInterface<TX, RX, N, H, S, ID>
-where
-    H: core::fmt::Debug,
-    H: Sub<B1>,
+        const TX: usize,
+        const RX: usize,
+        const N: usize,
+        const H: usize,
+        const HSUB1: usize,
+        const HSUB4: usize,
+        const S: usize,
+        const ID: usize,
+    > CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>
 {
     fn new(
         ids: &[HidIoCommandID],
-    ) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
+    ) -> Result<CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
         let ids = match Vec::from_slice(ids) {
             Ok(ids) => ids,
@@ -191,10 +189,7 @@ where
     /// Process rx buffer until empty
     /// Handles flushing tx->rx, decoding, then processing buffers
     /// Returns the number of buffers processed
-    pub fn process_rx(&mut self) -> Result<u8, CommandError>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-    {
+    pub fn process_rx(&mut self) -> Result<u8, CommandError> {
         // Decode bytes into buffer
         while (self.rx_packetbuffer_decode()? {
             // Process rx buffer
@@ -216,18 +211,17 @@ where
 /// S - Serialization buffer size
 /// ID - Max number of HidIoCommandIDs
 impl<
-        TX: ArrayLength<Vec<u8, N>>,
-        RX: ArrayLength<Vec<u8, N>>,
-        N: ArrayLength<u8>,
-        H: ArrayLength<u8>,
-        S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandID> + ArrayLength<u8>,
-    > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
-where
-    H: core::fmt::Debug + Sub<B1>,
-{
+        const TX: usize,
+        const RX: usize,
+        const N: usize,
+        const H: usize,
+        const HSUB1: usize,
+        const HSUB4: usize,
+        const S: usize,
+        const ID: usize,
+    > Commands<H, ID> for CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID> {
     fn default_packet_chunk(&self) -> u32 {
-        <N as Unsigned>::to_u32()
+        N as u32
     }
 
     fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -247,8 +241,8 @@ where
         // was serialized
         // The first byte is a serde type and is dropped
         let data = &self.serial_buf;
-        for pos in (1..data.len()).step_by(<N as Unsigned>::to_usize()) {
-            let len = core::cmp::min(<N as Unsigned>::to_usize(), data.len() - pos);
+        for pos in (1..data.len()).step_by(N) {
+            let len = core::cmp::min(N, data.len() - pos);
             match self
                 .tx_bytebuf
                 .enqueue(match Vec::from_slice(&data[pos..len + pos]) {
@@ -279,7 +273,7 @@ hid-io-core uses Option 2 as different threads handle byte ingest and message ha
 
 ```rust
         struct CommandInterface {}
-        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+        impl Commands<mailbox::HidIoPacketBufferDataSize, 0> for CommandInterface {
             fn tx_packetbuffer_send(
                 &mut self,
                 buf: &mut mailbox::HidIoPacketBuffer,

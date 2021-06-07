@@ -25,12 +25,6 @@ use super::*;
 use core::convert::{TryFrom, TryInto};
 use heapless::{String, Vec};
 
-pub use core::ops::Sub;
-pub use heapless::consts::{B1, U4};
-pub use heapless::ArrayLength;
-pub use typenum::Diff;
-pub use typenum::Sub1;
-
 // ----- Modules -----
 
 mod test;
@@ -73,13 +67,13 @@ pub enum CommandError {
 /// Supported Ids
 pub mod h0000 {
     use super::super::HidIoCommandId;
-    use heapless::{ArrayLength, Vec};
+    use heapless::Vec;
 
     #[derive(Clone, Debug)]
     pub struct Cmd {}
 
     #[derive(Clone, Debug)]
-    pub struct Ack<ID: ArrayLength<HidIoCommandId>> {
+    pub struct Ack<const ID: usize> {
         pub ids: Vec<HidIoCommandId, ID>,
     }
 
@@ -89,7 +83,7 @@ pub mod h0000 {
 
 /// Info Query
 pub mod h0001 {
-    use heapless::{ArrayLength, String};
+    use heapless::String;
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
@@ -129,7 +123,7 @@ pub mod h0001 {
     }
 
     #[derive(Clone, Debug)]
-    pub struct Ack<S: ArrayLength<u8>> {
+    pub struct Ack<const S: usize> {
         pub property: Property,
 
         /// OS Type field
@@ -151,15 +145,15 @@ pub mod h0001 {
 
 /// Test Message
 pub mod h0002 {
-    use heapless::{ArrayLength, Vec};
+    use heapless::Vec;
 
     #[derive(Clone, Debug)]
-    pub struct Cmd<D: ArrayLength<u8>> {
+    pub struct Cmd<const D: usize> {
         pub data: Vec<u8, D>,
     }
 
     #[derive(Clone, Debug)]
-    pub struct Ack<D: ArrayLength<u8>> {
+    pub struct Ack<const D: usize> {
         pub data: Vec<u8, D>,
     }
 
@@ -181,7 +175,7 @@ pub mod h0003 {
 
 /// Get Properties
 pub mod h0010 {
-    use heapless::{ArrayLength, String, Vec};
+    use heapless::{String, Vec};
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
@@ -203,7 +197,7 @@ pub mod h0010 {
     }
 
     #[derive(Clone, Debug)]
-    pub struct Ack<S: ArrayLength<u8>> {
+    pub struct Ack<const S: usize> {
         pub command: Command,
 
         /// 8-bit field id
@@ -294,10 +288,10 @@ pub mod h0016 {
 
 /// UTF-8 Character Stream
 pub mod h0017 {
-    use heapless::{ArrayLength, String};
+    use heapless::String;
 
     #[derive(Clone, Debug)]
-    pub struct Cmd<S: ArrayLength<u8>> {
+    pub struct Cmd<const S: usize> {
         pub string: String<S>,
     }
 
@@ -310,10 +304,10 @@ pub mod h0017 {
 
 /// UTF-8 State
 pub mod h0018 {
-    use heapless::{ArrayLength, String};
+    use heapless::String;
 
     #[derive(Clone, Debug)]
-    pub struct Cmd<S: ArrayLength<u8>> {
+    pub struct Cmd<const S: usize> {
         pub symbols: String<S>,
     }
 
@@ -414,10 +408,10 @@ pub mod h0030 {
 
 /// Terminal Command
 pub mod h0031 {
-    use heapless::{ArrayLength, String};
+    use heapless::String;
 
     #[derive(Clone, Debug)]
-    pub struct Cmd<S: ArrayLength<u8>> {
+    pub struct Cmd<const S: usize> {
         pub command: String<S>,
     }
 
@@ -446,10 +440,10 @@ pub mod h0033 {
 
 /// Terminal Output
 pub mod h0034 {
-    use heapless::{ArrayLength, String};
+    use heapless::String;
 
     #[derive(Clone, Debug)]
-    pub struct Cmd<S: ArrayLength<u8>> {
+    pub struct Cmd<const S: usize> {
         pub output: String<S>,
     }
 
@@ -509,10 +503,10 @@ pub mod h0050 {
 
 /// Manufacturing Test Result
 pub mod h0051 {
-    use heapless::{ArrayLength, Vec};
+    use heapless::Vec;
 
     #[derive(Clone, Debug)]
-    pub struct Cmd<D: ArrayLength<u8>> {
+    pub struct Cmd<const D: usize> {
         pub command: u16,
         pub argument: u16,
         pub data: Vec<u8, D>,
@@ -529,11 +523,10 @@ pub mod h0051 {
 
 /// HID-IO Command Interface
 /// H - Max data payload length (HidIoPacketBuffer)
+/// HSUB1, HSUB4 - Due to current limitations of const generics (missing
+/// const_evaluatable_checked), H - 1 and H - 4 must be defined at the top-level.
 /// ID - Max number of HidIoCommandIds
-pub trait Commands<H: ArrayLength<u8>, ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>>
-where
-    H: core::fmt::Debug + Sub<B1> + Sub<U4>,
-{
+pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const ID: usize> {
     /// Given a HidIoPacketBuffer serialize (and resulting send bytes)
     fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError>;
 
@@ -653,11 +646,7 @@ where
 
     /// Process specific packet types
     /// Handles matching to interface functions
-    fn rx_message_handling(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-        <H as Sub<U4>>::Output: ArrayLength<u8>,
-    {
+    fn rx_message_handling(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
         // Make sure we're processing a supported id
         if !self.supported_id(buf.id) {
             return Err(CommandError::IdNotSupported(buf.id));
@@ -810,18 +799,12 @@ where
 
         self.tx_packetbuffer_send(&mut buf)
     }
-    fn h0001_info_cmd(&mut self, _data: h0001::Cmd) -> Result<h0001::Ack<Sub1<H>>, h0001::Nak>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-    {
+    fn h0001_info_cmd(&mut self, _data: h0001::Cmd) -> Result<h0001::Ack<HSUB1>, h0001::Nak> {
         Err(h0001::Nak {
             property: h0001::Property::Unknown,
         })
     }
-    fn h0001_info_ack(&mut self, _data: h0001::Ack<Sub1<H>>) -> Result<(), CommandError>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-    {
+    fn h0001_info_ack(&mut self, _data: h0001::Ack<HSUB1>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
             HidIoCommandId::GetInfo,
             HidIoPacketType::Ack,
@@ -833,10 +816,7 @@ where
             HidIoPacketType::Nak,
         ))
     }
-    fn h0001_info_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-    {
+    fn h0001_info_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
         // Handle packet type
         match buf.ptype {
             HidIoPacketType::Data => {
@@ -951,15 +931,14 @@ where
                     }
                     // Handle ascii values
                     _ => {
-                        // NOTE: This is annoyingly inefficient?
-                        let bytes: Vec<u8, Sub1<H>> = Vec::from_slice(&buf.data[1..]).unwrap();
-                        let string = match String::from_utf8(bytes) {
-                            Ok(string) => string,
-                            Err(e) => {
-                                return Err(CommandError::InvalidUtf8(e));
-                            }
-                        };
-                        ack.string = string;
+                        ack.string
+                            .push_str(match core::str::from_utf8(&buf.data[1..]) {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    return Err(CommandError::InvalidUtf8(e));
+                                }
+                            })
+                            .unwrap();
                     }
                 }
 
@@ -1248,14 +1227,17 @@ where
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0017::Cmd::<H> {
-                    string: match String::from_utf8(buf.data) {
+                let mut cmd = h0017::Cmd::<H> {
+                    string: String::new(),
+                };
+                cmd.string
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(string) => string,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 match self.h0017_unicodetext_cmd(cmd) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1264,14 +1246,17 @@ where
             }
             HidIoPacketType::NaData => {
                 // Copy data into struct
-                let cmd = h0017::Cmd::<H> {
-                    string: match String::from_utf8(buf.data) {
+                let mut cmd = h0017::Cmd::<H> {
+                    string: String::new(),
+                };
+                cmd.string
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(string) => string,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 self.h0017_unicodetext_nacmd(cmd)
             }
@@ -1334,14 +1319,17 @@ where
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0018::Cmd::<H> {
-                    symbols: match String::from_utf8(buf.data) {
+                let mut cmd = h0018::Cmd::<H> {
+                    symbols: String::new(),
+                };
+                cmd.symbols
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(symbols) => symbols,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 match self.h0018_unicodestate_cmd(cmd) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1350,14 +1338,17 @@ where
             }
             HidIoPacketType::NaData => {
                 // Copy data into struct
-                let cmd = h0018::Cmd::<H> {
-                    symbols: match String::from_utf8(buf.data) {
+                let mut cmd = h0018::Cmd::<H> {
+                    symbols: String::new(),
+                };
+                cmd.symbols
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(symbols) => symbols,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 self.h0018_unicodestate_nacmd(cmd)
             }
@@ -1472,14 +1463,17 @@ where
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0031::Cmd::<H> {
-                    command: match String::from_utf8(buf.data) {
+                let mut cmd = h0031::Cmd::<H> {
+                    command: String::new(),
+                };
+                cmd.command
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(string) => string,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 match self.h0031_terminalcmd_cmd(cmd) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1488,14 +1482,17 @@ where
             }
             HidIoPacketType::NaData => {
                 // Copy data into struct
-                let cmd = h0031::Cmd::<H> {
-                    command: match String::from_utf8(buf.data) {
+                let mut cmd = h0031::Cmd::<H> {
+                    command: String::new(),
+                };
+                cmd.command
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(string) => string,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 self.h0031_terminalcmd_nacmd(cmd)
             }
@@ -1555,14 +1552,17 @@ where
         match buf.ptype {
             HidIoPacketType::Data => {
                 // Copy data into struct
-                let cmd = h0034::Cmd::<H> {
-                    output: match String::from_utf8(buf.data) {
+                let mut cmd = h0034::Cmd::<H> {
+                    output: String::new(),
+                };
+                cmd.output
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(string) => string,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 match self.h0034_terminalout_cmd(cmd) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1571,14 +1571,17 @@ where
             }
             HidIoPacketType::NaData => {
                 // Copy data into struct
-                let cmd = h0034::Cmd::<H> {
-                    output: match String::from_utf8(buf.data) {
+                let mut cmd = h0034::Cmd::<H> {
+                    output: String::new(),
+                };
+                cmd.output
+                    .push_str(match core::str::from_utf8(&buf.data) {
                         Ok(string) => string,
                         Err(e) => {
                             return Err(CommandError::InvalidUtf8(e));
                         }
-                    },
-                };
+                    })
+                    .unwrap();
 
                 self.h0034_terminalout_nacmd(cmd)
             }
@@ -1653,10 +1656,7 @@ where
         }
     }
 
-    fn h0051_manufacturingres(&mut self, data: h0051::Cmd<Diff<H, U4>>) -> Result<(), CommandError>
-    where
-        <H as Sub<U4>>::Output: ArrayLength<u8>,
-    {
+    fn h0051_manufacturingres(&mut self, data: h0051::Cmd<HSUB4>) -> Result<(), CommandError> {
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
             // Test packet id
@@ -1684,11 +1684,8 @@ where
     }
     fn h0051_manufacturingres_cmd(
         &mut self,
-        _data: h0051::Cmd<Diff<H, U4>>,
-    ) -> Result<h0051::Ack, h0051::Nak>
-    where
-        <H as Sub<U4>>::Output: ArrayLength<u8>,
-    {
+        _data: h0051::Cmd<HSUB4>,
+    ) -> Result<h0051::Ack, h0051::Nak> {
         Err(h0051::Nak {})
     }
     fn h0051_manufacturingres_ack(&mut self, _data: h0051::Ack) -> Result<(), CommandError> {
@@ -1706,10 +1703,7 @@ where
     fn h0051_manufacturingres_handler(
         &mut self,
         buf: HidIoPacketBuffer<H>,
-    ) -> Result<(), CommandError>
-    where
-        <H as Sub<U4>>::Output: ArrayLength<u8>,
-    {
+    ) -> Result<(), CommandError> {
         // Handle packet type
         match buf.ptype {
             HidIoPacketType::Data => {
@@ -1720,7 +1714,7 @@ where
                 // Retrieve fields
                 let command = u16::from_le_bytes(buf.data[0..2].try_into().unwrap());
                 let argument = u16::from_le_bytes(buf.data[2..4].try_into().unwrap());
-                let data: Vec<u8, Diff<H, U4>> = if buf.data.len() > 4 {
+                let data: Vec<u8, HSUB4> = if buf.data.len() > 4 {
                     Vec::from_slice(&buf.data[5..]).unwrap()
                 } else {
                     Vec::new()

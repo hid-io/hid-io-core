@@ -25,8 +25,6 @@
 
 use super::*;
 use flexi_logger::Logger;
-use heapless::consts::{U1, U100, U110, U150, U165, U2, U3, U64, U8};
-use typenum::Unsigned;
 
 #[cfg(feature = "server")]
 use log::debug;
@@ -56,17 +54,15 @@ fn setup_logging_lite() -> Result<(), LogError> {
 
 /// Test HID-IO Command Interface
 struct CommandInterface<
-    TX: ArrayLength<Vec<u8, N>>,
-    RX: ArrayLength<Vec<u8, N>>,
-    N: ArrayLength<u8>,
-    H: ArrayLength<u8>,
-    S: ArrayLength<u8>,
-    ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
-> where
-    H: core::fmt::Debug,
-    H: Sub<B1>,
-    H: Sub<U4>,
-{
+    const TX: usize,
+    const RX: usize,
+    const N: usize,
+    const H: usize,
+    const HSUB1: usize,
+    const HSUB4: usize,
+    const S: usize,
+    const ID: usize,
+> {
     ids: Vec<HidIoCommandId, ID>,
     rx_bytebuf: buffer::Buffer<RX, N>,
     rx_packetbuf: HidIoPacketBuffer<H>,
@@ -75,19 +71,19 @@ struct CommandInterface<
 }
 
 impl<
-        TX: ArrayLength<Vec<u8, N>>,
-        RX: ArrayLength<Vec<u8, N>>,
-        N: ArrayLength<u8>,
-        H: ArrayLength<u8>,
-        S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
-    > CommandInterface<TX, RX, N, H, S, ID>
-where
-    H: core::fmt::Debug,
-    H: Sub<B1>,
-    H: Sub<U4>,
+        const TX: usize,
+        const RX: usize,
+        const N: usize,
+        const H: usize,
+        const HSUB1: usize,
+        const HSUB4: usize,
+        const S: usize,
+        const ID: usize,
+    > CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>
 {
-    fn new(ids: &[HidIoCommandId]) -> Result<CommandInterface<TX, RX, N, H, S, ID>, CommandError> {
+    fn new(
+        ids: &[HidIoCommandId],
+    ) -> Result<CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
         let ids = match Vec::from_slice(ids) {
             Ok(ids) => ids,
@@ -154,11 +150,7 @@ where
 
     /// Process rx buffer until empty
     /// Handles flushing tx->rx, decoding, then processing buffers
-    fn process_rx(&mut self) -> Result<(), CommandError>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-        <H as Sub<U4>>::Output: ArrayLength<u8>,
-    {
+    fn process_rx(&mut self) -> Result<(), CommandError> {
         // Flush tx->rx
         self.flush_tx2rx();
 
@@ -182,21 +174,22 @@ where
 /// RX - tx byte buffer size (in multiples of N)
 /// N - Max payload length (HidIoPacketBuffer), used for default values
 /// H - Max data payload length (HidIoPacketBuffer)
+/// HSUB1, HSUB4 - Due to current limitations of const generics
 /// S - Serialization buffer size
 /// ID - Max number of HidIoCommandIds
 impl<
-        TX: ArrayLength<Vec<u8, N>>,
-        RX: ArrayLength<Vec<u8, N>>,
-        N: ArrayLength<u8>,
-        H: ArrayLength<u8>,
-        S: ArrayLength<u8>,
-        ID: ArrayLength<HidIoCommandId> + ArrayLength<u8>,
-    > Commands<H, ID> for CommandInterface<TX, RX, N, H, S, ID>
-where
-    H: core::fmt::Debug + Sub<B1> + Sub<U4>,
+        const TX: usize,
+        const RX: usize,
+        const N: usize,
+        const H: usize,
+        const HSUB1: usize,
+        const HSUB4: usize,
+        const S: usize,
+        const ID: usize,
+    > Commands<H, HSUB1, HSUB4, ID> for CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>
 {
     fn default_packet_chunk(&self) -> u32 {
-        <N as Unsigned>::to_u32()
+        N as u32
     }
 
     fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError> {
@@ -214,8 +207,8 @@ where
         // Add serialized data to buffer
         // May need to enqueue multiple packets depending how much
         // was serialized
-        for pos in (0..data.len()).step_by(<N as Unsigned>::to_usize()) {
-            let len = core::cmp::min(<N as Unsigned>::to_usize(), data.len() - pos);
+        for pos in (0..data.len()).step_by(N) {
+            let len = core::cmp::min(N, data.len() - pos);
             match self
                 .tx_bytebuf
                 .enqueue(match Vec::from_slice(&data[pos..len + pos]) {
@@ -247,10 +240,7 @@ where
         Ok(())
     }
 
-    fn h0001_info_cmd(&mut self, data: h0001::Cmd) -> Result<h0001::Ack<Sub1<H>>, h0001::Nak>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-    {
+    fn h0001_info_cmd(&mut self, data: h0001::Cmd) -> Result<h0001::Ack<HSUB1>, h0001::Nak> {
         for entry in &H0001ENTRIES {
             if entry.property == data.property {
                 return Ok(h0001::Ack {
@@ -266,10 +256,7 @@ where
             property: data.property,
         })
     }
-    fn h0001_info_ack(&mut self, data: h0001::Ack<Sub1<H>>) -> Result<(), CommandError>
-    where
-        <H as Sub<B1>>::Output: ArrayLength<u8>,
-    {
+    fn h0001_info_ack(&mut self, data: h0001::Ack<HSUB1>) -> Result<(), CommandError> {
         // Compare ack with entries
         for entry in &H0001ENTRIES {
             if entry.property == data.property
@@ -421,11 +408,8 @@ where
 
     fn h0051_manufacturingres_cmd(
         &mut self,
-        data: h0051::Cmd<Diff<H, U4>>,
-    ) -> Result<h0051::Ack, h0051::Nak>
-    where
-        <H as Sub<U4>>::Output: ArrayLength<u8>,
-    {
+        data: h0051::Cmd<HSUB4>,
+    ) -> Result<h0051::Ack, h0051::Nak> {
         if data.command == 0 && data.argument == 0 {
             Ok(h0051::Ack {})
         } else {
@@ -454,7 +438,7 @@ fn h0000_supported_ids_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U100, U110, U3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 100, 99, 96, 110, 3>::new(&ids).unwrap();
 
     // Send command
     let send = intf.h0000_supported_ids(h0000::Cmd {});
@@ -568,7 +552,7 @@ fn h0001_info() {
     let ids = [HidIoCommandId::SupportedIds, HidIoCommandId::GetInfo];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U100, U110, U2>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 100, 99, 96, 110, 2>::new(&ids).unwrap();
 
     // Process each of the test entries
     for entry in &H0001ENTRIES {
@@ -631,7 +615,7 @@ fn h0002_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 3>::new(&ids).unwrap();
 
     // Normal data packets
     for entry in &H0002ENTRIES {
@@ -679,7 +663,7 @@ fn h0002_invalid() {
     let ids = [HidIoCommandId::SupportedIds, HidIoCommandId::GetInfo];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U2>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 2>::new(&ids).unwrap();
 
     // Send command
     let cmd = h0002::Cmd { data: Vec::new() };
@@ -713,7 +697,7 @@ fn h0016_flashmode() {
     let ids = [HidIoCommandId::FlashMode];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Send command
     let cmd = h0016::Cmd {};
@@ -739,7 +723,7 @@ fn h0017_unicodetext() {
     let ids = [HidIoCommandId::UnicodeText];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -786,7 +770,7 @@ fn h0018_unicodestate() {
     let ids = [HidIoCommandId::UnicodeState];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -833,7 +817,7 @@ fn h001a_sleepmode() {
     let ids = [HidIoCommandId::SleepMode];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Send command
     let cmd = h001a::Cmd {};
@@ -859,7 +843,7 @@ fn h0031_terminalcmd() {
     let ids = [HidIoCommandId::TerminalCmd];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -906,7 +890,7 @@ fn h0034_terminalout() {
     let ids = [HidIoCommandId::TerminalOut];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -953,7 +937,7 @@ fn h0050_manufacturing() {
     let ids = [HidIoCommandId::ManufacturingTest];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Send valid command (expect ack)
     let cmd = h0050::Cmd {
@@ -1000,7 +984,7 @@ fn h0051_manufacturing() {
     let ids = [HidIoCommandId::ManufacturingResult];
 
     // Setup command interface
-    let mut intf = CommandInterface::<U8, U8, U64, U150, U165, U1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
 
     // Send valid command (expect ack)
     let cmd = h0051::Cmd {

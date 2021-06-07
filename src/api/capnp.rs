@@ -29,10 +29,8 @@ use crate::RUNNING;
 use ::capnp::capability::Promise;
 use ::capnp::Error;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use core::ops::Sub;
 use futures::{FutureExt, TryFutureExt};
 use glob::glob;
-use heapless::consts::U0;
 use hid_io_protocol::commands::*;
 use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use rcgen::generate_simple_self_signed;
@@ -580,7 +578,14 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     mailbox: mailbox::Mailbox,
                     result: Result<h0031::Ack, h0031::Nak>,
                 }
-                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        0,
+                    > for CommandInterface
+                {
                     fn tx_packetbuffer_send(
                         &mut self,
                         buf: &mut mailbox::HidIoPacketBuffer,
@@ -658,7 +663,14 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     mailbox: mailbox::Mailbox,
                     result: Result<h001a::Ack, h001a::Nak>,
                 }
-                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        0,
+                    > for CommandInterface
+                {
                     fn tx_packetbuffer_send(
                         &mut self,
                         buf: &mut mailbox::HidIoPacketBuffer,
@@ -755,7 +767,14 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     mailbox: mailbox::Mailbox,
                     results: hidio_capnp::node::FlashModeResults,
                 }
-                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        0,
+                    > for CommandInterface
+                {
                     fn tx_packetbuffer_send(
                         &mut self,
                         buf: &mut mailbox::HidIoPacketBuffer,
@@ -839,7 +858,14 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     mailbox: mailbox::Mailbox,
                     results: hidio_capnp::node::ManufacturingTestResults,
                 }
-                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        0,
+                    > for CommandInterface
+                {
                     fn tx_packetbuffer_send(
                         &mut self,
                         buf: &mut mailbox::HidIoPacketBuffer,
@@ -911,7 +937,14 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             mailbox: mailbox::Mailbox,
             results: hidio_capnp::node::InfoResults,
         }
-        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+        impl
+            Commands<
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                0,
+            > for CommandInterface
+        {
             fn tx_packetbuffer_send(
                 &mut self,
                 buf: &mut mailbox::HidIoPacketBuffer,
@@ -929,11 +962,8 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
 
             fn h0001_info_ack(
                 &mut self,
-                data: h0001::Ack<Sub1<mailbox::HidIoPacketBufferDataSize>>,
-            ) -> Result<(), CommandError>
-            where
-                <mailbox::HidIoPacketBufferDataSize as Sub<B1>>::Output: ArrayLength<u8>,
-            {
+                data: h0001::Ack<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 }>,
+            ) -> Result<(), CommandError> {
                 use h0001::Property;
 
                 let mut info = self.results.get().get_info().unwrap();
@@ -1205,7 +1235,14 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             mailbox: mailbox::Mailbox,
             result: Result<h0017::Ack, h0017::Nak>,
         }
-        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+        impl
+            Commands<
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                0,
+            > for CommandInterface
+        {
             fn tx_packetbuffer_send(
                 &mut self,
                 buf: &mut mailbox::HidIoPacketBuffer,
@@ -1271,7 +1308,14 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             mailbox: mailbox::Mailbox,
             result: Result<h0018::Ack, h0018::Nak>,
         }
-        impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+        impl
+            Commands<
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                0,
+            > for CommandInterface
+        {
             fn tx_packetbuffer_send(
                 &mut self,
                 buf: &mut mailbox::HidIoPacketBuffer,
@@ -1751,7 +1795,14 @@ async fn server_subscriptions_keyboard(
                         keyboard_capnp::keyboard::subscriber::update_results::Owned,
                     >,
                 }
-                impl Commands<mailbox::HidIoPacketBufferDataSize, U0> for CommandInterface {
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        0,
+                    > for CommandInterface
+                {
                     fn tx_packetbuffer_send(
                         &mut self,
                         buf: &mut mailbox::HidIoPacketBuffer,
@@ -1768,7 +1819,7 @@ async fn server_subscriptions_keyboard(
                     }
                     fn h0034_terminalout_cmd(
                         &mut self,
-                        data: h0034::Cmd<mailbox::HidIoPacketBufferDataSize>,
+                        data: h0034::Cmd<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE }>,
                     ) -> Result<h0034::Ack, h0034::Nak> {
                         // Build Signal message
                         let mut signal = self.request.get().init_signal();
@@ -1784,7 +1835,7 @@ async fn server_subscriptions_keyboard(
                     }
                     fn h0034_terminalout_nacmd(
                         &mut self,
-                        data: h0034::Cmd<mailbox::HidIoPacketBufferDataSize>,
+                        data: h0034::Cmd<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE }>,
                     ) -> Result<(), CommandError> {
                         // Build Signal message
                         let mut signal = self.request.get().init_signal();
@@ -1800,7 +1851,7 @@ async fn server_subscriptions_keyboard(
                     }
                     fn h0051_manufacturingres_cmd(
                         &mut self,
-                        data: h0051::Cmd<Diff<mailbox::HidIoPacketBufferDataSize, U4>>,
+                        data: h0051::Cmd<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 }>,
                     ) -> Result<h0051::Ack, h0051::Nak> {
                         // Build Signal message
                         let mut signal = self.request.get().init_signal();
