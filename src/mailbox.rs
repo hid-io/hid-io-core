@@ -262,22 +262,21 @@ impl Mailbox {
         let ack_timeout = *self.ack_timeout.read().unwrap();
         loop {
             match tokio::time::timeout(ack_timeout, stream.next()).await {
-                Ok(msg) => {
-                    if let Some(msg) = msg {
-                        match msg.data.ptype {
-                            HidIoPacketType::Ack => {
-                                return Ok(Some(msg));
-                            }
-                            // We may still want the message data from a Nak
-                            HidIoPacketType::Nak => {
-                                let msg = Box::new(msg);
-                                return Err(AckWaitError::NakReceived { msg });
-                            }
-                            _ => {}
+                Ok(Some(msg)) => {
+                    match msg.data.ptype {
+                        HidIoPacketType::Ack => {
+                            return Ok(Some(msg));
                         }
-                    } else {
-                        return Err(AckWaitError::Invalid);
+                        // We may still want the message data from a Nak
+                        HidIoPacketType::Nak => {
+                            let msg = Box::new(msg);
+                            return Err(AckWaitError::NakReceived { msg });
+                        }
+                        _ => {}
                     }
+                }
+                Ok(None) => {
+                    return Err(AckWaitError::Invalid);
                 }
                 Err(_) => {
                     warn!("Timeout ({:?}) receiving Ack for: {}", ack_timeout, data);
