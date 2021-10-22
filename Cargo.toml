@@ -11,7 +11,7 @@ homepage      = "https://github.com/hid-io/hid-io-core"
 repository    = "https://github.com/hid-io/hid-io-core"
 documentation = "https://hid-io.github.io/hid-io-core/hid_io_core/"
 
-edition       = "2018"
+edition       = "2021"
 build         = "build.rs"
 default-run   = "hid-io-core"
 
