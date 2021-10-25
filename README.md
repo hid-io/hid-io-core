@@ -1,6 +1,5 @@
 # hid-io core
 
-[![Visit our IRC channel](https://img.shields.io/badge/KiwiIRC-%23hid--io-%235D7E23)](https://kiwiirc.com/client/irc.freenode.net/#hid-io)
 [![Linux Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![macOS Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![Windows Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Windows/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
