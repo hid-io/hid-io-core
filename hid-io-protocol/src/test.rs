@@ -49,7 +49,7 @@ fn setup_logging_lite() -> Result<(), LogError> {
 
 /// Loopback helper
 /// Serializes, deserializes, then checks if same as original
-fn loopback_serializer<const H: usize>(mut buffer: HidIoPacketBuffer<H>, data: &mut [u8]) {
+fn loopback_serializer<const H: usize>(buffer: HidIoPacketBuffer<H>, data: &mut [u8]) {
     // Serialize
     let data = match buffer.serialize_buffer(data) {
         Ok(data) => data,
@@ -119,7 +119,7 @@ fn sync_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 2];
+    let mut data = [0u8; 1];
     loopback_serializer(buffer, &mut data);
 }
 
@@ -146,7 +146,7 @@ fn no_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 5];
+    let mut data = [0u8; 4];
     loopback_serializer(buffer, &mut data);
 }
 
@@ -171,7 +171,7 @@ fn single_byte_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 6];
+    let mut data = [0u8; 5];
     loopback_serializer(buffer, &mut data);
 }
 
@@ -196,7 +196,7 @@ fn full_packet_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 65];
+    let mut data = [0u8; 64];
     loopback_serializer(buffer, &mut data);
 }
 
@@ -221,7 +221,7 @@ fn two_packet_continued_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 128];
+    let mut data = [0u8; 118];
     loopback_serializer(buffer, &mut data);
 }
 
@@ -246,7 +246,7 @@ fn three_packet_continued_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 200];
+    let mut data = [0u8; 182];
     loopback_serializer(buffer, &mut data);
 }
 
@@ -270,7 +270,7 @@ fn four_packet_continued_payload_test() {
     };
 
     // Run loopback serializer, handles all test validation
-    let mut data = [0u8; 257];
+    let mut data = [0u8; 256];
     loopback_serializer(buffer, &mut data);
 }
 

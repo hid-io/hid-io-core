@@ -27,20 +27,18 @@ device = []
 # server feature is intended for use with full user-space applications
 # with access to std for loggging messages
 # Mostly no_std with some minor exceptions
-server = ["log", "bincode_core/std"]
+server = ["log"]
 
 # Adds defmt support to useful enums and structs
 defmt-impl = ["defmt", "heapless/defmt-impl"]
 
 
 [dependencies]
-arraydeque      = { version = "^0.4", default-features = false }
-bincode_core    = { git = "https://github.com/bincode-org/bincode-core.git", version = "0.1.0" }
-defmt           = { version = "0.2", optional = true }
+arraydeque      = { version = "0.4", default-features = false }
+defmt           = { version = "0.3", optional = true }
 heapless        = { version = "0.7" }
-log             = { version = "^0.4", default-features = false, optional = true }
-num_enum        = { version = "^0.5", default-features = false }
-serde           = { version = "^1.0", default-features = false }
+log             = { version = "0.4", default-features = false, optional = true }
+num_enum        = { version = "0.5", default-features = false }
 
 
 [dev-dependencies]

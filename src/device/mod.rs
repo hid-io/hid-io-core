@@ -81,7 +81,7 @@ impl HidIoEndpoint {
 
     pub fn send_packet(
         &mut self,
-        mut packet: mailbox::HidIoPacketBuffer,
+        packet: mailbox::HidIoPacketBuffer,
     ) -> Result<(), std::io::Error> {
         debug!(
             "Sending {:x?} len:{} chunk:{}",

@@ -31,12 +31,10 @@ pub mod test;
 
 // ----- Crates -----
 
-use bincode_core::{serialize, BufferWriter};
 use core::convert::TryFrom;
 use core::fmt;
 use heapless::Vec;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use serde::ser::{self, Serialize, SerializeSeq, Serializer};
 
 #[cfg(feature = "server")]
 use log::{error, warn};
@@ -136,6 +134,8 @@ pub enum HidIoCommandId {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
 pub enum HidIoParseError {
+    BufferNotReady,
+    BufferDataTooSmall(usize),
     InvalidContinuedIdByte(u8),
     InvalidHidIoCommandId(u32),
     InvalidPacketIdWidth(u8),
@@ -515,9 +515,9 @@ impl<const H: usize> HidIoPacketBuffer<H> {
     /// Returns the currently computed serialized length of the
     /// buffer. Can change based on the struct fields.
     pub fn serialized_len(&self) -> u32 {
-        // Sync packets have a serialized length of 1 (+1 for length)
+        // Sync packets have a serialized length of 1
         if self.ptype == HidIoPacketType::Sync {
-            return 1 + 1;
+            return 1;
         }
 
         let hdr_len = self.hdr_len();
@@ -531,8 +531,7 @@ impl<const H: usize> HidIoPacketBuffer<H> {
             0
         };
 
-        // Extra byte is a type field from the serializer
-        fullpackets + partialpacket + 1
+        fullpackets + partialpacket
     }
 
     /// Append payload data
@@ -674,48 +673,6 @@ impl<const H: usize> HidIoPacketBuffer<H> {
     /// Serialize HidIoPacketBuffer
     ///
     /// # Remarks
-    /// Provides a raw data vector to the serialized data.
-    /// Removes some of the header that Serialize from serde prepends.
-    pub fn serialize_buffer<'a>(
-        &mut self,
-        data: &'a mut [u8],
-    ) -> Result<&'a [u8], HidIoParseError> {
-        let options = bincode_core::config::DefaultOptions::new();
-        let mut writer = BufferWriter::new(data);
-        let len;
-
-        // Serialize
-        match serialize(&self, &mut writer, options) {
-            Ok(_) => {}
-            Err(_e) => {
-                error!("Parse error: {:?}", _e);
-                return Err(HidIoParseError::SerializationError);
-            }
-        };
-
-        // Make sure serialization worked
-        len = writer.written_len();
-        if self.ptype == HidIoPacketType::Sync && len < 2
-            || self.ptype != HidIoPacketType::Sync && len < 5
-        {
-            error!(
-                "Serialization too small: {} -> {:02X?}",
-                len,
-                writer.written_buffer()
-            );
-            return Err(HidIoParseError::SerializationFailedResultTooSmall(len));
-        }
-
-        // Slice off the first byte (type) header bytes from serde
-        let slice = &data[1..len as usize];
-        Ok(slice)
-    }
-}
-
-impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
-    /// Serializer for HidIoPacketBuffer
-    ///
-    /// # Remarks
     /// Determine cont, width, upper_len and len fields
     /// According to this C-Struct:
     ///
@@ -730,16 +687,16 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
     ///    uint8_t           data[0];     // Start of data payload (may start with Id)
     /// };
     /// ```
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    pub fn serialize_buffer<'a>(&self, data: &'a mut [u8]) -> Result<&'a [u8], HidIoParseError> {
         // Check if buffer is ready to serialize
         if !self.done {
-            return Err(ser::Error::custom("HidIoPacketBuffer is not 'done'"));
+            return Err(HidIoParseError::BufferNotReady);
         }
 
         // --- First Packet ---
+
+        // Keep track of the serialization buffer position
+        let mut pos = 0;
 
         // Determine id_width
         let id_width = self.id_width();
@@ -785,9 +742,7 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
         for idx in 0..id_width_len {
             let id = (self.id as u32 >> (idx * 8)) as u8;
             if id_vec.push(id).is_err() {
-                return Err(ser::Error::custom(
-                    "HidIoPacketBuffer failed to convert Id into bytes, vec add failed.",
-                ));
+                return Err(HidIoParseError::VecAddFailed);
             }
         }
 
@@ -804,31 +759,19 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
             // upper_len - 2 bits
             (upper_len & 0x3);
 
+        // Header byte is always serialized
+        pos = serialize_byte(data, hdr_byte, pos)?;
+
         // Determine if this is a sync packet (much simpler serialization)
         if self.ptype == HidIoPacketType::Sync {
-            let mut state = serializer.serialize_seq(Some(0))?;
-            state.serialize_element(&hdr_byte)?;
-            return state.end();
+            return Ok(data);
         }
-
-        // Serialize as a sequence
-        let mut state = serializer.serialize_seq(Some(0))?;
-
-        // Serialize header
-        state.serialize_element(&hdr_byte)?;
 
         // Serialize length
-        state.serialize_element(&len)?;
-
-        // If SYNC packet
-        if self.ptype == HidIoPacketType::Sync {
-            return state.end();
-        }
+        pos = serialize_byte(data, len, pos)?;
 
         // Serialize id
-        for id_byte in &id_vec {
-            state.serialize_element(id_byte)?;
-        }
+        pos = serialize_bytes(data, &id_vec[..id_width_len as usize], pos)?;
 
         // Serialize payload data
         // We can't just serialize directly (extra info is included), serialize each element of vector separately
@@ -839,13 +782,11 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
             // Payload that's available
             &self.data[0..data_len as usize]
         };
-        for elem in slice {
-            state.serialize_element(elem)?;
-        }
+        pos = serialize_bytes(data, slice, pos)?;
 
         // Finish serialization if no more payload left
         if !cont {
-            return state.end();
+            return Ok(data);
         }
 
         // Determine how much payload is left
@@ -897,15 +838,13 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
                 (upper_len & 0x3);
 
             // Serialize header
-            state.serialize_element(&hdr_byte)?;
+            pos = serialize_byte(data, hdr_byte, pos)?;
 
             // Serialize length
-            state.serialize_element(&len)?;
+            pos = serialize_byte(data, len, pos)?;
 
             // Serialize id
-            for id_byte in &id_vec {
-                state.serialize_element(id_byte)?;
-            }
+            pos = serialize_bytes(data, &id_vec[..id_width_len as usize], pos)?;
 
             // Serialize payload data
             // We can't just serialize directly (extra info is included), serialize each element of vector separately
@@ -917,9 +856,7 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
                 data_len as usize
             };
             let slice = &self.data[last_slice_index..slice_end];
-            for elem in slice {
-                state.serialize_element(elem)?;
-            }
+            pos = serialize_bytes(data, slice, pos)?;
 
             // Recalculate how much payload is left
             payload_left -= (slice_end - last_slice_index) as u32;
@@ -927,8 +864,34 @@ impl<const H: usize> Serialize for HidIoPacketBuffer<H> {
         }
 
         // --- Finish serialization ---
-        state.end()
+        Ok(data)
     }
+}
+
+/// Very simple error checking function for byte serialization
+/// Returns the new serialization index pointer
+fn serialize_byte(data: &mut [u8], byte: u8, pos: usize) -> Result<usize, HidIoParseError> {
+    // Make sure buffer is large enough
+    if pos >= data.len() {
+        return Err(HidIoParseError::BufferDataTooSmall(pos - 1));
+    }
+
+    data[pos] = byte;
+    Ok(pos + 1)
+}
+
+/// Very simple error checking function for byte array serialization
+/// Returns the new serialization index pointer
+fn serialize_bytes(data: &mut [u8], bytes: &[u8], pos: usize) -> Result<usize, HidIoParseError> {
+    // Make sure buffer is large enough
+    if pos + bytes.len() > data.len() && !bytes.is_empty() {
+        return Err(HidIoParseError::BufferDataTooSmall(pos - 1));
+    }
+
+    for (i, byte) in bytes.iter().enumerate() {
+        data[pos + i] = *byte;
+    }
+    Ok(pos + bytes.len())
 }
 
 impl fmt::Display for HidIoPacketType {
