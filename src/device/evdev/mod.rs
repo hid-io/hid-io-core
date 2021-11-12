@@ -1245,10 +1245,7 @@ pub fn udev_find_input_event_device(
 
             // Validate parameters
             for device in enumerator.scan_devices().unwrap() {
-                let fd_path = format!(
-                    "/dev/input/{}",
-                    device.sysname().to_str().unwrap().to_string()
-                );
+                let fd_path = format!("/dev/input/{}", device.sysname().to_str().unwrap());
                 if fd_path.contains("event") {
                     return Ok(device);
                 }

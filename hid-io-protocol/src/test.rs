@@ -131,7 +131,8 @@ fn no_payload_test() {
     setup_logging_lite().ok();
 
     // Create single byte payload buffer
-    let buffer = HidIoPacketBuffer::<0> {
+    // TODO(HaaTa) - https://github.com/japaric/heapless/issues/252 should be 0 length capacity
+    let buffer = HidIoPacketBuffer::<1> {
         // Data packet
         ptype: HidIoPacketType::Data,
         // Test packet id

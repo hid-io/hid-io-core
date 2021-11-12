@@ -9,7 +9,6 @@ HID-IO is a host-side daemon for advanced HID devices.
 
 homepage      = "https://github.com/hid-io/hid-io-core"
 repository    = "https://github.com/hid-io/hid-io-core"
-documentation = "https://hid-io.github.io/hid-io-core/hid_io_core/"
 
 edition       = "2021"
 build         = "build.rs"
@@ -97,7 +96,7 @@ flexi_logger    = "^0.17"
 futures         = { version = "^0.3", optional = true }
 futures-util    = { version = "^0.3", optional = true }
 glob            = { version = "^0.3", optional = true }
-heapless        = { version = "^0.7" }
+heapless        = { version = "0.7" }
 hidapi          = { version = "1.2.4", default-features = false, features = ["linux-static-hidraw"], optional = true }
 hid-io-protocol = { path = "hid-io-protocol", version = "0.1.0" }
 libc            = { version = "^0.2", optional = true }
@@ -126,14 +125,14 @@ features = ["prepush-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-evdev-rs             = { version = "^0.4", optional = true }
+evdev-rs             = { version = "0.4", optional = true }
 memmap               = { version = "^0.7", optional = true }
 udev                 = { version = "^0.5", optional = true }
 uhid-virt            = { version = "0.0.5", optional = true }
-wayland-client       = { version = "^0.28", optional = true, features = ["use_system_lib"] }
+wayland-client       = { version = "0.29", optional = true, features = ["use_system_lib"] }
 xkbcommon            = { version = "^0.4", optional = true, features = ["x11"] }
 x11                  = { version = "^2.18", optional = true }
-zwp-virtual-keyboard = { version = "^0.2", optional = true }
+zwp-virtual-keyboard = { version = "0.2", optional = true }
 
 
 [target.'cfg(windows)'.dependencies]

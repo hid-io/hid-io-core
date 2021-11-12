@@ -919,7 +919,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
         // Handle packet type
         match buf.ptype {
             HidIoPacketType::Data => {
-                if buf.data.len() < 1 {
+                if buf.data.is_empty() {
                     return Err(CommandError::DataVecNoData);
                 }
                 // Attempt to read first byte
@@ -988,7 +988,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
             }
             HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
             HidIoPacketType::Ack => {
-                if buf.data.len() < 1 {
+                if buf.data.is_empty() {
                     return Err(CommandError::DataVecNoData);
                 }
                 // Attempt to read first byte
@@ -1044,7 +1044,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
                 self.h0001_info_ack(ack)
             }
             HidIoPacketType::Nak => {
-                if buf.data.len() < 1 {
+                if buf.data.is_empty() {
                     return Err(CommandError::DataVecNoData);
                 }
                 // Attempt to read first byte
@@ -1260,7 +1260,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
                 self.h0016_flashmode_ack(h0016::Ack { scancode })
             }
             HidIoPacketType::Nak => {
-                if buf.data.len() < 1 {
+                if buf.data.is_empty() {
                     return Err(CommandError::DataVecNoData);
                 }
 
@@ -1496,7 +1496,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
             HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
             HidIoPacketType::Ack => self.h001a_sleepmode_ack(h001a::Ack {}),
             HidIoPacketType::Nak => {
-                if buf.data.len() < 1 {
+                if buf.data.is_empty() {
                     return Err(CommandError::DataVecNoData);
                 }
 
