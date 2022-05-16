@@ -1,5 +1,10 @@
 # hid-io protocol
 
+[![docs.rs](https://docs.rs/hid-io-protocol/badge.svg)](https://docs.rs/hid-io-protocol)
+[![Crates.io](https://img.shields.io/crates/v/hid-io-protocol.svg)](https://crates.io/crates/hid-io-protocol)
+[![Crates.io](https://img.shields.io/crates/l/hid-io-protocol.svg)](https://crates.io/crates/hid-io-protocol)
+[![Crates.io](https://img.shields.io/crates/d/hid-io-protocol.svg)](https://crates.io/crates/hid-io-protocol)
+
 HID-IO Server and Device protocol implementation
 
 This library can be integrated into both embedded and full user-space applications using the `device` and `server` feature flags.
@@ -19,7 +24,7 @@ The hid-io protocol library handles these features:
 
 ### API Documentation
 
-TODO
+See [docs.rs](https://docs.rs/hid-io-protocol).
 
 
 ## Building
