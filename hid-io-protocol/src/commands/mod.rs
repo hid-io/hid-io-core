@@ -1,4 +1,4 @@
-/* Copyright (C) 2020-2021 by Jacob Alexander
+/* Copyright (C) 2020-2022 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -438,9 +438,10 @@ pub mod h001a {
 }
 
 /// KLL Trigger State
-/// TODO
 pub mod h0020 {
-    pub struct Cmd {}
+    pub struct Cmd {
+        pub event: kll_core::TriggerEvent,
+    }
     pub struct Ack {}
     pub struct Nak {}
 }
@@ -1508,6 +1509,79 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
                 };
                 self.h001a_sleepmode_nak(h001a::Nak { error })
             }
+            _ => Ok(()),
+        }
+    }
+
+    fn h0020_klltrigger(&mut self, data: h0020::Cmd, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // KllState id
+            id: HidIoCommandId::KllState,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NaData;
+        }
+
+        // Build payload
+        if !buf.append_payload(unsafe { data.event.bytes() }) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0020_klltrigger_cmd(&mut self, _data: h0020::Cmd) -> Result<h0020::Ack, h0020::Nak> {
+        Err(h0020::Nak {})
+    }
+    fn h0020_klltrigger_nacmd(&mut self, _data: h0020::Cmd) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::NaData,
+        ))
+    }
+    fn h0020_klltrigger_ack(&mut self, _data: h0020::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Ack,
+        ))
+    }
+    fn h0020_klltrigger_nak(&mut self, _data: h0020::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Nak,
+        ))
+    }
+    fn h0020_klltrigger_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0020::Cmd {
+                    event: unsafe { kll_core::TriggerEvent::from_bytes(&buf.data) },
+                };
+
+                match self.h0020_klltrigger_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NaData => {
+                // Copy data into struct
+                let cmd = h0020::Cmd {
+                    event: unsafe { kll_core::TriggerEvent::from_bytes(&buf.data) },
+                };
+
+                self.h0020_klltrigger_nacmd(cmd)
+            }
+            HidIoPacketType::Ack => self.h0020_klltrigger_ack(h0020::Ack {}),
+            HidIoPacketType::Nak => self.h0020_klltrigger_nak(h0020::Nak {}),
             _ => Ok(()),
         }
     }

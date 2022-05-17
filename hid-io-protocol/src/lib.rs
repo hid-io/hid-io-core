@@ -521,7 +521,7 @@ impl<const H: usize> HidIoPacketBuffer<H> {
         }
 
         let hdr_len = self.hdr_len();
-        let data_len = (&self.data).len() as u32;
+        let data_len = self.data.len() as u32;
         let payload_len = self.payload_len();
 
         let fullpackets = (data_len / payload_len) * (payload_len + u32::from(hdr_len));
@@ -708,7 +708,7 @@ impl<const H: usize> HidIoPacketBuffer<H> {
         let payload_len = self.payload_len();
 
         // Data length
-        let data_len = (&self.data).len() as u32;
+        let data_len = self.data.len() as u32;
 
         // Determine if a continued packet construct
         let mut cont: bool = data_len > payload_len;
@@ -790,7 +790,7 @@ impl<const H: usize> HidIoPacketBuffer<H> {
         }
 
         // Determine how much payload is left
-        let mut payload_left = (&self.data).len() as u32 - payload_len;
+        let mut payload_left = self.data.len() as u32 - payload_len;
         let mut last_slice_index = payload_len as usize;
 
         // --- Additional Packets ---
