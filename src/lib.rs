@@ -15,7 +15,6 @@
  */
 
 #![feature(drain_filter)]
-#![feature(allow_fail)]
 
 // ----- Crates -----
 

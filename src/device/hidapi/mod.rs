@@ -1,5 +1,5 @@
 #![cfg(feature = "hidapi-devices")]
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ use crate::RUNNING;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 
@@ -135,10 +136,10 @@ fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
         string += m;
     }
     if let Some(p) = &device_info.product_string() {
-        string += &format!(" {}", p);
+        write!(string, " {}", p).unwrap();
     }
     if let Some(s) = &device_info.serial_number() {
-        string += &format!(" ({})", s);
+        write!(string, " ({})", s).unwrap();
     }
     string
 }

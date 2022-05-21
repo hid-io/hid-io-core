@@ -56,7 +56,7 @@ impl HidIoEndpoint {
             Ok(len) => {
                 if len > 0 {
                     let slice = &rbuf[0..len];
-                    let ret = buffer.decode_packet(&slice.to_vec());
+                    let ret = buffer.decode_packet(slice);
                     if let Err(e) = ret {
                         error!("recv_chunk({}) {:?}", len, e);
                         println!("received: {:?}", slice);

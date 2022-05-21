@@ -61,7 +61,6 @@ impl XConnection {
         }
     }
 
-    #[link(name = "X11")]
     pub fn find_keycode(&self, keysym: u64) -> (bool, Option<u32>) {
         let display = self.display;
         let mut keycode = None;

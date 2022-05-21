@@ -285,9 +285,9 @@ impl hidio_capnp::hid_io_server::Server for HidIoServerImpl {
             built_info::PKG_VERSION,
             built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v))
         ));
-        version.set_buildtime(&built_info::BUILT_TIME_UTC.to_string());
-        version.set_serverarch(&built_info::TARGET.to_string());
-        version.set_compilerversion(&built_info::RUSTC_VERSION.to_string());
+        version.set_buildtime(built_info::BUILT_TIME_UTC);
+        version.set_serverarch(built_info::TARGET);
+        version.set_compilerversion(built_info::RUSTC_VERSION);
         Promise::ok(())
     }
 
@@ -1573,18 +1573,20 @@ async fn server_bind(
         let rpc_system = RpcSystem::new(Box::new(network), Some(hidio_server.client));
         let disconnector = rpc_system.get_disconnector();
         let rpc_task = tokio::task::spawn_local(async move {
-            let _rpc_system = Box::pin(rpc_system.map_err(|e| info!("rpc_system: {}", e)).map(
-                move |_| {
-                    info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);
+            Box::pin(
+                rpc_system
+                    .map_err(|e| info!("rpc_system: {}", e))
+                    .map(move |_| {
+                        info!("Connection closed:7185 - {:?} - uid:{}", addr, uid);
 
-                    // Client disconnected, delete node
-                    let connected_nodes = connections.read().unwrap()[&uid].clone();
-                    nodes
-                        .write()
-                        .unwrap()
-                        .retain(|x| !connected_nodes.contains(&x.uid));
-                },
-            ))
+                        // Client disconnected, delete node
+                        let connected_nodes = connections.read().unwrap()[&uid].clone();
+                        nodes
+                            .write()
+                            .unwrap()
+                            .retain(|x| !connected_nodes.contains(&x.uid));
+                    }),
+            )
             .await;
         });
 
