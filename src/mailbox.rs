@@ -33,7 +33,7 @@ pub type HidIoPacketBuffer = hid_io_protocol::HidIoPacketBuffer<HIDIO_PKT_BUF_DA
 
 // ----- Enumerations -----
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Address {
     // All/any addressed (used as a broadcast destination, not as a source)
     All,
@@ -511,7 +511,7 @@ impl Default for Mailbox {
 /// Container for HidIoPacketBuffer
 /// Used to indicate the source and destinations inside of hid-io-core.
 /// Also contains a variety of convenience functions using the src and dst information.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Message {
     pub src: Address,
     pub dst: Address,

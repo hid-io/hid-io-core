@@ -145,7 +145,7 @@ pub mod h0001 {
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
-    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
     #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
     pub enum Property {
         Unknown = 0x00,
@@ -165,7 +165,7 @@ pub mod h0001 {
     }
 
     #[repr(u8)]
-    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
     #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
     pub enum OsType {
         Unknown = 0x00,
@@ -248,7 +248,7 @@ pub mod h0010 {
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
-    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
     #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
     pub enum Command {
         ListFields = 0x00,
@@ -339,7 +339,7 @@ pub mod h0016 {
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
-    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
     #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
     pub enum Error {
         NotSupported = 0x00,
@@ -414,7 +414,7 @@ pub mod h001a {
     use num_enum::TryFromPrimitive;
 
     #[repr(u8)]
-    #[derive(PartialEq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
     #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
     pub enum Error {
         NotSupported = 0x00,

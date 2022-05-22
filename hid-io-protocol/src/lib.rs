@@ -59,7 +59,7 @@ macro_rules! error {
 ///
 /// # Remarks
 /// Must not be larger than 0x7, 7 is reserved.
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
 pub enum HidIoPacketType {
     /// Data packet
@@ -79,7 +79,7 @@ pub enum HidIoPacketType {
 }
 
 #[repr(u32)]
-#[derive(PartialEq, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
 #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
 /// Requests for to perform a specific action
 pub enum HidIoCommandId {
@@ -160,7 +160,7 @@ pub enum HidIoParseError {
 /// # Remarks
 /// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
 #[repr(C)]
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
 pub struct HidIoPacketBuffer<const H: usize> {
     /// Type of packet (Continued is automatically set if needed)

@@ -34,7 +34,7 @@ use std::time::Instant;
 // ----- Functions -----
 
 /// Authorization level for a remote node
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AuthLevel {
     /// Allows connecting and listing devices
     Basic,
@@ -196,7 +196,7 @@ impl HidApiInfo {
 /// Dummy enum when api is not being compiled in
 #[cfg(not(feature = "api"))]
 pub mod common_capnp {
-    #[derive(Clone, Copy, Debug, PartialEq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum NodeType {
         BleKeyboard,
         HidJoystick,
