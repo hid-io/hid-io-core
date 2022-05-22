@@ -36,6 +36,7 @@ use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use rcgen::generate_simple_self_signed;
 use std::collections::HashMap;
 use std::env;
+use std::fs::File;
 use std::io::Write;
 use std::net::ToSocketAddrs;
 use std::sync::atomic::Ordering;
@@ -119,7 +120,7 @@ struct HidIoServerImpl {
     basic_key: String,
     auth_key: String,
 
-    basic_key_file: tempfile::NamedTempFile,
+    basic_key_dir: tempfile::TempDir,
     auth_key_file: tempfile::NamedTempFile,
 
     subscriptions: Arc<RwLock<Subscriptions>>,
@@ -133,15 +134,16 @@ impl HidIoServerImpl {
         subscriptions: Arc<RwLock<Subscriptions>>,
     ) -> HidIoServerImpl {
         // Create temp file for basic key
-        let mut basic_key_file = tempfile::Builder::new()
-            .world_accessible(true)
-            .tempfile()
-            .expect("Unable to create file");
+        let basic_key_dir = tempfile::Builder::new()
+            .prefix("hidio")
+            .tempdir()
+            .expect("Unable to create dir");
+        let mut basic_key_file =
+            File::create(basic_key_dir.path().join("key")).expect("Unable to create file");
 
         // Create temp file for auth key
         // Only this user can read the auth key
         let mut auth_key_file = tempfile::Builder::new()
-            .world_accessible(false)
             .tempfile()
             .expect("Unable to create file");
 
@@ -172,7 +174,7 @@ impl HidIoServerImpl {
             basic_key,
             auth_key,
 
-            basic_key_file,
+            basic_key_dir,
             auth_key_file,
 
             subscriptions,
@@ -297,7 +299,7 @@ impl hidio_capnp::hid_io_server::Server for HidIoServerImpl {
     ) -> Promise<(), Error> {
         // Get and set fields
         let mut key = results.get().init_key();
-        key.set_basic_key_path(&self.basic_key_file.path().display().to_string());
+        key.set_basic_key_path(&self.basic_key_dir.path().join("key").display().to_string());
         key.set_auth_key_path(&self.auth_key_file.path().display().to_string());
         Promise::ok(())
     }
