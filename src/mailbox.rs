@@ -511,7 +511,8 @@ impl Default for Mailbox {
 /// Container for HidIoPacketBuffer
 /// Used to indicate the source and destinations inside of hid-io-core.
 /// Also contains a variety of convenience functions using the src and dst information.
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug)]
+#[allow(clippy::derive_partial_eq_without_eq)]
 pub struct Message {
     pub src: Address,
     pub dst: Address,
