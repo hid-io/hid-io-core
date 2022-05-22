@@ -1,4 +1,4 @@
-/* Copyright (C) 2020-2021 by Jacob Alexander
+/* Copyright (C) 2020-2022 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,9 @@ use flexi_logger::Logger;
 
 #[cfg(feature = "server")]
 use log::debug;
+
+#[cfg(feature = "device")]
+use defmt::{debug, error};
 
 // ----- Enumerations -----
 

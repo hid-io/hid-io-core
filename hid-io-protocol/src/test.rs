@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,13 +54,12 @@ fn loopback_serializer<const H: usize>(buffer: HidIoPacketBuffer<H>, data: &mut 
     let data = match buffer.serialize_buffer(data) {
         Ok(data) => data,
         Err(err) => {
-            assert!(false, "Serialized Buffer failed: {:?}", err);
-            &[0u8; 0]
+            panic!("Serialized Buffer failed: {:?}", err);
         }
     };
 
     // Validate serialization worked
-    assert!(data.len() > 0, "Serialization bytes:{}", data.len());
+    assert!(!data.is_empty(), "Serialization bytes:{}", data.len());
 
     // Deserialize while there are bytes left
     let mut deserialized = HidIoPacketBuffer::new();
@@ -68,7 +67,7 @@ fn loopback_serializer<const H: usize>(buffer: HidIoPacketBuffer<H>, data: &mut 
     while bytes_used != data.len() {
         // Remove already processed bytes
         let slice = &data[bytes_used..];
-        match deserialized.decode_packet(&mut slice.to_vec()) {
+        match deserialized.decode_packet(slice) {
             Ok(result) => {
                 bytes_used += result as usize;
             }
@@ -285,15 +284,13 @@ fn hid_vec2bitmask2vec_test() {
     let bitmask = match hid_vec2bitmask(&inputvec) {
         Ok(bitmask) => bitmask,
         Err(e) => {
-            assert!(false, "Failed to run hid_vec2bitmask: {:?}", e);
-            Vec::new()
+            panic!("Failed to run hid_vec2bitmask: {:?}", e);
         }
     };
     let new_vec = match hid_bitmask2vec(&bitmask) {
         Ok(new_vec) => new_vec,
         Err(e) => {
-            assert!(false, "Failed to run hid_bitmask2vec: {:?}", e);
-            Vec::new()
+            panic!("Failed to run hid_bitmask2vec: {:?}", e);
         }
     };
 
