@@ -69,6 +69,7 @@ displayserver = [
 hidapi-devices = [
   "hidapi",
   "regex",
+  "tokio-stream",
 ]
 # vhid (virtual hid) allows for the creation of virtual hid devices.
 # This is needed to support virtual devices such as virtual joysticks, mice and keyboards
