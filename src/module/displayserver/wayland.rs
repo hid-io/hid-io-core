@@ -1,4 +1,4 @@
-/* Copyright (C) 2020 by Jacob Alexander
+/* Copyright (C) 2020-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -663,7 +663,7 @@ mod test {
         let xkb_context = xkbcommon::xkb::Context::new(xkbcommon::xkb::CONTEXT_NO_FLAGS);
         let xkb_keymap = xkbcommon::xkb::Keymap::new_from_string(
             &xkb_context,
-            layout.clone(),
+            layout,
             xkbcommon::xkb::KEYMAP_FORMAT_TEXT_V1,
             xkbcommon::xkb::KEYMAP_COMPILE_NO_FLAGS,
         )

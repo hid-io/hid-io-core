@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2020 by Jacob Alexander
+/* Copyright (C) 2019-2022 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -28,7 +28,7 @@ use hid_io_core::RUNNING;
 #[cfg(windows)]
 use std::sync::atomic::Ordering;
 
-use clap::App;
+use clap::Command;
 use hid_io_core::api;
 use hid_io_core::built_info;
 use hid_io_core::device;
@@ -88,7 +88,7 @@ fn start() {
 
         // Process command-line arguments
         // Most of the information is generated from Cargo.toml using built crate (build.rs)
-        App::new(built_info::PKG_NAME.to_string())
+        Command::new(built_info::PKG_NAME.to_string())
             .version(version_info.as_str())
             .author(built_info::PKG_AUTHORS)
             .about(format!("\n{}", built_info::PKG_DESCRIPTION).as_str())

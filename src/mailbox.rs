@@ -1,4 +1,4 @@
-/* Copyright (C) 2020-2021 by Jacob Alexander
+/* Copyright (C) 2020-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,8 +23,8 @@ use hid_io_protocol::commands::CommandError;
 use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tokio::stream::StreamExt;
 use tokio::sync::broadcast;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 // ----- Types -----
 
@@ -252,7 +252,7 @@ impl Mailbox {
 
         // Construct stream filter
         tokio::pin! {
-            let stream = receiver.into_stream()
+            let stream = BroadcastStream::new(receiver)
                 .filter(Result::is_ok)
                 .map(Result::unwrap)
                 .filter(|msg| msg.src == src && msg.dst == Address::All && msg.data.id == id);

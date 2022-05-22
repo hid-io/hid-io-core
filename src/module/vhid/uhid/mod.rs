@@ -1,5 +1,5 @@
 #![cfg(target_os = "linux")]
-/* Copyright (C) 2020-2021 by Jacob Alexander
+/* Copyright (C) 2020-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -826,7 +826,7 @@ mod test {
         // Instantiate hid device
         let mut keyboard = KeyboardNkro::new(
             mailbox.clone(),
-            name.clone(),
+            name,
             "".to_string(),
             uniq.clone(),
             uhid_virt::Bus::USB,
@@ -853,16 +853,13 @@ mod test {
 
         // Find evdev mapping to uhid device
         while !device.is_initialized() {} // Wait for udev to finish setting up device
-        let fd_path = format!(
-            "/dev/input/{}",
-            device.sysname().to_str().unwrap().to_string()
-        );
+        let fd_path = format!("/dev/input/{}", device.sysname().to_str().unwrap());
 
         // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
         // validate that evdev is working correctly
         // However, before we can send any keypresses, a mailbox receiver is setup to watch for the incoming
         // messages
-        let mut receiver = mailbox.clone().sender.subscribe(); // Subscribe to mailbox messages
+        let mut receiver = mailbox.sender.subscribe(); // Subscribe to mailbox messages
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let status: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
@@ -896,11 +893,10 @@ mod test {
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        assert!(false, "Mailbox has been closed unexpectedly!");
+                        panic!("Mailbox has been closed unexpectedly!");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        assert!(
-                            false,
+                        panic!(
                             "Mailbox has received too many messages, lagging by: {}",
                             skipped
                         );
@@ -943,7 +939,7 @@ mod test {
 
         // Force the runtime to shutdown
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
-        let status: bool = *status2.clone().read().unwrap();
+        let status: bool = *status2.read().unwrap();
         assert!(status, "Test failed");
     }
 
@@ -966,7 +962,7 @@ mod test {
         // Instantiate hid device
         let mut keyboard = Keyboard6kro::new(
             mailbox.clone(),
-            name.clone(),
+            name,
             "".to_string(),
             uniq.clone(),
             uhid_virt::Bus::USB,
@@ -993,16 +989,13 @@ mod test {
 
         // Find evdev mapping to uhid device
         while !device.is_initialized() {} // Wait for udev to finish setting up device
-        let fd_path = format!(
-            "/dev/input/{}",
-            device.sysname().to_str().unwrap().to_string()
-        );
+        let fd_path = format!("/dev/input/{}", device.sysname().to_str().unwrap());
 
         // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
         // validate that evdev is working correctly
         // However, before we can send any keypresses, a mailbox receiver is setup to watch for the incoming
         // messages
-        let mut receiver = mailbox.clone().sender.subscribe(); // Subscribe to mailbox messages
+        let mut receiver = mailbox.sender.subscribe(); // Subscribe to mailbox messages
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         let status: Arc<RwLock<bool>> = Arc::new(RwLock::new(false));
@@ -1034,11 +1027,10 @@ mod test {
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        assert!(false, "Mailbox has been closed unexpectedly!");
+                        panic!("Mailbox has been closed unexpectedly!");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        assert!(
-                            false,
+                        panic!(
                             "Mailbox has received too many messages, lagging by: {}",
                             skipped
                         );
@@ -1077,7 +1069,7 @@ mod test {
 
         // Force the runtime to shutdown
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
-        let status: bool = *status2.clone().read().unwrap();
+        let status: bool = *status2.read().unwrap();
         assert!(status, "Test failed");
     }
 }

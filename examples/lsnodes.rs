@@ -1,5 +1,5 @@
 #![cfg(feature = "api")]
-/* Copyright (C) 2019-2020 by Jacob Alexander
+/* Copyright (C) 2019-2022 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -32,17 +32,22 @@ use tokio_rustls::{rustls::ClientConfig, TlsConnector};
 const LISTEN_ADDR: &str = "localhost:7185";
 
 mod danger {
+    use std::time::SystemTime;
+    use tokio_rustls::rustls::{Certificate, ServerName};
+
     pub struct NoCertificateVerification {}
 
-    impl rustls::ServerCertVerifier for NoCertificateVerification {
+    impl rustls::client::ServerCertVerifier for NoCertificateVerification {
         fn verify_server_cert(
             &self,
-            _roots: &rustls::RootCertStore,
-            _certs: &[rustls::Certificate],
-            _hostname: webpki::DNSNameRef<'_>,
-            _ocsp: &[u8],
-        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
-            Ok(rustls::ServerCertVerified::assertion())
+            _end_entity: &Certificate,
+            _intermediates: &[Certificate],
+            _server_name: &ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _ocsp_response: &[u8],
+            _now: SystemTime,
+        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+            Ok(rustls::client::ServerCertVerified::assertion())
         }
     }
 }
@@ -69,19 +74,19 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         .expect("could not parse address");
     println!("Connecting to {}", addr);
 
-    let mut config = ClientConfig::new();
-    config
-        .dangerous()
-        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
+    let config = ClientConfig::builder()
+        .with_safe_defaults()
+        .with_custom_certificate_verifier(Arc::new(danger::NoCertificateVerification {}))
+        .with_no_client_auth();
     let connector = TlsConnector::from(Arc::new(config));
 
-    let domain = webpki::DNSNameRef::try_from_ascii_str("localhost").unwrap();
+    let domain = rustls::ServerName::try_from("localhost").unwrap();
 
     let stream = tokio::net::TcpStream::connect(&addr).await?;
     stream.set_nodelay(true)?;
     let stream = connector.connect(domain, stream).await?;
 
-    let (reader, writer) = tokio_util::compat::Tokio02AsyncReadCompatExt::compat(stream).split();
+    let (reader, writer) = tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
 
     let network = Box::new(twoparty::VatNetwork::new(
         reader,

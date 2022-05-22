@@ -1,5 +1,5 @@
 #![cfg(feature = "displayserver")]
-/* Copyright (C) 2019-2021 by Jacob Alexander
+/* Copyright (C) 2019-2022 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -37,7 +37,7 @@ use crate::RUNNING;
 use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use std::string::FromUtf8Error;
 use std::sync::atomic::Ordering;
-use tokio::stream::StreamExt;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 #[cfg(all(feature = "displayserver", target_os = "linux"))]
 use crate::module::displayserver::x11::*;
@@ -200,7 +200,7 @@ async fn process(mailbox: mailbox::Mailbox) {
     let sender = mailbox.clone().sender.clone();
     let receiver = sender.clone().subscribe();
     tokio::pin! {
-        let stream = receiver.into_stream()
+        let stream = BroadcastStream::new(receiver)
             .filter(Result::is_ok).map(Result::unwrap)
             .filter(|msg| msg.dst == mailbox::Address::Module)
             .filter(|msg| supported_ids().contains(&msg.data.id))

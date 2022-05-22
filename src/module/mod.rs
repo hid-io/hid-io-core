@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ use crate::api;
 use crate::device;
 use crate::mailbox;
 use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
-use tokio::stream::StreamExt;
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 /// Supported Ids by this module
 /// recursive option applies supported ids from child modules as well
@@ -58,7 +58,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
         let sender = mailbox1.clone().sender.clone();
         let receiver = sender.clone().subscribe();
         tokio::pin! {
-            let stream = receiver.into_stream()
+            let stream = BroadcastStream::new(receiver)
                 .filter(Result::is_ok).map(Result::unwrap)
                 .take_while(|msg|
                     msg.src != mailbox::Address::DropSubscription &&
@@ -164,7 +164,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
         let sender = mailbox2.clone().sender.clone();
         let receiver = sender.clone().subscribe();
         tokio::pin! {
-            let stream = receiver.into_stream()
+            let stream = BroadcastStream::new(receiver)
                 .filter(Result::is_ok).map(Result::unwrap)
                 .take_while(|msg|
                     msg.src != mailbox::Address::DropSubscription &&

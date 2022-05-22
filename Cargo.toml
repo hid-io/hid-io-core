@@ -38,6 +38,7 @@ api = [
   "rustls",
   "tempfile",
   "tokio-rustls",
+  "tokio-stream",
   "tokio-util",
 ]
 # dev_capture handles any HID event capturing for standard input devices
@@ -82,40 +83,41 @@ vhid = [
 
 [build-dependencies]
 built           = { version = "^0.5", features = ["git2", "chrono"] }
-capnpc          = { version = "^0.13", optional = true }
+capnpc          = { version = "^0.14", optional = true }
 rustc_version   = "^0.2"
 
 
 [dependencies]
-capnp           = { version = "^0.13", optional = true }
-capnp-rpc       = { version = "^0.13", optional = true }
-clap            = "^2.33"
-ctrlc           = "^3.1"
+capnp           = { version = "^0.14", optional = true }
+capnp-rpc       = { version = "^0.14", optional = true }
+clap            = "^3.1"
+ctrlc           = "^3.2"
 lazy_static     = "^1.4"
-flexi_logger    = "^0.17"
+flexi_logger    = "^0.22"
 futures         = { version = "^0.3", optional = true }
 futures-util    = { version = "^0.3", optional = true }
 glob            = { version = "^0.3", optional = true }
 heapless        = { version = "0.7" }
-hidapi          = { version = "1.2.4", default-features = false, features = ["linux-static-hidraw"], optional = true }
+hidapi          = { version = "1.4.1", default-features = false, features = ["linux-static-hidraw"], optional = true }
 hid-io-protocol = { path = "hid-io-protocol", version = "0.1.0" }
 libc            = { version = "^0.2", optional = true }
 log             = "^0.4"
-nanoid          = { version = "^0.3", optional = true }
-open            = "^1.4"
-rcgen           = { version = "^0.5", optional = true }
-regex           = { version = "^1.3", optional = true }
-rustls          = { version = "^0.18", optional = true, features = ["dangerous_configuration"] }
-sys-info        = "^0.7"
+nanoid          = { version = "^0.4", optional = true }
+open            = "^2.1"
+rcgen           = { version = "^0.9", optional = true }
+regex           = { version = "^1.5", optional = true }
+rustls          = { version = "^0.20", optional = true, features = ["dangerous_configuration"] }
+sys-info        = "^0.9"
 tempfile        = { version = "3.1.0", git = "https://github.com/haata/tempfile", optional = true } # Needed for world accessible patches
-tokio           = { version = "^0.3", features = ["net", "rt-multi-thread", "macros", "sync", "stream", "time"] }
-tokio-rustls    = { version = "^0.20", optional = true }
-tokio-util      = { version = "^0.4", optional = true, features = ["compat"] }
+tokio           = { version = "^1.18", features = ["net", "rt-multi-thread", "macros", "sync", "time"] }
+tokio-rustls    = { version = "^0.23", optional = true }
+tokio-stream    = { version = "^0.1", features = ["sync"], optional = true }
+tokio-util      = { version = "^0.7", optional = true, features = ["compat"] }
 
 
 [dev-dependencies]
-rand            = "^0.7"
-webpki          = "^0.21"
+rand            = "^0.8"
+webpki          = "^0.22"
 
 
 [dev-dependencies.cargo-husky]
@@ -124,13 +126,13 @@ features = ["prepush-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-evdev-rs             = { version = "0.4", optional = true }
+evdev-rs             = { version = "0.5", optional = true }
 memmap               = { version = "^0.7", optional = true }
-udev                 = { version = "^0.5", optional = true }
+udev                 = { version = "^0.6", optional = true }
 uhid-virt            = { version = "0.0.5", optional = true }
 wayland-client       = { version = "0.29", optional = true, features = ["use_system_lib"] }
 xkbcommon            = { version = "^0.4", optional = true, features = ["x11"] }
-x11                  = { version = "^2.18", optional = true }
+x11                  = { version = "^2.19", optional = true }
 zwp-virtual-keyboard = { version = "0.2", optional = true }
 
 

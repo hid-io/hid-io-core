@@ -1,5 +1,5 @@
 #![cfg(feature = "api")]
-/* Copyright (C) 2019-2020 by Jacob Alexander
+/* Copyright (C) 2019-2022 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -18,7 +18,6 @@
 
 extern crate tokio;
 
-use capnp;
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
@@ -37,17 +36,22 @@ use tokio_rustls::{rustls::ClientConfig, TlsConnector};
 const LISTEN_ADDR: &str = "localhost:7185";
 
 mod danger {
+    use std::time::SystemTime;
+    use tokio_rustls::rustls::{Certificate, ServerName};
+
     pub struct NoCertificateVerification {}
 
-    impl rustls::ServerCertVerifier for NoCertificateVerification {
+    impl rustls::client::ServerCertVerifier for NoCertificateVerification {
         fn verify_server_cert(
             &self,
-            _roots: &rustls::RootCertStore,
-            _certs: &[rustls::Certificate],
-            _hostname: webpki::DNSNameRef<'_>,
-            _ocsp: &[u8],
-        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
-            Ok(rustls::ServerCertVerified::assertion())
+            _end_entity: &Certificate,
+            _intermediates: &[Certificate],
+            _server_name: &ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
+            _ocsp_response: &[u8],
+            _now: SystemTime,
+        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
+            Ok(rustls::client::ServerCertVerified::assertion())
         }
     }
 }
@@ -95,24 +99,24 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                                         tmp.clear();
                                         pos += 1;
                                         if pos % split == 0 {
-                                            println!("");
+                                            println!();
                                         }
                                     }
                                 }
-                                println!("");
+                                println!();
                             }
                             _ => {
                                 for byte in res.get_data().unwrap() {
                                     print!("{} ", byte);
                                 }
-                                println!("");
+                                println!();
                             }
                         },
                         _ => {
                             for byte in res.get_data().unwrap() {
                                 print!("{} ", byte);
                             }
-                            println!("");
+                            println!();
                         }
                     }
                     std::io::stdout().flush().unwrap();
@@ -137,13 +141,13 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         .expect("could not parse address");
     println!("Connecting to {}", addr);
 
-    let mut config = ClientConfig::new();
-    config
-        .dangerous()
-        .set_certificate_verifier(Arc::new(danger::NoCertificateVerification {}));
+    let config = ClientConfig::builder()
+        .with_safe_defaults()
+        .with_custom_certificate_verifier(Arc::new(danger::NoCertificateVerification {}))
+        .with_no_client_auth();
     let connector = TlsConnector::from(Arc::new(config));
 
-    let domain = webpki::DNSNameRef::try_from_ascii_str("localhost").unwrap();
+    let domain = rustls::ServerName::try_from("localhost").unwrap();
 
     // Serial is used for automatic reconnection if hid-io goes away and comes back
     let mut serial = "".to_string();
@@ -158,10 +162,9 @@ async fn try_main() -> Result<(), ::capnp::Error> {
             }
         };
         stream.set_nodelay(true)?;
-        let stream = connector.connect(domain, stream).await?;
+        let stream = connector.connect(domain.clone(), stream).await?;
 
-        let (reader, writer) =
-            tokio_util::compat::Tokio02AsyncReadCompatExt::compat(stream).split();
+        let (reader, writer) = tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
 
         let network = Box::new(twoparty::VatNetwork::new(
             reader,
@@ -241,7 +244,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     .filter(|n| n.get_serial().unwrap() == serial)
                     .collect();
                 // First attempt to match serial number
-                if serial != "" && serial_matched.len() == 1 {
+                if !serial.is_empty() && serial_matched.len() == 1 {
                     let n = serial_matched[0];
                     println!("Re-registering to {}", format_node(n));
                     id = n.get_id();
@@ -255,7 +258,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                         .collect();
 
                     // Next, if serial number is unset and there is only one keyboard, automatically attach
-                    if serial == "" && keyboards.len() == 1 {
+                    if serial.is_empty() && keyboards.len() == 1 {
                         let n = keyboards[0];
                         println!("Registering to {}", format_node(n));
                         id = n.get_id();
@@ -284,7 +287,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
             std::process::exit(1);
         }
         let device = device.unwrap();
-        serial = format!("{}", device.get_serial().unwrap());
+        serial = device.get_serial().unwrap().to_string();
 
         // Build subscription callback
         let subscription = capnp_rpc::new_client(KeyboardSubscriberImpl);
@@ -347,7 +350,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                         // Done, can begin sending cli message to device
                         break;
                     }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Closed) => {
+                    Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
                         println!("Lost socket (buffer)");
                         ::std::process::exit(1);
                     }

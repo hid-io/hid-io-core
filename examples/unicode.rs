@@ -1,5 +1,5 @@
 #![cfg(feature = "displayserver")]
-/* Copyright (C) 2019-2020 by Jacob Alexander
+/* Copyright (C) 2019-2022 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * This file is free software: you can redistribute it and/or modify
@@ -34,8 +34,8 @@ use hid_io_core::module::displayserver::DisplayOutput;
 fn get_display() -> Box<dyn DisplayOutput> {
     // First attempt to connect to Wayland
     let wayland = WaylandConnection::new();
-    if wayland.is_ok() {
-        Box::new(wayland.unwrap())
+    if let Ok(wayland) = wayland {
+        Box::new(wayland)
 
     // Then fallback to X11
     } else {

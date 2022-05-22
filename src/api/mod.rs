@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,9 @@ mod capnp;
 
 #[cfg(feature = "api")]
 pub use crate::common_capnp;
+
+#[cfg(all(feature = "dev-capture", target_os = "linux"))]
+use evdev_rs::DeviceWrapper;
 
 use crate::mailbox;
 use hid_io_protocol::HidIoCommandId;

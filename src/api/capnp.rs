@@ -1,5 +1,5 @@
 #![cfg(feature = "api")]
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,11 +41,11 @@ use std::net::ToSocketAddrs;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
-use tokio::stream::StreamExt;
 use tokio_rustls::{
-    rustls::{Certificate, NoClientAuth, PrivateKey, ServerConfig},
+    rustls::{Certificate, PrivateKey, ServerConfig},
     TlsAcceptor,
 };
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 const LISTEN_ADDR: &str = "localhost:7185";
 
@@ -71,11 +71,6 @@ impl std::fmt::Display for common_capnp::NodeType {
         }
     }
 }
-impl std::fmt::Debug for common_capnp::NodeType {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
 
 impl std::fmt::Display for hidio_capnp::hid_io::packet::Type {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -86,11 +81,6 @@ impl std::fmt::Display for hidio_capnp::hid_io::packet::Type {
             hidio_capnp::hid_io::packet::Type::NaData => write!(f, "NaData"),
             hidio_capnp::hid_io::packet::Type::Unknown => write!(f, "Unknown"),
         }
-    }
-}
-impl std::fmt::Debug for hidio_capnp::hid_io::packet::Type {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
     }
 }
 
@@ -1471,8 +1461,11 @@ async fn server_bind(
 
     let cert = Certificate(pair.serialize_der().unwrap());
     let pkey = PrivateKey(pair.serialize_private_key_der());
-    let mut config = ServerConfig::new(NoClientAuth::new());
-    config.set_single_cert(vec![cert], pkey).unwrap();
+    let config = ServerConfig::builder()
+        .with_safe_defaults()
+        .with_no_client_auth()
+        .with_single_cert(vec![cert], pkey)
+        .unwrap();
     let acceptor = TlsAcceptor::from(Arc::new(config));
 
     let nodes = mailbox.nodes.clone();
@@ -1534,7 +1527,7 @@ async fn server_bind(
 
         // Setup reader/writer stream pair
         let (reader, writer) = futures_util::io::AsyncReadExt::split(
-            tokio_util::compat::Tokio02AsyncReadCompatExt::compat(stream),
+            tokio_util::compat::TokioAsyncReadCompatExt::compat(stream),
         );
 
         // Assign a uid to the connection
@@ -1648,8 +1641,7 @@ async fn server_subscriptions_daemon(
             );
 
             tokio::pin! {
-                let stream = receiver
-                    .into_stream()
+                let stream = BroadcastStream::new(receiver)
                     .filter(Result::is_ok).map(Result::unwrap)
                     .take_while(|msg|
                         msg.src != mailbox::Address::DropSubscription &&
@@ -1747,8 +1739,7 @@ async fn server_subscriptions_keyboard(
             );
 
             tokio::pin! {
-                let stream = receiver
-                    .into_stream()
+                let stream = BroadcastStream::new(receiver)
                     .filter(Result::is_ok).map(Result::unwrap)
                     .take_while(|msg|
                         msg.src != mailbox::Address::DropSubscription &&
@@ -1969,8 +1960,7 @@ async fn server_subscriptions_hidiowatcher(
             );
 
             tokio::pin! {
-                let stream = receiver
-                    .into_stream()
+                let stream = BroadcastStream::new(receiver)
                     .filter(Result::is_ok).map(Result::unwrap)
                     .take_while(|msg|
                         msg.src != mailbox::Address::DropSubscription &&

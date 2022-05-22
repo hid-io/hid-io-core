@@ -1,5 +1,5 @@
 #![cfg(all(feature = "dev-capture", target_os = "linux"))]
-/* Copyright (C) 2020-2021 by Jacob Alexander
+/* Copyright (C) 2020-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ use crate::api::Endpoint;
 use crate::api::EvdevInfo;
 use crate::mailbox;
 use crate::module::vhid;
+use evdev_rs::DeviceWrapper;
 use hid_io_protocol::*;
 
 // TODO This should be converted to use hid-io/layouts (may need a rust package to handle
@@ -658,7 +659,7 @@ const EVDEV2HIDKEY: [(HidIoCommandId, u16); 548] = [
 /// Convert evdev codes into hid codes
 fn evdev2basehid(code: evdev_rs::enums::EventCode) -> std::io::Result<(HidIoCommandId, u16)> {
     use evdev_rs::enums::EventCode;
-    match code.clone() {
+    match code {
         EventCode::EV_KEY(key) => {
             // Do an ev code to hid code lookup
             // Will error if no lookup is available
@@ -695,19 +696,8 @@ impl EvdevDevice {
     pub fn new(mailbox: mailbox::Mailbox, fd_path: String) -> std::io::Result<EvdevDevice> {
         // We query evdev here for information, but we don't grab the input until running process()
         // Initialize new evdev handle
-        let mut device = match evdev_rs::Device::new() {
-            Some(device) => device,
-            None => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Could not create evdev device",
-                ));
-            }
-        };
-
-        // Apply file descriptor to evdev handle
         let file = std::fs::File::open(fd_path.clone())?;
-        device.set_fd(file)?;
+        let device = evdev_rs::Device::new_from_file(file)?;
 
         // Determine type of device
         let devtype = device_type(&device, fd_path.clone())?;
@@ -744,19 +734,8 @@ impl EvdevDevice {
         let fd_path = self.fd_path.clone();
 
         // Initialize new evdev handle
-        let mut device = match evdev_rs::Device::new() {
-            Some(device) => device,
-            None => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "Could not create evdev device",
-                ));
-            }
-        };
-
-        // Apply file descriptor to evdev handle
         let file = std::fs::File::open(fd_path)?;
-        device.set_fd(file)?;
+        let mut device = evdev_rs::Device::new_from_file(file)?;
         info!("Connection event uid:{} {}", self.uid, device_name(&device));
 
         // Take all event information (block events from other processes)
@@ -784,7 +763,10 @@ impl EvdevDevice {
                 // TODO send event message through mailbox
                 debug!(
                     "uid:{} {:?} {:?} {}",
-                    self.uid, &result.1.event_type, &result.1.event_code, &result.1.value
+                    self.uid,
+                    &result.1.event_type(),
+                    &result.1.event_code,
+                    &result.1.value
                 );
 
                 match result.0 {
@@ -796,7 +778,7 @@ impl EvdevDevice {
                             warn!(
                                 "Dropped: uid:{} {:?} {:?} {}",
                                 self.uid,
-                                &result.1.event_type,
+                                &result.1.event_type(),
                                 &result.1.event_code,
                                 &result.1.value
                             );
@@ -1284,7 +1266,7 @@ mod test {
         // Instantiate hid device
         let mut keyboard = vhid::uhid::KeyboardNkro::new(
             mailbox.clone(),
-            name.clone(),
+            name,
             "".to_string(),
             uniq.clone(),
             uhid_virt::Bus::USB,
@@ -1311,10 +1293,7 @@ mod test {
 
         // Find evdev mapping to uhid device
         while !device.is_initialized() {} // Wait for udev to finish setting up device
-        let fd_path = format!(
-            "/dev/input/{}",
-            device.sysname().to_str().unwrap().to_string()
-        );
+        let fd_path = format!("/dev/input/{}", device.sysname().to_str().unwrap());
 
         // Now that both uhid and evdev nodes are setup we can attempt to send some keypresses to
         // validate that evdev is working correctly
@@ -1355,11 +1334,10 @@ mod test {
                         }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        assert!(false, "Mailbox has been closed unexpectedly!");
+                        panic!("Mailbox has been closed unexpectedly!");
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                        assert!(
-                            false,
+                        panic!(
                             "Mailbox has received too many messages, lagging by: {}",
                             skipped
                         );
@@ -1395,7 +1373,7 @@ mod test {
 
         // Force the runtime to shutdown
         rt.shutdown_timeout(std::time::Duration::from_millis(100));
-        let status: bool = *status2.clone().read().unwrap();
+        let status: bool = *status2.read().unwrap();
         assert!(status, "Test failed");
     }
 }
