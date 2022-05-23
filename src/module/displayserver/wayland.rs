@@ -200,7 +200,7 @@ impl Keymap {
         keymap_file.write_all(&[0]).unwrap();
         keymap_file.seek(SeekFrom::Start(0)).unwrap();
         let mut data = unsafe {
-            memmap::MmapOptions::new()
+            memmap2::MmapOptions::new()
                 .map_mut(&keymap_file)
                 .expect("Could not access data from memory mapped file")
         };
