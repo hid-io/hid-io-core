@@ -7,6 +7,11 @@
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/hid-io/hid-io-core.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hid-io/hid-io-core/alerts/)
 [![Language grade: Python](https://img.shields.io/lgtm/grade/python/g/hid-io/hid-io-core.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hid-io/hid-io-core/context:python)
 
+[![docs.rs](https://docs.rs/hid-io-core/badge.svg)](https://docs.rs/hid-io-core)
+[![Crates.io](https://img.shields.io/crates/v/hid-io-core.svg)](https://crates.io/crates/hid-io-core)
+[![Crates.io](https://img.shields.io/crates/l/hid-io-core.svg)](https://crates.io/crates/hid-io-core)
+[![Crates.io](https://img.shields.io/crates/d/hid-io-core.svg)](https://crates.io/crates/hid-io-core)
+
 HID-IO Client Side Library and Daemon
 
 ### Overview
