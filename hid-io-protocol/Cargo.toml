@@ -31,7 +31,7 @@ device = []
 server = ["log"]
 
 # Adds defmt support to useful enums and structs
-defmt-impl = ["defmt", "heapless/defmt-impl"]
+defmt-impl = ["defmt", "heapless/defmt-impl", "kll-core/defmt"]
 
 
 [dependencies]
