@@ -25,9 +25,9 @@ use super::*;
 use core::convert::{TryFrom, TryInto};
 use heapless::{String, Vec};
 
-#[cfg(feature = "device")]
+#[cfg(feature = "defmt")]
 use defmt::trace;
-#[cfg(feature = "server")]
+#[cfg(not(feature = "defmt"))]
 use log::trace;
 
 // ----- Modules -----

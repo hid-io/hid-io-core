@@ -38,7 +38,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[cfg(feature = "defmt")]
 use defmt::{error, trace, warn};
-#[cfg(feature = "server")]
+#[cfg(not(feature = "defmt"))]
 use log::{error, trace, warn};
 
 // ----- Macros -----
