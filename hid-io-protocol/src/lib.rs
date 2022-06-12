@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,8 +36,10 @@ use core::fmt;
 use heapless::Vec;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
+#[cfg(feature = "defmt")]
+use defmt::{error, trace, warn};
 #[cfg(feature = "server")]
-use log::{error, warn};
+use log::{error, trace, warn};
 
 // ----- Macros -----
 
@@ -60,7 +62,7 @@ macro_rules! error {
 /// # Remarks
 /// Must not be larger than 0x7, 7 is reserved.
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
-#[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum HidIoPacketType {
     /// Data packet
     Data = 0,
@@ -80,7 +82,7 @@ pub enum HidIoPacketType {
 
 #[repr(u32)]
 #[derive(PartialEq, Eq, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
-#[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 /// Requests for to perform a specific action
 pub enum HidIoCommandId {
     SupportedIds = 0x00,
@@ -132,7 +134,7 @@ pub enum HidIoCommandId {
 /// # Remarks
 /// thrown when there's an issue processing byte stream.
 #[derive(Debug)]
-#[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum HidIoParseError {
     BufferNotReady,
     BufferDataTooSmall(usize),
@@ -161,7 +163,7 @@ pub enum HidIoParseError {
 /// Used to store HID-IO data chunks. Will be chunked into individual packets on transmission.
 #[repr(C)]
 #[derive(PartialEq, Eq, Clone, Debug)]
-#[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct HidIoPacketBuffer<const H: usize> {
     /// Type of packet (Continued is automatically set if needed)
     pub ptype: HidIoPacketType,
@@ -247,7 +249,7 @@ pub fn payload_len(packet_data: &[u8]) -> Result<u32, HidIoParseError> {
     let len = u32::from(packet_data[1]);
 
     // Merge
-    let payload_len: u32 = upper_len << 8 | len;
+    let payload_len: u32 = (upper_len << 8) | len;
 
     Ok(payload_len)
 }
@@ -584,6 +586,13 @@ impl<const H: usize> HidIoPacketBuffer<H> {
         let packet_len = payload_len + 2;
 
         // Make sure there's actually payload_len available
+        trace!(
+            "decode_packet: {:?} - ptype({:?}) payload_len({:?}) packet_len({:?})",
+            packet_data,
+            ptype,
+            payload_len,
+            packet_len
+        );
         if packet_data_len - 2 < payload_len {
             warn!(
                 "Dropping. Not enough bytes available in packet stream. got:{}, expected:{}",

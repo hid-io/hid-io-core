@@ -380,6 +380,7 @@ impl hidio_capnp::hid_io::Server for HidIoImpl {
     ) -> Promise<(), Error> {
         let nodes = self.mailbox.nodes.read().unwrap();
         let mut result = results.get().init_nodes((nodes.len()) as u32);
+        #[allow(clippy::significant_drop_in_scrutinee)]
         for (i, n) in nodes.iter().enumerate() {
             let mut node = result.reborrow().get(i as u32);
             node.set_type(n.type_);
@@ -2124,6 +2125,7 @@ async fn server_subscriptions(
                     let mut request = subscriber.client.nodes_update_request();
                     {
                         let mut c_nodes = request.get().init_nodes(last_node_count as u32);
+                        #[allow(clippy::significant_drop_in_scrutinee)]
                         for (i, n) in nodes.read().unwrap().iter().enumerate() {
                             let mut node = c_nodes.reborrow().get(i as u32);
                             node.set_type(n.type_);

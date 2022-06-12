@@ -25,6 +25,11 @@ use super::*;
 use core::convert::{TryFrom, TryInto};
 use heapless::{String, Vec};
 
+#[cfg(feature = "device")]
+use defmt::trace;
+#[cfg(feature = "server")]
+use log::trace;
+
 // ----- Modules -----
 
 mod test;
@@ -34,7 +39,7 @@ mod test;
 // ----- Enumerations -----
 
 #[derive(Debug)]
-#[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum CommandError {
     BufferInUse,
     BufferNotReady,
@@ -77,7 +82,7 @@ impl Utf8Error {
     }
 }
 
-#[cfg(feature = "defmt-impl")]
+#[cfg(feature = "defmt")]
 impl defmt::Format for Utf8Error {
     fn format(&self, fmt: defmt::Formatter) {
         if let Some(error_len) = self.inner.error_len() {
@@ -97,7 +102,7 @@ impl defmt::Format for Utf8Error {
     }
 }
 
-#[cfg(not(feature = "defmt-impl"))]
+#[cfg(not(feature = "defmt"))]
 impl fmt::Display for Utf8Error {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(error_len) = self.inner.error_len() {
@@ -125,17 +130,17 @@ pub mod h0000 {
     use heapless::Vec;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack<const ID: usize> {
         pub ids: Vec<HidIoCommandId, ID>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -146,7 +151,7 @@ pub mod h0001 {
 
     #[repr(u8)]
     #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum Property {
         Unknown = 0x00,
         MajorVersion = 0x01,
@@ -166,7 +171,7 @@ pub mod h0001 {
 
     #[repr(u8)]
     #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum OsType {
         Unknown = 0x00,
         Windows = 0x01,
@@ -178,13 +183,13 @@ pub mod h0001 {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {
         pub property: Property,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack<const S: usize> {
         pub property: Property,
 
@@ -200,7 +205,7 @@ pub mod h0001 {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {
         pub property: Property,
     }
@@ -211,34 +216,34 @@ pub mod h0002 {
     use heapless::Vec;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const D: usize> {
         pub data: Vec<u8, D>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack<const D: usize> {
         pub data: Vec<u8, D>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
 /// Reset HID-IO
 pub mod h0003 {
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -249,7 +254,7 @@ pub mod h0010 {
 
     #[repr(u8)]
     #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum Command {
         ListFields = 0x00,
         GetFieldName = 0x01,
@@ -258,7 +263,7 @@ pub mod h0010 {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {
         pub command: Command,
 
@@ -268,7 +273,7 @@ pub mod h0010 {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack<const S: usize> {
         pub command: Command,
 
@@ -284,7 +289,7 @@ pub mod h0010 {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {
         pub command: Command,
 
@@ -340,24 +345,24 @@ pub mod h0016 {
 
     #[repr(u8)]
     #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum Error {
         NotSupported = 0x00,
         Disabled = 0x01,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {
         pub scancode: u16,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {
         pub error: Error,
     }
@@ -368,17 +373,17 @@ pub mod h0017 {
     use heapless::String;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const S: usize> {
         pub string: String<S>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -387,17 +392,17 @@ pub mod h0018 {
     use heapless::String;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const S: usize> {
         pub symbols: String<S>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -415,7 +420,7 @@ pub mod h001a {
 
     #[repr(u8)]
     #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum Error {
         NotSupported = 0x00,
         Disabled = 0x01,
@@ -423,15 +428,15 @@ pub mod h001a {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {
         pub error: Error,
     }
@@ -499,17 +504,17 @@ pub mod h0031 {
     use heapless::String;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const S: usize> {
         pub command: String<S>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -534,17 +539,17 @@ pub mod h0034 {
     use heapless::String;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const S: usize> {
         pub output: String<S>,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -583,18 +588,18 @@ pub mod h0043 {
 /// Manufacturing Test
 pub mod h0050 {
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {
         pub command: u16,
         pub argument: u16,
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -603,7 +608,7 @@ pub mod h0051 {
     use heapless::Vec;
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const D: usize> {
         pub command: u16,
         pub argument: u16,
@@ -611,11 +616,11 @@ pub mod h0051 {
     }
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
 
     #[derive(Clone, Debug)]
-    #[cfg_attr(feature = "defmt-impl", derive(defmt::Format))]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -749,6 +754,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
     fn rx_message_handling(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
         // Make sure we're processing a supported id
         if !self.supported_id(buf.id) {
+            self.empty_nak(buf.id)?;
             return Err(CommandError::IdNotSupported(buf.id));
         }
 
@@ -763,6 +769,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
         }
 
         // Match id
+        trace!("rx_message_handling: {:?}", buf);
         match buf.id {
             HidIoCommandId::SupportedIds => self.h0000_supported_ids_handler(buf),
             HidIoCommandId::GetInfo => self.h0001_info_handler(buf),
@@ -896,6 +903,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
         if buf.data.push(data.property as u8).is_err() {
             return Err(CommandError::DataVecTooSmall);
         }
+        trace!("h0001_info: {:?} - {:?}", data, buf);
 
         self.tx_packetbuffer_send(&mut buf)
     }

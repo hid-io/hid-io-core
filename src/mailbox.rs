@@ -124,6 +124,7 @@ impl Mailbox {
 
         // Locate an id
         'outer: for uid in lookup_entry.iter() {
+            #[allow(clippy::significant_drop_in_scrutinee)]
             for mut node in (*self.nodes.read().unwrap()).clone() {
                 if node.uid() == *uid {
                     // Id is being used, and has the same path (i.e. this device)
