@@ -130,6 +130,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                 .help("Lists currently connected hid-io enabled devices."),
         )
         .subcommand(Command::new("flash").about("Attempt to enable flash mode on device"))
+        .subcommand(Command::new("ids").about("List supported ids by device"))
         .subcommand(Command::new("info").about("Query information on device"))
         .subcommand(
             Command::new("manufacturing")
@@ -152,6 +153,18 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                 ),
         )
         .subcommand(Command::new("sleep").about("Attempt to enable sleep mode on device"))
+        .subcommand(
+            Command::new("test")
+                .about("Send arbitrary data to the device to ack back")
+                .arg(
+                    Arg::new("data")
+                        .short('d')
+                        .long("data")
+                        .takes_value(true)
+                        .required(true)
+                        .help("Taken as a string, used as a byte array"),
+                ),
+        )
         .get_matches();
 
     let addr = LISTEN_ADDR
@@ -340,6 +353,67 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         //serial = format!("{}", device.get_serial().unwrap());
 
         match matches.subcommand() {
+            Some(("flash", _)) => {
+                // Flash mode command
+                if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+                    device.get_node().which()
+                {
+                    let node = node?;
+
+                    let flash_mode_resp = {
+                        // Cast/transform keyboard node to a hidio node
+                        let request = hidio_capnp::node::Client {
+                            client: node.client,
+                        }
+                        .flash_mode_request();
+                        match request.send().promise.await {
+                            Ok(response) => response,
+                            Err(e) => {
+                                eprintln!("Flash Mode request failed: {}", e);
+                                ::std::process::exit(1);
+                            }
+                        }
+                    };
+                    // TODO Fully implement flash mode sequence
+                    if flash_mode_resp
+                        .get()
+                        .unwrap()
+                        .get_status()
+                        .unwrap()
+                        .has_success()
+                    {
+                        println!("Flash mode set");
+                    }
+                    // TODO Implement errors
+                }
+            }
+            Some(("ids", _)) => {
+                if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+                    device.get_node().which()
+                {
+                    let node = node?;
+
+                    let id_resp = {
+                        // Cast/transform keyboard node to a hidio node
+                        let request = hidio_capnp::node::Client {
+                            client: node.client,
+                        }
+                        .supported_ids_request();
+                        match request.send().promise.await {
+                            Ok(response) => response,
+                            Err(e) => {
+                                eprintln!("Info request failed: {}", e);
+                                ::std::process::exit(1);
+                            }
+                        }
+                    };
+
+                    let ids = id_resp.get().unwrap().get_ids().unwrap();
+                    for id in ids {
+                        println!("{}: {}", id.get_uid(), id.get_name().unwrap());
+                    }
+                }
+            }
             Some(("info", _)) => {
                 // Flash mode command
                 if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
@@ -376,40 +450,6 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     println!("Device MCU:       {}", info.get_device_mcu().unwrap());
                     println!("Firmware Name:    {}", info.get_firmware_name().unwrap());
                     println!("Firmware Version: {}", info.get_firmware_version().unwrap());
-                }
-            }
-            Some(("flash", _)) => {
-                // Flash mode command
-                if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
-                    device.get_node().which()
-                {
-                    let node = node?;
-
-                    let flash_mode_resp = {
-                        // Cast/transform keyboard node to a hidio node
-                        let request = hidio_capnp::node::Client {
-                            client: node.client,
-                        }
-                        .flash_mode_request();
-                        match request.send().promise.await {
-                            Ok(response) => response,
-                            Err(e) => {
-                                eprintln!("Flash Mode request failed: {}", e);
-                                ::std::process::exit(1);
-                            }
-                        }
-                    };
-                    // TODO Fully implement flash mode sequence
-                    if flash_mode_resp
-                        .get()
-                        .unwrap()
-                        .get_status()
-                        .unwrap()
-                        .has_success()
-                    {
-                        println!("Flash mode set");
-                    }
-                    // TODO Implement errors
                 }
             }
             Some(("manufacturing", submatches)) => {
@@ -484,6 +524,39 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     {
                         println!("Sleep mode set");
                     }
+                }
+            }
+            Some(("test", submatches)) => {
+                if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+                    device.get_node().which()
+                {
+                    let node = node?;
+
+                    let data_cmd = submatches.value_of("data").unwrap().as_bytes();
+
+                    let test_resp = {
+                        // Cast/transform keyboard node to a hidio node
+                        let mut request = hidio_capnp::node::Client {
+                            client: node.client,
+                        }
+                        .test_request();
+                        request.get().set_data(data_cmd);
+                        match request.send().promise.await {
+                            Ok(response) => response,
+                            Err(e) => {
+                                eprintln!("Info request failed: {}", e);
+                                ::std::process::exit(1);
+                            }
+                        }
+                    };
+
+                    let data_ack = test_resp.get().unwrap().get_data().unwrap();
+
+                    println!("Sent: {:?}", data_cmd);
+                    println!("Recv: {:?}", data_ack);
+                    println!("Sent (str): '{}'", String::from_utf8_lossy(data_cmd));
+                    println!("Recv (str): '{}'", String::from_utf8_lossy(data_ack));
+                    assert_eq!(data_cmd, data_ack, "Sent does not equal received!");
                 }
             }
             _ => {

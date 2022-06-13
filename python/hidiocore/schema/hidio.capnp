@@ -257,6 +257,16 @@ interface Node extends(Common.Node) {
         # Firmware version
     }
 
+    struct Id {
+        # HID-IO Command Id info
+
+        uid @0 :UInt32;
+        # Unique id of the HID-IO Command Id
+
+        name @1 :Text;
+        # Name of the HID-IO Command Id
+    }
+
 
     cliCommand @0 (command :Text) -> ();
     # CLI command
@@ -273,4 +283,13 @@ interface Node extends(Common.Node) {
 
     info @4 () -> (info :Info);
     # Retrieves HID-IO information from the device
+
+    supportedIds @5 () -> (ids :List(Id));
+    # Lists the supported HID-IO command Ids by the device
+    # Must have full auth-level to use
+
+    test @6 (data :Data) -> (data :Data);
+    # Send an arbitrary piece of data to device as a test command
+    # Will Ack piece of data back if successful
+    # Must have full auth-level to use
 }

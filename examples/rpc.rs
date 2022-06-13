@@ -315,6 +315,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         println!("READY");
         let (vt_tx, mut vt_rx) = tokio::sync::mpsc::channel::<u8>(100);
         std::thread::spawn(move || loop {
+            #[allow(clippy::significant_drop_in_scrutinee)]
             for byte in std::io::stdin().lock().bytes() {
                 if let Ok(b) = byte {
                     if let Err(e) = vt_tx.blocking_send(b) {

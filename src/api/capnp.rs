@@ -1022,6 +1022,160 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
         });
         Promise::ok(())
     }
+
+    fn supported_ids(
+        &mut self,
+        _params: hidio_capnp::node::SupportedIdsParams,
+        results: hidio_capnp::node::SupportedIdsResults,
+    ) -> Promise<(), Error> {
+        const MAX_IDS: usize = 200;
+        match self.auth {
+            AuthLevel::Secure | AuthLevel::Debug => {
+                let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+                let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    results: hidio_capnp::node::SupportedIdsResults,
+                }
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        MAX_IDS,
+                    > for CommandInterface
+                {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h0000_supported_ids_ack(
+                        &mut self,
+                        data: h0000::Ack<MAX_IDS>,
+                    ) -> Result<(), CommandError> {
+                        self.results.get().init_ids(data.ids.len() as u32);
+                        for (i, id) in data.ids.iter().enumerate() {
+                            let mut entry = self.results.get().get_ids().unwrap().get(i as u32);
+                            entry.set_uid(*id as u32);
+                            entry.set_name(format!("{:?}", id).as_str());
+                        }
+                        Ok(())
+                    }
+                }
+                let mut intf = CommandInterface {
+                    src,
+                    dst,
+                    mailbox: self.mailbox.clone(),
+                    results,
+                };
+
+                // Send command
+                if let Err(e) = intf.h0000_supported_ids(h0000::Cmd {}) {
+                    return Promise::err(capnp::Error {
+                        kind: ::capnp::ErrorKind::Failed,
+                        description: format!("Error (supported_ids): {:?}", e),
+                    });
+                }
+                Promise::ok(())
+            }
+            _ => Promise::err(capnp::Error {
+                kind: ::capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
+        }
+    }
+
+    fn test(
+        &mut self,
+        params: hidio_capnp::node::TestParams,
+        results: hidio_capnp::node::TestResults,
+    ) -> Promise<(), Error> {
+        const MAX_DATA_SIZE: usize = 500;
+        match self.auth {
+            AuthLevel::Secure | AuthLevel::Debug => {
+                let params = params.get().unwrap();
+                let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+                let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+                struct CommandInterface {
+                    src: mailbox::Address,
+                    dst: mailbox::Address,
+                    mailbox: mailbox::Mailbox,
+                    results: hidio_capnp::node::TestResults,
+                }
+                impl
+                    Commands<
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                        MAX_DATA_SIZE,
+                    > for CommandInterface
+                {
+                    fn tx_packetbuffer_send(
+                        &mut self,
+                        buf: &mut mailbox::HidIoPacketBuffer,
+                    ) -> Result<(), CommandError> {
+                        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                            src: self.src,
+                            dst: self.dst,
+                            data: buf.clone(),
+                        })? {
+                            // Handle ack/nak
+                            self.rx_message_handling(rcvmsg.data)?;
+                        }
+                        Ok(())
+                    }
+                    fn h0002_test_ack(
+                        &mut self,
+                        data: h0002::Ack<MAX_DATA_SIZE>,
+                    ) -> Result<(), CommandError> {
+                        self.results.get().init_data(data.data.len() as u32);
+                        for (i, byte) in data.data.iter().enumerate() {
+                            self.results.get().get_data().unwrap()[i] = *byte;
+                        }
+                        Ok(())
+                    }
+                }
+                let mut intf = CommandInterface {
+                    src,
+                    dst,
+                    mailbox: self.mailbox.clone(),
+                    results,
+                };
+
+                // Send command
+                if let Err(e) = intf.h0002_test(
+                    h0002::Cmd::<MAX_DATA_SIZE> {
+                        data: heapless::Vec::from_slice(params.get_data().unwrap()).unwrap(),
+                    },
+                    false,
+                ) {
+                    return Promise::err(capnp::Error {
+                        kind: ::capnp::ErrorKind::Failed,
+                        description: format!("Error (supported_ids): {:?}", e),
+                    });
+                }
+                Promise::ok(())
+            }
+            _ => Promise::err(capnp::Error {
+                kind: ::capnp::ErrorKind::Failed,
+                description: "Insufficient authorization level".to_string(),
+            }),
+        }
+    }
 }
 
 impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
@@ -2210,11 +2364,13 @@ pub fn supported_ids() -> Vec<HidIoCommandId> {
         HidIoCommandId::GetInfo,
         HidIoCommandId::HostMacro,
         HidIoCommandId::KllState,
-        HidIoCommandId::ManufacturingTest,
         HidIoCommandId::ManufacturingResult,
+        HidIoCommandId::ManufacturingTest,
         HidIoCommandId::SleepMode,
+        HidIoCommandId::SupportedIds,
         HidIoCommandId::TerminalCmd,
         HidIoCommandId::TerminalOut,
+        HidIoCommandId::TestPacket,
     ]
 }
 
