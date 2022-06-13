@@ -83,42 +83,42 @@ vhid = [
 
 
 [build-dependencies]
-built           = { version = "^0.5", features = ["git2", "chrono"] }
-capnpc          = { version = "^0.14", optional = true }
-rustc_version   = "^0.2"
+built           = { version = "0.5", features = ["git2", "chrono"] }
+capnpc          = { version = "0.14", optional = true }
+rustc_version   = "0.2"
 
 
 [dependencies]
-capnp           = { version = "^0.14", optional = true }
-capnp-rpc       = { version = "^0.14", optional = true }
-clap            = "^3.1"
-ctrlc           = "^3.2"
-lazy_static     = "^1.4"
-flexi_logger    = "^0.22"
-futures         = { version = "^0.3", optional = true }
-futures-util    = { version = "^0.3", optional = true }
-glob            = { version = "^0.3", optional = true }
+capnp           = { version = "0.14", optional = true }
+capnp-rpc       = { version = "0.14", optional = true }
+clap            = "3.1"
+ctrlc           = "3.2"
+lazy_static     = "1.4"
+flexi_logger    = { version = "0.22", features = ["use_chrono_for_offset"] }
+futures         = { version = "0.3", optional = true }
+futures-util    = { version = "0.3", optional = true }
+glob            = { version = "0.3", optional = true }
 heapless        = { version = "0.7" }
 hidapi          = { version = "1.4.1", default-features = false, features = ["linux-static-hidraw"], optional = true }
 hid-io-protocol = { path = "hid-io-protocol", version = "0.1.0" }
-libc            = { version = "^0.2", optional = true }
-log             = "^0.4"
-nanoid          = { version = "^0.4", optional = true }
-open            = "^2.1"
-rcgen           = { version = "^0.9", optional = true }
-regex           = { version = "^1.5", optional = true }
-rustls          = { version = "^0.20", optional = true, features = ["dangerous_configuration"] }
-sys-info        = "^0.9"
+libc            = { version = "0.2", optional = true }
+log             = "0.4"
+nanoid          = { version = "0.4", optional = true }
+open            = "2.1"
+rcgen           = { version = "0.9", optional = true }
+regex           = { version = "1.5", optional = true }
+rustls          = { version = "0.20", optional = true, features = ["dangerous_configuration"] }
+sys-info        = "0.9"
 tempfile        = { version = "3.3.0", optional = true }
-tokio           = { version = "^1.18", features = ["net", "rt-multi-thread", "macros", "sync", "time"] }
-tokio-rustls    = { version = "^0.23", optional = true }
-tokio-stream    = { version = "^0.1", features = ["sync"], optional = true }
-tokio-util      = { version = "^0.7", optional = true, features = ["compat"] }
+tokio           = { version = "1.18", features = ["net", "rt-multi-thread", "macros", "sync", "time"] }
+tokio-rustls    = { version = "0.23", optional = true }
+tokio-stream    = { version = "0.1", features = ["sync"], optional = true }
+tokio-util      = { version = "0.7", optional = true, features = ["compat"] }
 
 
 [dev-dependencies]
-rand            = "^0.8"
-webpki          = "^0.22"
+rand            = "0.8"
+webpki          = "0.22"
 
 
 [dev-dependencies.cargo-husky]
@@ -138,14 +138,14 @@ zwp-virtual-keyboard = { version = "0.2", optional = true }
 
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "^0.3", optional = true, features = ["std", "winuser", "winnls"] }
-winreg = { version = "^0.7", optional = true }
-windows-service = "^0.3"
+winapi = { version = "0.3", optional = true, features = ["std", "winuser", "winnls"] }
+winreg = { version = "0.7", optional = true }
+windows-service = "0.3"
 
 
 [target.'cfg(target_os = "macos")'.dependencies]
-core-foundation = { version = "^0.9", optional = true }
-core-graphics = { version = "^0.22", optional = true }
+core-foundation = { version = "0.9", optional = true }
+core-graphics = { version = "0.22", optional = true }
 
 
 [package.metadata.bundle]
