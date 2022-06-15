@@ -597,6 +597,18 @@ For example, to encode A + B (which is 0x04 and 0x05):
 -> (No payload)
 ```
 
+#### UTF-8 character stream
+```
+0x30 <utf-8 url>
+
+Opens the given URL (e.g. https://, file://, etc.) with the OS default application.
+Most commonly used to open the web-browser to the specified URL.
+
++> (No payload)
+-> (No payload)
+  NAKs if failed to open successfully (no application found).
+```
+
 #### HID Keyboard LED State
 ```
 0x40 <keyboard led hid code bitmask 1 byte>
