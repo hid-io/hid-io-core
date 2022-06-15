@@ -598,7 +598,7 @@ For example, to encode A + B (which is 0x04 and 0x05):
 -> (No payload)
 ```
 
-#### UTF-8 character stream
+#### Open URL
 ```
 0x30 <utf-8 url>
 
