@@ -11,6 +11,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 * 2019-02-15 - Adding pixel control HID-IO packets - v0.1.3 (HaaTa)
 * 2020-07-29 - Added No Acknowledgement Data and Continued packet types - v0.1.4 (HaaTa)
 * 2020-10-13 - Added generic HID keyboard packet - v0.1.5 (HaaTa)
+* 2022-06-14 - Added open URL - v0.1.6 (HaaTa)
 
 ## Glossary
 
@@ -147,7 +148,7 @@ b00 0000 0001 - 1
 
 Except for the Sync packet, which only requires a single byte transmission, the rest of the packets require at least two more pieces of information: Length and Id. Length is the number of payload bytes left in the packet while Id is the unique identifier to specify each command/response. The length byte is always after the header byte.
 
-The length field is the a value between 1 and <max packet size> - 2. In addition to the dedicated byte, this field has 3 additional bits from the Header byte which are the MSBs. This 10 bit number (max 1023) is sufficiently large to handle any interrupt max packet length as defined by the USB spec (as of writing). It is the responsibility of the sender to make sure the length value does not exceed the max packet size as USB does not have automatic chunking available for this type of interface. When the continued bit is set (W=1), then the length field represents the number of packets that are pending for the continued packet. A packet with W=1 always contains a maximum payload.
+The length field is a value between 1 and `<max packet size>` - 2. In addition to the dedicated byte, this field has 3 additional bits from the Header byte which are the MSBs. This 10 bit number (max 1023) is sufficiently large to handle any interrupt max packet length as defined by the USB spec (as of writing). It is the responsibility of the sender to make sure the length value does not exceed the max packet size as USB does not have automatic chunking available for this type of interface. When the continued bit is set (W=1), then the length field represents the number of packets that are pending for the continued packet. A packet with W=1 always contains a maximum payload.
 
 All payloads are Id specific and may include any sort of data without restriction as long as it fits within the max payload size. If the payload is larger, the payload may be chunked into Continued packets. The receiving side will need to keep track of the previous packet type to process the continued packet.
 
@@ -708,7 +709,7 @@ Various test commands used during manufacturing to validate the hardware.
 * 0x16 - (Host)        [Flash Mode](#flash-mode)
 * 0x17 - (Device)      [UTF-8 Character Stream](#utf-8-character-stream)
 * 0x18 - (Device)      [UTF-8 State](#utf-8-state)
-* 0x19 - (Device)      [Trigger Host Macro](trigger-host-macro)
+* 0x19 - (Device)      [Trigger Host Macro](#trigger-host-macro)
 * 0x1A - (Host)        [Sleep Mode](#sleep-mode)
 * 0x20 - (Device)      [KLL Trigger State](#kll-trigger-state)
 * 0x21 - (Host)        [Pixel Setting](#pixel-setting)
@@ -717,7 +718,7 @@ Various test commands used during manufacturing to validate the hardware.
 * 0x24 - (Host)        [Pixel Set (1 ch, 16 bit)](#pixel-set-1-ch-16-bit)
 * 0x25 - (Host)        [Pixel Set (3 ch, 16 bit)](#pixel-set-3-ch-16-bit)
 * 0x26..0x2F - **Unused**
-* 0x30 - (Device)      Reserved - Open URL
+* 0x30 - (Device)      [Open URL](#open-url)
 * 0x31 - (Host)        Reserved - Terminal Command
 * 0x32 - (Device)      Reserved - Get OS Layout
 * 0x33 - (Device)      Reserved - Set OS Layout
