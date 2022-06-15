@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2021 by Jacob Alexander
+/* Copyright (C) 2017-2022 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -76,6 +76,7 @@ pub mod keyboard_capnp {
 
 // ----- Functions -----
 
+use hid_io_protocol::HidIoCommandId;
 use lazy_static::lazy_static;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -83,6 +84,22 @@ use std::sync::Arc;
 lazy_static! {
     /// Any thread can set this to false to signal shutdown
     pub static ref RUNNING: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+}
+
+/// Supported Ids by hid-io-core
+/// This is used to determine all supported ids (always recursive).
+pub fn supported_ids() -> Vec<HidIoCommandId> {
+    let mut ids = Vec::new();
+
+    ids.extend(api::supported_ids().iter().cloned());
+    ids.extend(device::supported_ids(true).iter().cloned());
+    ids.extend(module::supported_ids(true).iter().cloned());
+
+    // Sort, then deduplicate
+    ids.sort_unstable();
+    ids.dedup();
+
+    ids
 }
 
 /// Main entry-point for the hid-io-core library

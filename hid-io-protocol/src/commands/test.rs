@@ -42,7 +42,8 @@ enum LogError {
 
 /// Lite logging setup
 fn setup_logging_lite() -> Result<(), LogError> {
-    match Logger::with_env_or_str("")
+    match Logger::try_with_env_or_str("")
+        .unwrap()
         .format(flexi_logger::colored_default_format)
         .format_for_files(flexi_logger::colored_detailed_format)
         .duplicate_to_stderr(flexi_logger::Duplicate::All)
@@ -356,6 +357,17 @@ impl<
         Ok(h001a::Ack {})
     }
     fn h001a_sleepmode_ack(&mut self, _data: h001a::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
+    fn h0030_openurl_cmd(&mut self, data: h0030::Cmd<H>) -> Result<h0030::Ack, h0030::Nak> {
+        if data.url == "https://input.club" {
+            Ok(h0030::Ack {})
+        } else {
+            Err(h0030::Nak {})
+        }
+    }
+    fn h0030_openurl_ack(&mut self, _data: h0030::Ack) -> Result<(), CommandError> {
         Ok(())
     }
 
@@ -836,6 +848,35 @@ fn h001a_sleepmode() {
     // Process rx buffer
     let process = intf.process_rx();
     assert!(process.is_ok(), "process_rx2 => {:?}", process);
+}
+
+#[test]
+fn h0030_openurl() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandId::OpenUrl];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+
+    // Normal data packet
+    // Send command
+    let cmd = h0030::Cmd {
+        url: String::from("https://input.club"),
+    };
+    let send = intf.h0030_openurl(cmd.clone());
+    assert!(send.is_ok(), "h0030_openurl {:?} => {:?}", cmd, send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 {:?} => {:?}", cmd, process);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx2 {:?} => {:?}", cmd, process);
 }
 
 #[test]

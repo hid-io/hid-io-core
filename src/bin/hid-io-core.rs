@@ -151,7 +151,8 @@ mod service {
     }
 
     fn my_service_main(arguments: Vec<OsString>) {
-        Logger::with_env()
+        Logger::try_with_env()
+            .unwrap()
             .log_to_file()
             .directory("log_files")
             .format(opt_format)

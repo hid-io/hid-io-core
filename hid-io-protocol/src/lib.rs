@@ -81,7 +81,7 @@ pub enum HidIoPacketType {
 }
 
 #[repr(u32)]
-#[derive(PartialEq, Eq, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Debug, IntoPrimitive, TryFromPrimitive)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 /// Requests for to perform a specific action
 pub enum HidIoCommandId {

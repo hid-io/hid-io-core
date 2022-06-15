@@ -104,7 +104,7 @@ hid-io-protocol = { path = "hid-io-protocol", version = "0.1.0" }
 libc            = { version = "0.2", optional = true }
 log             = "0.4"
 nanoid          = { version = "0.4", optional = true }
-open            = "2.1"
+open            = "3.0"
 rcgen           = { version = "0.9", optional = true }
 regex           = { version = "1.5", optional = true }
 rustls          = { version = "0.20", optional = true, features = ["dangerous_configuration"] }

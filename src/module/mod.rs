@@ -20,18 +20,132 @@ pub mod displayserver;
 pub mod vhid;
 
 use crate::api;
+use crate::built_info;
 use crate::device;
 use crate::mailbox;
+use hid_io_protocol::commands::*;
 use hid_io_protocol::{HidIoCommandId, HidIoPacketType};
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
+
+/// Max number of commands supported by this hid-io-core processor
+/// can be increased as necessary.
+const CMD_SIZE: usize = 200;
+
+/// hid-io-protocol CommandInterface for top-level module
+/// Used to serialize the Ack packets before sending them through the mailbox
+struct CommandInterface {
+    src: mailbox::Address,
+    dst: mailbox::Address,
+    mailbox: mailbox::Mailbox,
+}
+
+impl
+    Commands<
+        { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+        CMD_SIZE,
+    > for CommandInterface
+{
+    fn tx_packetbuffer_send(
+        &mut self,
+        buf: &mut mailbox::HidIoPacketBuffer,
+    ) -> Result<(), CommandError> {
+        if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+            src: self.src,
+            dst: self.dst,
+            data: buf.clone(),
+        })? {
+            // Handle ack/nak
+            self.rx_message_handling(rcvmsg.data)?;
+        }
+        Ok(())
+    }
+
+    fn h0000_supported_ids_cmd(
+        &mut self,
+        _data: h0000::Cmd,
+    ) -> Result<h0000::Ack<CMD_SIZE>, h0000::Nak> {
+        let ids = heapless::Vec::from_slice(&crate::supported_ids()).unwrap();
+        Ok(h0000::Ack { ids })
+    }
+
+    fn h0001_info_cmd(
+        &mut self,
+        data: h0001::Cmd,
+    ) -> Result<h0001::Ack<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 }>, h0001::Nak> {
+        let mut ack = h0001::Ack::<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 }> {
+            property: data.property,
+            os: h0001::OsType::Unknown,
+            number: 0,
+            string: heapless::String::from(""),
+        };
+        match data.property {
+            h0001::Property::MajorVersion => {
+                ack.number = built_info::PKG_VERSION_MAJOR.parse::<u16>().unwrap();
+            }
+            h0001::Property::MinorVersion => {
+                ack.number = built_info::PKG_VERSION_MINOR.parse::<u16>().unwrap();
+            }
+            h0001::Property::PatchVersion => {
+                ack.number = built_info::PKG_VERSION_PATCH.parse::<u16>().unwrap();
+            }
+            h0001::Property::OsType => {
+                ack.os = match built_info::CFG_OS {
+                    "windows" => h0001::OsType::Windows,
+                    "macos" => h0001::OsType::MacOs,
+                    "ios" => h0001::OsType::Ios,
+                    "linux" => h0001::OsType::Linux,
+                    "android" => h0001::OsType::Android,
+                    "freebsd" => h0001::OsType::FreeBsd,
+                    "openbsd" => h0001::OsType::OpenBsd,
+                    "netbsd" => h0001::OsType::NetBsd,
+                    _ => h0001::OsType::Unknown,
+                };
+            }
+            h0001::Property::OsVersion => match sys_info::os_release() {
+                Ok(version) => {
+                    ack.string = heapless::String::from(version.as_str());
+                }
+                Err(e) => {
+                    error!("OS Release retrieval failed: {}", e);
+                    return Err(h0001::Nak {
+                        property: h0001::Property::OsVersion,
+                    });
+                }
+            },
+            h0001::Property::HostSoftwareName => {
+                ack.string = heapless::String::from(built_info::PKG_NAME);
+            }
+            _ => {
+                return Err(h0001::Nak {
+                    property: h0001::Property::Unknown,
+                });
+            }
+        }
+        Ok(ack)
+    }
+
+    fn h0030_openurl_cmd(
+        &mut self,
+        data: h0030::Cmd<{ mailbox::HIDIO_PKT_BUF_DATA_SIZE }>,
+    ) -> Result<h0030::Ack, h0030::Nak> {
+        debug!("Open url: {}", data.url);
+        let url = String::from(data.url.as_str());
+        if let Err(err) = open::that(url.clone()) {
+            error!("Failed to open url: {:?} - {:?}", url, err);
+            Err(h0030::Nak {})
+        } else {
+            Ok(h0030::Ack {})
+        }
+    }
+}
 
 /// Supported Ids by this module
 /// recursive option applies supported ids from child modules as well
 pub fn supported_ids(recursive: bool) -> Vec<HidIoCommandId> {
     let mut ids = vec![
-        HidIoCommandId::GetProperties,
-        HidIoCommandId::HostMacro,
-        HidIoCommandId::KllState,
+        HidIoCommandId::GetInfo,
         HidIoCommandId::OpenUrl,
         HidIoCommandId::SupportedIds,
     ];
@@ -71,89 +185,15 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
 
         // Process filtered message stream
         while let Some(msg) = stream.next().await {
-            let _mydata = msg.data.data.clone();
-            debug!("Processing command: {:?}", msg.data.id);
-            /* TODO
-            match msg.data.id {
-                HidIoCommandId::SupportedIDs => {
-                    let ids = supported_ids(false)
-                        .iter()
-                        .map(|x| *x as u16)
-                        .collect::<Vec<u16>>();
-                    trace!("Acking SupportedIDs");
-                    msg.send_ack(sender.clone(), as_u8_slice(&ids).to_vec());
-                }
-                HidIoCommandId::GetProperties => {
-                    use crate::built_info;
-                    let property: HidIoPropertyID = unsafe { std::mem::transmute(mydata[0]) };
-                    info!("Get prop {:?}", property);
-                    match property {
-                        HidIoPropertyID::HidIoMajor => {
-                            let v = built_info::PKG_VERSION_MAJOR.parse::<u16>().unwrap();
-                            msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
-                        }
-                        HidIoPropertyID::HidIoMinor => {
-                            let v = built_info::PKG_VERSION_MINOR.parse::<u16>().unwrap();
-                            msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
-                        }
-                        HidIoPropertyID::HidIoPatch => {
-                            let v = built_info::PKG_VERSION_PATCH.parse::<u16>().unwrap();
-                            msg.send_ack(sender.clone(), as_u8_slice(&[v]).to_vec());
-                        }
-                        HidIoPropertyID::HostOS => {
-                            let os = match built_info::CFG_OS {
-                                "windows" => HostOSID::Windows,
-                                "macos" => HostOSID::Mac,
-                                "ios" => HostOSID::IOS,
-                                "linux" => HostOSID::Linux,
-                                "android" => HostOSID::Android,
-                                "freebsd" => HostOSID::FreeBSD,
-                                "openbsd" => HostOSID::OpenBSD,
-                                "netbsd" => HostOSID::NetBSD,
-                                _ => HostOSID::Unknown,
-                            };
-                            msg.send_ack(sender.clone(), vec![os as u8]);
-                        }
-                        HidIoPropertyID::OSVersion => match sys_info::os_release() {
-                            Ok(version) => {
-                                msg.send_ack(sender.clone(), version.as_bytes().to_vec());
-                            }
-                            Err(e) => {
-                                error!("OS Release retrieval failed: {}", e);
-                                msg.send_nak(sender.clone(), vec![]);
-                            }
-                        },
-                        HidIoPropertyID::HostName => {
-                            let name = built_info::PKG_NAME;
-                            msg.send_ack(sender.clone(), name.as_bytes().to_vec());
-                        }
-                    };
-                    trace!("Acking GetProperties");
-                }
-                HidIoCommandId::HostMacro => {
-                    warn!("Host Macro not implemented");
-                    msg.send_nak(sender.clone(), vec![]);
-                }
-                HidIoCommandId::KLLState => {
-                    warn!("KLL State not implemented");
-                    msg.send_nak(sender.clone(), vec![]);
-                }
-                HidIoCommandId::OpenURL => {
-                    let s = String::from_utf8(mydata).unwrap();
-                    println!("Open url: {}", s);
-                    open::that(s).unwrap();
-                    trace!("Acking OpenURL");
-                    msg.send_ack(sender.clone(), vec![]);
-                }
-                HidIoCommandId::TerminalOut => {
-                    if msg.data.ptype == HidIoPacketType::Data {
-                        trace!("Acking TerminalOut");
-                        msg.send_ack(sender.clone(), vec![]);
-                    }
-                }
-                _ => {}
+            // Process buffer using hid-io-protocol
+            let mut intf = CommandInterface {
+                src: msg.dst, // Replying to message
+                dst: msg.src, // Replying to message
+                mailbox: mailbox1.clone(),
+            };
+            if let Err(err) = intf.rx_message_handling(msg.clone().data) {
+                warn!("Failed to process({:?}): {:?}", err, msg);
             }
-                */
         }
     });
 

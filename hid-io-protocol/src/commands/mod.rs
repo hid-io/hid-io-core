@@ -180,6 +180,9 @@ pub mod h0001 {
         MacOs = 0x04,
         Ios = 0x05,
         ChromeOs = 0x06,
+        FreeBsd = 0x07,
+        OpenBsd = 0x08,
+        NetBsd = 0x09,
     }
 
     #[derive(Clone, Debug)]
@@ -492,10 +495,21 @@ pub mod h0025 {
 }
 
 /// Open URL
-/// TODO
 pub mod h0030 {
-    pub struct Cmd {}
+    use heapless::String;
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Cmd<const S: usize> {
+        pub url: String<S>,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -779,6 +793,7 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
             HidIoCommandId::UnicodeText => self.h0017_unicodetext_handler(buf),
             HidIoCommandId::UnicodeState => self.h0018_unicodestate_handler(buf),
             HidIoCommandId::SleepMode => self.h001a_sleepmode_handler(buf),
+            HidIoCommandId::OpenUrl => self.h0030_openurl_handler(buf),
             HidIoCommandId::TerminalCmd => self.h0031_terminalcmd_handler(buf),
             HidIoCommandId::TerminalOut => self.h0034_terminalout_handler(buf),
             HidIoCommandId::ManufacturingTest => self.h0050_manufacturing_handler(buf),
@@ -1590,6 +1605,73 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
             }
             HidIoPacketType::Ack => self.h0020_klltrigger_ack(h0020::Ack {}),
             HidIoPacketType::Nak => self.h0020_klltrigger_nak(h0020::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0030_openurl(&mut self, data: h0030::Cmd<H>) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // Test packet id
+            id: HidIoCommandId::OpenUrl,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Build payload
+        if !buf.append_payload(data.url.as_bytes()) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0030_openurl_cmd(&mut self, _data: h0030::Cmd<H>) -> Result<h0030::Ack, h0030::Nak> {
+        Err(h0030::Nak {})
+    }
+    fn h0030_openurl_nacmd(&mut self, _data: h0030::Cmd<H>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::OpenUrl,
+            HidIoPacketType::NaData,
+        ))
+    }
+    fn h0030_openurl_ack(&mut self, _data: h0030::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::OpenUrl,
+            HidIoPacketType::Ack,
+        ))
+    }
+    fn h0030_openurl_nak(&mut self, _data: h0030::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::OpenUrl,
+            HidIoPacketType::Nak,
+        ))
+    }
+    fn h0030_openurl_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let mut cmd = h0030::Cmd::<H> { url: String::new() };
+                cmd.url
+                    .push_str(match core::str::from_utf8(&buf.data) {
+                        Ok(url) => url,
+                        Err(e) => {
+                            return Err(CommandError::InvalidUtf8(Utf8Error::new(e)));
+                        }
+                    })
+                    .unwrap();
+
+                match self.h0030_openurl_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NaData => Err(CommandError::InvalidPacketBufferType(buf.ptype)),
+            HidIoPacketType::Ack => self.h0030_openurl_ack(h0030::Ack {}),
+            HidIoPacketType::Nak => self.h0030_openurl_nak(h0030::Nak {}),
             _ => Ok(()),
         }
     }

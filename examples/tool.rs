@@ -489,8 +489,9 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                         .has_success()
                     {
                         println!("Manufacturing Test set: {}:{}", cmd, arg);
+                    } else {
+                        println!("NAK: Manufacturing Test set: {}:{} - FAILED", cmd, arg);
                     }
-                    // TODO Implement errors
                 }
             }
             Some(("sleep", _)) => {
