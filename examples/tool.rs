@@ -558,6 +558,11 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     println!("Sent (str): '{}'", String::from_utf8_lossy(data_cmd));
                     println!("Recv (str): '{}'", String::from_utf8_lossy(data_ack));
                     assert_eq!(data_cmd, data_ack, "Sent does not equal received!");
+
+                    // Wait for any Manufacturing Test Data packets
+                    // TODO - Only wait if argument is set
+                    // - Build subscription for Manufacturing Test Data packets
+                    // - Wait for Manufacturing Test Data packets
                 }
             }
             _ => {

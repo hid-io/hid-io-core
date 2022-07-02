@@ -2343,6 +2343,7 @@ pub trait Commands<
         }
 
         buf.done = true;
+        trace!("h0051_manufacturingres: {:?} - {:?}", data, buf);
 
         self.tx_packetbuffer_send(&mut buf)
     }
@@ -2384,7 +2385,7 @@ pub trait Commands<
                     raw: u16::from_le_bytes(buf.data[2..4].try_into().unwrap()),
                 };
                 let data: Vec<u8, HSUB4> = if buf.data.len() > 4 {
-                    Vec::from_slice(&buf.data[5..]).unwrap()
+                    Vec::from_slice(&buf.data[4..]).unwrap()
                 } else {
                     Vec::new()
                 };

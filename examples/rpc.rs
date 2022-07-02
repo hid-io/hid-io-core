@@ -65,7 +65,10 @@ fn format_node(node: hid_io_core::common_capnp::destination::Reader<'_>) -> Stri
     )
 }
 
-struct KeyboardSubscriberImpl;
+#[derive(Default)]
+pub struct KeyboardSubscriberImpl {
+    pub hall_effect_switch_data: Vec<u16>,
+}
 
 impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
     fn update(
@@ -87,6 +90,33 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                     let res = res.unwrap();
                     println!("{}:{} => ", res.get_cmd(), res.get_arg());
                     match res.get_cmd() {
+                        1 => match res.get_arg() {
+                            2 | 3 => {
+                                // LED short/open test
+                                let mut pos: usize = 0;
+                                let data = res.get_data().unwrap();
+                                loop {
+                                    let chipid = data.get(pos as u32);
+                                    pos += 1;
+                                    let buffer_len = data.get(pos as u32);
+                                    pos += 1;
+                                    let buffer =
+                                        &data.as_slice().unwrap()[pos..pos + buffer_len as usize];
+                                    pos += buffer_len as usize;
+                                    println!("ChipId: {} {}", chipid, buffer_len);
+                                    for byte in buffer {
+                                        print!("{:02x} ", byte);
+                                    }
+                                    println!();
+                                    if pos >= data.len().try_into().unwrap() {
+                                        break;
+                                    }
+                                }
+                            }
+                            _ => {
+                                println!("Manufacturing command {} not implemented", res.get_arg())
+                            }
+                        },
                         3 => match res.get_arg() {
                             2 => {
                                 let split = res.get_data().unwrap().len() / 2 / 6;
@@ -95,7 +125,13 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                                 for byte in res.get_data().unwrap() {
                                     tmp.push(byte);
                                     if tmp.len() == 2 {
-                                        print!("{:>4} ", u16::from_le_bytes([tmp[0], tmp[1]]));
+                                        // Check if header (strobe) or sense data
+                                        if pos % 7 == 0 {
+                                            print!("{:>4} ", tmp[0]);
+                                        } else {
+                                            let data = u16::from_le_bytes([tmp[0], tmp[1]]);
+                                            print!("{:>4} ", data);
+                                        }
                                         tmp.clear();
                                         pos += 1;
                                         if pos % split == 0 {
@@ -290,7 +326,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         serial = device.get_serial().unwrap().to_string();
 
         // Build subscription callback
-        let subscription = capnp_rpc::new_client(KeyboardSubscriberImpl);
+        let subscription = capnp_rpc::new_client(KeyboardSubscriberImpl::default());
 
         // Subscribe to cli messages
         let subscribe_req = {

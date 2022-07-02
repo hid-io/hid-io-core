@@ -287,6 +287,7 @@ async fn processing(mailbox: mailbox::Mailbox) {
                             // Attempt to synchronize device (sync packet)
                             if let Err(e) = device.send_sync() {
                                 // Could not open device (likely removed, or in use)
+                                uids.write().unwrap().remove(&uid);
                                 warn!("Failed to sync device - {}", e);
                             } else {
                                 // Setup device controller (handles communication and protocol conversion

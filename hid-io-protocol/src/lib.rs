@@ -641,8 +641,9 @@ impl<const H: usize> HidIoPacketBuffer<H> {
                 match ptype {
                     HidIoPacketType::Continued | HidIoPacketType::NaContinued => {}
                     _ => {
-                        warn!("Dropping. Invalid packet type (non-HidIoPacketType::Continued) on a already initialized buffer: {} {}", ptype, self.data.is_empty());
-                        return Ok(packet_len);
+                        warn!("Dropping buffer. Invalid packet type (non-HidIoPacketType::Continued) on a already initialized buffer: {} {}", ptype, self.data.is_empty());
+                        self.clear();
+                        return self.decode_packet(packet_data);
                     }
                 }
             }
