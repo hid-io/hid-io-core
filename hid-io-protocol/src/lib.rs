@@ -109,6 +109,7 @@ pub enum HidIoCommandId {
     PixelSet3c8b = 0x23,
     PixelSet1c16b = 0x24,
     PixelSet3c16b = 0x25,
+    DirectSet = 0x26,
 
     OpenUrl = 0x30,
     TerminalCmd = 0x31,

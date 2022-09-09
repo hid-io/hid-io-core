@@ -582,6 +582,24 @@ If there is no channel for a given pixel (pixel address is unassigned or using o
 -> (No payload)
 ```
 
+#### Direct Set
+```
+0x26 <starting byte address:16 bits> <data>...
+
+Directly sets the devices buffer.
+This is very device (and likely configuration) specific.
+However, this is the simplest form of LED control and does not require any special handling or drivers on the device side.
+Latency wise, this is the fastest way to set pixels as it should be a straight copy to the LED buffer.
+If the data buffer is smaller than the destination, do not change the unset buffers.
+The device may decide to override what is set (a device specific configuration may be required to disable this behaviour).
+
+If the buffer is too large for the destination a NAK will be returned (unless using no ack packets) and the buffer will not be set.
+If the device is not configured for direct set (or pixel set), a NAK is returned.
+
++> (No payload)
+-> (No payload)
+```
+
 #### HID Keyboard State
 ```
 0x40 <keyboard hid code bitmask 32 bytes long, 0-255>

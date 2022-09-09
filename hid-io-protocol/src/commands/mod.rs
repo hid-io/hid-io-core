@@ -455,10 +455,85 @@ pub mod h0020 {
 }
 
 /// Pixel Settings
-/// TODO
+/// Higher level LED operations and access to LED controller functionality
 pub mod h0021 {
-    pub struct Cmd {}
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u16)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum Command {
+        Control = 0x0001,
+        ResetController = 0x0002,
+        Clear = 0x0003,
+        NextFrame = 0x0004,
+        InvalidCommand = 0xFFFF,
+    }
+
+    #[derive(Clone, Copy)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub union Argument {
+        pub raw: u16,
+        pub control: args::Control,
+        pub reset: args::Reset,
+        pub clear: args::Clear,
+        pub frame: args::Frame,
+    }
+
+    impl core::fmt::Debug for Argument {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            write!(f, "{}", unsafe { self.raw })
+        }
+    }
+
+    pub mod args {
+        use num_enum::TryFromPrimitive;
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum Control {
+            Disable = 0x0000,
+            EnableStart = 0x0001,
+            EnablePause = 0x0002,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum Reset {
+            SoftReset = 0x0000,
+            HardReset = 0x0001,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum Clear {
+            Clear = 0x0000,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum Frame {
+            NextFrame = 0x0000,
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Cmd {
+        pub command: Command,
+        pub argument: Argument,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Ack {}
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -471,7 +546,6 @@ pub mod h0022 {
 }
 
 /// Pixel Set (3ch, 8bit)
-/// TODO
 pub mod h0023 {
     pub struct Cmd {}
     pub struct Ack {}
@@ -491,6 +565,27 @@ pub mod h0024 {
 pub mod h0025 {
     pub struct Cmd {}
     pub struct Ack {}
+    pub struct Nak {}
+}
+
+/// Direct Channel Set
+/// Control the buffer directly (device configuration dependent)
+pub mod h0026 {
+    use heapless::Vec;
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Cmd<const D: usize> {
+        pub start_address: u16,
+        pub data: Vec<u8, D>,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Ack {}
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Nak {}
 }
 
@@ -601,11 +696,70 @@ pub mod h0043 {
 
 /// Manufacturing Test
 pub mod h0050 {
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u16)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum Command {
+        TestCommand = 0x0000,
+        LedTestSequence = 0x0001,
+        LedCycleKeypressTest = 0x0002,
+        HallEffectSensorTest = 0x0003,
+        InvalidCommand = 0x9999,
+    }
+
+    pub mod args {
+        use num_enum::TryFromPrimitive;
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum LedTestSequence {
+            Disable = 0x0000,
+            Enable = 0x0001,
+            ActivateLedShortTest = 0x0002,
+            ActivateLedOpenCircuitTest = 0x0003,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum LedCycleKeypressTest {
+            Disable = 0x0000,
+            Enable = 0x0001,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum HallEffectSensorTest {
+            DisableAll = 0x0000,
+            PassFailTestToggle = 0x0001,
+            LevelCheckToggle = 0x0002,
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub union Argument {
+        pub raw: u16,
+        pub led_test_sequence: args::LedTestSequence,
+        pub led_cycle_keypress_test: args::LedCycleKeypressTest,
+        pub hall_effect_sensor_test: args::HallEffectSensorTest,
+    }
+
+    impl core::fmt::Debug for Argument {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            write!(f, "{}", unsafe { self.raw })
+        }
+    }
+
     #[derive(Clone, Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd {
-        pub command: u16,
-        pub argument: u16,
+        pub command: Command,
+        pub argument: Argument,
     }
 
     #[derive(Clone, Debug)]
@@ -620,12 +774,66 @@ pub mod h0050 {
 /// Manufacturing Test Result
 pub mod h0051 {
     use heapless::Vec;
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u16)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum Command {
+        TestCommand = 0x0000,
+        LedTestSequence = 0x0001,
+        LedCycleKeypressTest = 0x0002,
+        HallEffectSensorTest = 0x0003,
+        InvalidCommand = 0x9999,
+    }
+
+    pub mod args {
+        use num_enum::TryFromPrimitive;
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum LedTestSequence {
+            ActivateLedShortTest = 0x0002,
+            ActivateLedOpenCircuitTest = 0x0003,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum LedCycleKeypressTest {
+            Enable = 0x0001,
+        }
+
+        #[repr(u16)]
+        #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+        #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+        pub enum HallEffectSensorTest {
+            PassFailTest = 0x0001,
+            LevelCheck = 0x0002,
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub union Argument {
+        pub raw: u16,
+        pub led_test_sequence: args::LedTestSequence,
+        pub led_cycle_keypress_test: args::LedCycleKeypressTest,
+        pub hall_effect_sensor_test: args::HallEffectSensorTest,
+    }
+
+    impl core::fmt::Debug for Argument {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            write!(f, "{}", unsafe { self.raw })
+        }
+    }
 
     #[derive(Clone, Debug)]
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub struct Cmd<const D: usize> {
-        pub command: u16,
-        pub argument: u16,
+        pub command: Command,
+        pub argument: Argument,
         pub data: Vec<u8, D>,
     }
 
@@ -642,10 +850,17 @@ pub mod h0051 {
 
 /// HID-IO Command Interface
 /// H - Max data payload length (HidIoPacketBuffer)
-/// HSUB1, HSUB4 - Due to current limitations of const generics (missing
-/// const_evaluatable_checked), H - 1 and H - 4 must be defined at the top-level.
+/// HSUB1, HSUB2, HSUB4 - Due to current limitations of const generics (missing
+/// const_evaluatable_checked), H - 1, H - 2 and H - 4 must be defined at the top-level.
 /// ID - Max number of HidIoCommandIds
-pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const ID: usize> {
+pub trait Commands<
+    const H: usize,
+    const HSUB1: usize,
+    const HSUB2: usize,
+    const HSUB4: usize,
+    const ID: usize,
+>
+{
     /// Given a HidIoPacketBuffer serialize (and resulting send bytes)
     fn tx_packetbuffer_send(&mut self, buf: &mut HidIoPacketBuffer<H>) -> Result<(), CommandError>;
 
@@ -793,6 +1008,8 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
             HidIoCommandId::UnicodeText => self.h0017_unicodetext_handler(buf),
             HidIoCommandId::UnicodeState => self.h0018_unicodestate_handler(buf),
             HidIoCommandId::SleepMode => self.h001a_sleepmode_handler(buf),
+            HidIoCommandId::PixelSetting => self.h0021_pixelsetting_handler(buf),
+            HidIoCommandId::DirectSet => self.h0026_directset_handler(buf),
             HidIoCommandId::OpenUrl => self.h0030_openurl_handler(buf),
             HidIoCommandId::TerminalCmd => self.h0031_terminalcmd_handler(buf),
             HidIoCommandId::TerminalOut => self.h0034_terminalout_handler(buf),
@@ -1609,6 +1826,185 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
         }
     }
 
+    fn h0021_pixelsetting(&mut self, data: h0021::Cmd, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // KllState id
+            id: HidIoCommandId::PixelSetting,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NaData;
+        }
+
+        // Build payload
+        if !buf.append_payload(&(data.command as u16).to_le_bytes()) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        if !buf.append_payload(unsafe { &data.argument.raw.to_le_bytes() }) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0021_pixelsetting_cmd(&mut self, _data: h0021::Cmd) -> Result<h0021::Ack, h0021::Nak> {
+        Err(h0021::Nak {})
+    }
+    fn h0021_pixelsetting_nacmd(&mut self, _data: h0021::Cmd) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::NaData,
+        ))
+    }
+    fn h0021_pixelsetting_ack(&mut self, _data: h0021::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Ack,
+        ))
+    }
+    fn h0021_pixelsetting_nak(&mut self, _data: h0021::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Nak,
+        ))
+    }
+    fn h0021_pixelsetting_handler(
+        &mut self,
+        buf: HidIoPacketBuffer<H>,
+    ) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0021::Cmd {
+                    command: h0021::Command::try_from(u16::from_le_bytes(
+                        buf.data[0..2].try_into().unwrap(),
+                    ))
+                    .unwrap(),
+                    argument: h0021::Argument {
+                        raw: u16::from_le_bytes(buf.data[2..4].try_into().unwrap()),
+                    },
+                };
+
+                match self.h0021_pixelsetting_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NaData => {
+                // Copy data into struct
+                let cmd = h0021::Cmd {
+                    command: h0021::Command::try_from(u16::from_le_bytes(
+                        buf.data[0..2].try_into().unwrap(),
+                    ))
+                    .unwrap(),
+                    argument: h0021::Argument {
+                        raw: u16::from_le_bytes(buf.data[2..4].try_into().unwrap()),
+                    },
+                };
+
+                self.h0021_pixelsetting_nacmd(cmd)
+            }
+            HidIoPacketType::Ack => self.h0021_pixelsetting_ack(h0021::Ack {}),
+            HidIoPacketType::Nak => self.h0021_pixelsetting_nak(h0021::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
+    fn h0026_directset(&mut self, data: h0026::Cmd<HSUB2>, na: bool) -> Result<(), CommandError> {
+        // Create appropriately sized buffer
+        let mut buf = HidIoPacketBuffer {
+            // KllState id
+            id: HidIoCommandId::DirectSet,
+            // Detect max size
+            max_len: self.default_packet_chunk(),
+            // Use defaults for other fields
+            ..Default::default()
+        };
+
+        // Set NA (no-ack)
+        if na {
+            buf.ptype = HidIoPacketType::NaData;
+        }
+
+        // Build payload
+        if !buf.append_payload(&data.start_address.to_le_bytes()) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        if !buf.append_payload(&data.data) {
+            return Err(CommandError::DataVecTooSmall);
+        }
+        buf.done = true;
+
+        self.tx_packetbuffer_send(&mut buf)
+    }
+    fn h0026_directset_cmd(&mut self, _data: h0026::Cmd<HSUB2>) -> Result<h0026::Ack, h0026::Nak> {
+        Err(h0026::Nak {})
+    }
+    fn h0026_directset_nacmd(&mut self, _data: h0026::Cmd<HSUB2>) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::NaData,
+        ))
+    }
+    fn h0026_directset_ack(&mut self, _data: h0026::Ack) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Ack,
+        ))
+    }
+    fn h0026_directset_nak(&mut self, _data: h0026::Nak) -> Result<(), CommandError> {
+        Err(CommandError::IdNotImplemented(
+            HidIoCommandId::UnicodeState,
+            HidIoPacketType::Nak,
+        ))
+    }
+    fn h0026_directset_handler(&mut self, buf: HidIoPacketBuffer<H>) -> Result<(), CommandError> {
+        // Handle packet type
+        match buf.ptype {
+            HidIoPacketType::Data => {
+                // Copy data into struct
+                let cmd = h0026::Cmd::<HSUB2> {
+                    start_address: u16::from_le_bytes([buf.data[0], buf.data[1]]),
+                    data: match Vec::from_slice(&buf.data[2..buf.data.len()]) {
+                        Ok(data) => data,
+                        Err(_) => {
+                            return Err(CommandError::DataVecTooSmall);
+                        }
+                    },
+                };
+
+                match self.h0026_directset_cmd(cmd) {
+                    Ok(_ack) => self.empty_ack(buf.id),
+                    Err(_nak) => self.empty_nak(buf.id),
+                }
+            }
+            HidIoPacketType::NaData => {
+                // Copy data into struct
+                let cmd = h0026::Cmd::<HSUB2> {
+                    start_address: u16::from_le_bytes([buf.data[0], buf.data[1]]),
+                    data: match Vec::from_slice(&buf.data[2..buf.data.len()]) {
+                        Ok(data) => data,
+                        Err(_) => {
+                            return Err(CommandError::DataVecTooSmall);
+                        }
+                    },
+                };
+
+                self.h0026_directset_nacmd(cmd)
+            }
+            HidIoPacketType::Ack => self.h0026_directset_ack(h0026::Ack {}),
+            HidIoPacketType::Nak => self.h0026_directset_nak(h0026::Nak {}),
+            _ => Ok(()),
+        }
+    }
+
     fn h0030_openurl(&mut self, data: h0030::Cmd<H>) -> Result<(), CommandError> {
         // Create appropriately sized buffer
         let mut buf = HidIoPacketBuffer {
@@ -1866,10 +2262,10 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
         };
 
         // Build payload
-        if !buf.append_payload(&data.command.to_le_bytes()) {
+        if !buf.append_payload(&(data.command as u16).to_le_bytes()) {
             return Err(CommandError::DataVecTooSmall);
         }
-        if !buf.append_payload(&data.argument.to_le_bytes()) {
+        if !buf.append_payload(unsafe { &data.argument.raw.to_le_bytes() }) {
             return Err(CommandError::DataVecTooSmall);
         }
 
@@ -1904,8 +2300,13 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
                 }
 
                 // Retrieve fields
-                let command = u16::from_le_bytes(buf.data[0..2].try_into().unwrap());
-                let argument = u16::from_le_bytes(buf.data[2..4].try_into().unwrap());
+                let command = h0050::Command::try_from(u16::from_le_bytes(
+                    buf.data[0..2].try_into().unwrap(),
+                ))
+                .unwrap();
+                let argument = h0050::Argument {
+                    raw: u16::from_le_bytes(buf.data[2..4].try_into().unwrap()),
+                };
 
                 match self.h0050_manufacturing_cmd(h0050::Cmd { command, argument }) {
                     Ok(_ack) => self.empty_ack(buf.id),
@@ -1931,10 +2332,10 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
         };
 
         // Build payload
-        if !buf.append_payload(&data.command.to_le_bytes()) {
+        if !buf.append_payload(&(data.command as u16).to_le_bytes()) {
             return Err(CommandError::DataVecTooSmall);
         }
-        if !buf.append_payload(&data.argument.to_le_bytes()) {
+        if !buf.append_payload(unsafe { &data.argument.raw.to_le_bytes() }) {
             return Err(CommandError::DataVecTooSmall);
         }
         if !buf.append_payload(&data.data) {
@@ -1975,8 +2376,13 @@ pub trait Commands<const H: usize, const HSUB1: usize, const HSUB4: usize, const
                 }
 
                 // Retrieve fields
-                let command = u16::from_le_bytes(buf.data[0..2].try_into().unwrap());
-                let argument = u16::from_le_bytes(buf.data[2..4].try_into().unwrap());
+                let command = h0051::Command::try_from(u16::from_le_bytes(
+                    buf.data[0..2].try_into().unwrap(),
+                ))
+                .unwrap();
+                let argument = h0051::Argument {
+                    raw: u16::from_le_bytes(buf.data[2..4].try_into().unwrap()),
+                };
                 let data: Vec<u8, HSUB4> = if buf.data.len() > 4 {
                     Vec::from_slice(&buf.data[5..]).unwrap()
                 } else {

@@ -575,6 +575,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
                     > for CommandInterface
@@ -660,6 +661,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
                     > for CommandInterface
@@ -764,6 +766,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
                     > for CommandInterface
@@ -855,6 +858,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
                     > for CommandInterface
@@ -899,8 +903,21 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
 
                 // Send command
                 if let Err(e) = intf.h0050_manufacturing(h0050::Cmd {
-                    command: params.get_cmd(),
-                    argument: params.get_arg(),
+                    command: match h0050::Command::try_from(params.get_cmd()) {
+                        Ok(val) => val,
+                        Err(e) => {
+                            return Promise::err(capnp::Error {
+                                kind: ::capnp::ErrorKind::Failed,
+                                description: format!(
+                                    "Error (manufacturing_test) invalid command id: {:?}",
+                                    e
+                                ),
+                            });
+                        }
+                    },
+                    argument: h0050::Argument {
+                        raw: params.get_arg(),
+                    },
                 }) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
@@ -934,6 +951,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             Commands<
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                 1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
             > for CommandInterface
@@ -1044,6 +1062,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         MAX_IDS,
                     > for CommandInterface
@@ -1120,6 +1139,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         MAX_DATA_SIZE,
                     > for CommandInterface
@@ -1386,6 +1406,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             Commands<
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                 1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
             > for CommandInterface
@@ -1459,6 +1480,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             Commands<
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                 1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
             > for CommandInterface
@@ -1949,6 +1971,7 @@ async fn server_subscriptions_keyboard(
                     Commands<
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
                         1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
                     > for CommandInterface
@@ -2012,8 +2035,8 @@ async fn server_subscriptions_keyboard(
                                 .as_millis() as u64,
                         );
                         let mut result = signal.init_data().init_manufacturing();
-                        result.set_cmd(data.command);
-                        result.set_arg(data.argument);
+                        result.set_cmd(data.command as u16);
+                        result.set_arg(unsafe { data.argument.raw });
                         let mut result = result.init_data(data.data.len() as u32);
                         for (i, f) in data.data.iter().enumerate() {
                             result.set(i as u32, *f);

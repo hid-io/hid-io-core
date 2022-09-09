@@ -63,6 +63,7 @@ struct CommandInterface<
     const N: usize,
     const H: usize,
     const HSUB1: usize,
+    const HSUB2: usize,
     const HSUB4: usize,
     const S: usize,
     const ID: usize,
@@ -80,14 +81,15 @@ impl<
         const N: usize,
         const H: usize,
         const HSUB1: usize,
+        const HSUB2: usize,
         const HSUB4: usize,
         const S: usize,
         const ID: usize,
-    > CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>
+    > CommandInterface<TX, RX, N, H, HSUB1, HSUB2, HSUB4, S, ID>
 {
     fn new(
         ids: &[HidIoCommandId],
-    ) -> Result<CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>, CommandError> {
+    ) -> Result<CommandInterface<TX, RX, N, H, HSUB1, HSUB2, HSUB4, S, ID>, CommandError> {
         // Make sure we have a large enough id vec
         let ids = match Vec::from_slice(ids) {
             Ok(ids) => ids,
@@ -187,10 +189,12 @@ impl<
         const N: usize,
         const H: usize,
         const HSUB1: usize,
+        const HSUB2: usize,
         const HSUB4: usize,
         const S: usize,
         const ID: usize,
-    > Commands<H, HSUB1, HSUB4, ID> for CommandInterface<TX, RX, N, H, HSUB1, HSUB4, S, ID>
+    > Commands<H, HSUB1, HSUB2, HSUB4, ID>
+    for CommandInterface<TX, RX, N, H, HSUB1, HSUB2, HSUB4, S, ID>
 {
     fn default_packet_chunk(&self) -> u32 {
         N as u32
@@ -353,6 +357,54 @@ impl<
         Ok(())
     }
 
+    fn h0021_pixelsetting_cmd(&mut self, data: h0021::Cmd) -> Result<h0021::Ack, h0021::Nak> {
+        if data.command != h0021::Command::InvalidCommand {
+            return Err(h0021::Nak {});
+        }
+        if unsafe { data.argument.raw } == 5 {
+            Ok(h0021::Ack {})
+        } else {
+            Err(h0021::Nak {})
+        }
+    }
+    fn h0021_pixelsetting_nacmd(&mut self, data: h0021::Cmd) -> Result<(), CommandError> {
+        if data.command != h0021::Command::InvalidCommand {
+            return Err(CommandError::TestFailure);
+        }
+        if unsafe { data.argument.raw } == 5 {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0021_pixelsetting_ack(&mut self, _data: h0021::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
+    fn h0026_directset_cmd(&mut self, data: h0026::Cmd<HSUB2>) -> Result<h0026::Ack, h0026::Nak> {
+        if data.start_address != 5 {
+            return Err(h0026::Nak {});
+        }
+        if data.data.len() == 3 {
+            Ok(h0026::Ack {})
+        } else {
+            Err(h0026::Nak {})
+        }
+    }
+    fn h0026_directset_nacmd(&mut self, data: h0026::Cmd<HSUB2>) -> Result<(), CommandError> {
+        if data.start_address != 5 {
+            return Err(CommandError::TestFailure);
+        }
+        if data.data.len() == 3 {
+            Ok(())
+        } else {
+            Err(CommandError::TestFailure)
+        }
+    }
+    fn h0026_directset_ack(&mut self, _data: h0026::Ack) -> Result<(), CommandError> {
+        Ok(())
+    }
+
     fn h001a_sleepmode_cmd(&mut self, _data: h001a::Cmd) -> Result<h001a::Ack, h001a::Nak> {
         Ok(h001a::Ack {})
     }
@@ -408,7 +460,7 @@ impl<
     }
 
     fn h0050_manufacturing_cmd(&mut self, data: h0050::Cmd) -> Result<h0050::Ack, h0050::Nak> {
-        if data.command == 0 && data.argument == 0 {
+        if data.command == h0050::Command::TestCommand && unsafe { data.argument.raw == 0 } {
             Ok(h0050::Ack {})
         } else {
             Err(h0050::Nak {})
@@ -425,7 +477,7 @@ impl<
         &mut self,
         data: h0051::Cmd<HSUB4>,
     ) -> Result<h0051::Ack, h0051::Nak> {
-        if data.command == 0 && data.argument == 0 {
+        if data.command == h0051::Command::TestCommand && unsafe { data.argument.raw == 0 } {
             Ok(h0051::Ack {})
         } else {
             Err(h0051::Nak {})
@@ -453,7 +505,7 @@ fn h0000_supported_ids_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 100, 99, 96, 110, 3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 100, 99, 98, 96, 110, 3>::new(&ids).unwrap();
 
     // Send command
     let send = intf.h0000_supported_ids(h0000::Cmd {});
@@ -567,7 +619,7 @@ fn h0001_info() {
     let ids = [HidIoCommandId::SupportedIds, HidIoCommandId::GetInfo];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 100, 99, 96, 110, 2>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 100, 99, 98, 96, 110, 2>::new(&ids).unwrap();
 
     // Process each of the test entries
     for entry in &H0001ENTRIES {
@@ -630,7 +682,7 @@ fn h0002_test() {
     ];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 3>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 3>::new(&ids).unwrap();
 
     // Normal data packets
     for entry in &H0002ENTRIES {
@@ -678,7 +730,7 @@ fn h0002_invalid() {
     let ids = [HidIoCommandId::SupportedIds, HidIoCommandId::GetInfo];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 2>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 2>::new(&ids).unwrap();
 
     // Send command
     let cmd = h0002::Cmd { data: Vec::new() };
@@ -712,7 +764,7 @@ fn h0016_flashmode() {
     let ids = [HidIoCommandId::FlashMode];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Send command
     let cmd = h0016::Cmd {};
@@ -738,7 +790,7 @@ fn h0017_unicodetext() {
     let ids = [HidIoCommandId::UnicodeText];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -785,7 +837,7 @@ fn h0018_unicodestate() {
     let ids = [HidIoCommandId::UnicodeState];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -832,7 +884,7 @@ fn h001a_sleepmode() {
     let ids = [HidIoCommandId::SleepMode];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Send command
     let cmd = h001a::Cmd {};
@@ -851,6 +903,60 @@ fn h001a_sleepmode() {
 }
 
 #[test]
+fn h0021_pixelsetting() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandId::PixelSetting];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
+
+    // Send command
+    let cmd = h0021::Cmd {
+        command: h0021::Command::InvalidCommand,
+        argument: h0021::Argument { raw: 5 },
+    };
+    let send = intf.h0021_pixelsetting(cmd.clone(), true);
+    assert!(send.is_ok(), "h0026_directset(na) => {:?}", send);
+
+    let send = intf.h0021_pixelsetting(cmd, true);
+    assert!(send.is_ok(), "h0026_directset(a) => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 => {:?}", process);
+}
+
+#[test]
+fn h0026_directset() {
+    setup_logging_lite().ok();
+
+    // Build list of supported ids
+    let ids = [HidIoCommandId::DirectSet];
+
+    // Setup command interface
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
+
+    // Send command
+    let cmd = h0026::Cmd {
+        start_address: 5,
+        data: Vec::from_slice(&[1, 2, 3]).unwrap(),
+    };
+    let send = intf.h0026_directset(cmd.clone(), true);
+    assert!(send.is_ok(), "h0026_directset(na) => {:?}", send);
+
+    let send = intf.h0026_directset(cmd, true);
+    assert!(send.is_ok(), "h0026_directset(a) => {:?}", send);
+
+    // Flush tx->rx
+    // Process rx buffer
+    let process = intf.process_rx();
+    assert!(process.is_ok(), "process_rx1 => {:?}", process);
+}
+
+#[test]
 fn h0030_openurl() {
     setup_logging_lite().ok();
 
@@ -858,7 +964,7 @@ fn h0030_openurl() {
     let ids = [HidIoCommandId::OpenUrl];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -887,7 +993,7 @@ fn h0031_terminalcmd() {
     let ids = [HidIoCommandId::TerminalCmd];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -934,7 +1040,7 @@ fn h0034_terminalout() {
     let ids = [HidIoCommandId::TerminalOut];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Normal data packet
     // Send command
@@ -981,12 +1087,12 @@ fn h0050_manufacturing() {
     let ids = [HidIoCommandId::ManufacturingTest];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Send valid command (expect ack)
     let cmd = h0050::Cmd {
-        command: 0,
-        argument: 0,
+        command: h0050::Command::TestCommand,
+        argument: h0050::Argument { raw: 0 },
     };
     let send = intf.h0050_manufacturing(cmd);
     assert!(send.is_ok(), "h0050_manufacturing(ack) => {:?}", send);
@@ -1003,8 +1109,8 @@ fn h0050_manufacturing() {
 
     // Send invalid command (expect nak)
     let cmd = h0050::Cmd {
-        command: 1200,
-        argument: 5,
+        command: h0050::Command::InvalidCommand,
+        argument: h0050::Argument { raw: 5 },
     };
     let send = intf.h0050_manufacturing(cmd);
     assert!(send.is_ok(), "h0050_manufacturing(nak) => {:?}", send);
@@ -1028,12 +1134,12 @@ fn h0051_manufacturing() {
     let ids = [HidIoCommandId::ManufacturingResult];
 
     // Setup command interface
-    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 146, 165, 1>::new(&ids).unwrap();
+    let mut intf = CommandInterface::<8, 8, 64, 150, 149, 148, 146, 165, 1>::new(&ids).unwrap();
 
     // Send valid command (expect ack)
     let cmd = h0051::Cmd {
-        command: 0,
-        argument: 0,
+        command: h0051::Command::TestCommand,
+        argument: h0051::Argument { raw: 0 },
         data: Vec::new(),
     };
     let send = intf.h0051_manufacturingres(cmd);

@@ -43,6 +43,7 @@ impl
     Commands<
         { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+        { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
         CMD_SIZE,
     > for CommandInterface
