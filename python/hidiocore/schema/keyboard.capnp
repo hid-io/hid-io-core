@@ -149,6 +149,7 @@ interface Keyboard extends(HidIo.Node) {
         # Called whenever a subscribed packet type (to this device) is available
     }
 
+
     subscribe @0 (subscriber :Subscriber, options :List(SubscriptionOption)) -> (subscription :Subscription);
     # Subscribes to a Subscriber interface
     # Registers push notifications for this node, the packets received will depend on the SubscriptionOption list

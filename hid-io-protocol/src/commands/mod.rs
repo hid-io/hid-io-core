@@ -464,9 +464,9 @@ pub mod h0021 {
     #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub enum Command {
         Control = 0x0001,
-        ResetController = 0x0002,
+        Reset = 0x0002,
         Clear = 0x0003,
-        NextFrame = 0x0004,
+        Frame = 0x0004,
         InvalidCommand = 0xFFFF,
     }
 

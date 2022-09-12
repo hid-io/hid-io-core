@@ -226,6 +226,94 @@ interface Node extends(Common.Node) {
         }
     }
 
+    struct PixelSet {
+        enum Type {
+            directSet @0;
+        }
+
+        type @0 :Type;
+        startAddress @1 :UInt16;
+        directSetData @2 :Data;
+    }
+
+    struct PixelSetStatus {
+        struct Success {}
+        struct Error {}
+
+        union {
+            success @0 :Success;
+            error @1 :Error;
+        }
+    }
+
+    struct PixelSetting {
+        enum Command {
+            control @0;
+            # General LED control commands
+
+            reset @1;
+            # LED controller reset modes
+
+            clear @2;
+            # Frame clearing commands
+
+            frame @3;
+            # Frame control commands
+        }
+
+        enum ControlArg {
+            disable @0;
+            # Disable HID-IO LED controller
+            # This will usually give LED control back to the device and may disable the LEDs for some
+            # devices
+
+            enableStart @1;
+            # Enables LED frame display in free running mode
+
+            enablePause @2;
+            # Enable LED frame display, frame: nextFrame must be called to iterate to the next frame.
+        }
+
+        enum ResetArg {
+            softReset @0;
+            # Clear current pixel frame and any settings
+
+            hardReset @1;
+            # Initiate a hard reset of the LED controller and initialize
+            # default settings
+        }
+
+        enum ClearArg {
+            clear @0;
+            # Clear current pixel frame
+            # Will need to iterate to the next frame if using EnablePause
+        }
+
+        enum FrameArg {
+            nextFrame @0;
+            # Iterate to next pixel buffer frame if using EnablePause
+        }
+
+        command @0 :Command;
+
+        union {
+            control @1 :ControlArg;
+            reset @2 :ResetArg;
+            clear @3 :ClearArg;
+            frame @4 :FrameArg;
+        }
+    }
+
+    struct PixelSettingStatus {
+        struct Success {}
+        struct Error {}
+
+        union {
+            success @0 :Success;
+            error @1 :Error;
+        }
+    }
+
     struct Info {
         # Result of an info command
 
@@ -292,4 +380,11 @@ interface Node extends(Common.Node) {
     # Send an arbitrary piece of data to device as a test command
     # Will Ack piece of data back if successful
     # Must have full auth-level to use
+
+    pixelSetting @7 (command :PixelSetting) -> (status :PixelSettingStatus);
+    # Configures LED settings
+    # See pixelSet for updating specific LED channels
+
+    pixelSet @8 (data :PixelSet) -> (status :PixelSetStatus);
+    # Sets specific LED channels
 }

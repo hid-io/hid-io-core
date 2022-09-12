@@ -665,7 +665,7 @@ pub fn udev_find_device(
         // Setup poll
         let result = unsafe {
             ppoll(
-                (&mut fds[..]).as_mut_ptr(),
+                fds[..].as_mut_ptr(),
                 fds.len() as nfds_t,
                 &mut ptimeout,
                 std::ptr::null(),
