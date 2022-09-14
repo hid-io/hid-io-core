@@ -762,7 +762,7 @@ impl<const H: usize> HidIoPacketBuffer<H> {
             // type - 3 bits
             (ptype << 5) |
             // cont - 1 bit
-            (if cont { 1 } else { 0 } << 4) |
+            (u8::from(cont) << 4) |
             // id_width - 1 bit
             (id_width << 3) |
             // reserved - 1 bit
@@ -840,7 +840,7 @@ impl<const H: usize> HidIoPacketBuffer<H> {
                 // type - 3 bits
                 (ptype << 5) |
                 // cont - 1 bit
-                (if cont { 1 } else { 0 } << 4) |
+                (u8::from(cont) << 4) |
                 // id_width - 1 bit
                 (id_width << 3) |
                 // reserved - 1 bit

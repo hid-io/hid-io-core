@@ -367,7 +367,7 @@ impl Keymap {
     /// calling (unless you're trying to optimize scheduling).
     pub fn press_key(&mut self, c: char, press: bool) -> Result<(), DisplayOutputError> {
         let time = self.get_time();
-        let state = if press { 1 } else { 0 };
+        let state = u32::from(press);
         let keycode = if let Some(key) = self.keysym_lookup.get(&c) {
             // Adjust by 8, per xkb/xwayland requirements
             key.keycode - 8

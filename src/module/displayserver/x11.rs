@@ -255,7 +255,7 @@ impl DisplayOutput for XConnection {
         // TODO: Better solution. https://unix.stackexchange.com/a/422493
 
         let result = Command::new("setxkbmap")
-            .args(&["-query"])
+            .args(["-query"])
             .output()
             .expect("Failed to exec setxkbmap");
         let output = String::from_utf8_lossy(&result.stdout);
@@ -271,7 +271,7 @@ impl DisplayOutput for XConnection {
     }
 
     fn set_layout(&self, layout: &str) -> Result<(), DisplayOutputError> {
-        Command::new("setxkbmap").args(&[layout]).output().unwrap();
+        Command::new("setxkbmap").args([layout]).output().unwrap();
         Ok(())
     }
 
