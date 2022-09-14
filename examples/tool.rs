@@ -469,8 +469,50 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                             client: node.client,
                         }
                         .manufacturing_test_request();
-                        request.get().set_cmd(cmd);
-                        request.get().set_arg(arg);
+
+                        let command = match cmd {
+                            1 => {
+                                request.get().get_cmd().unwrap().set_led_test_sequence(match arg {
+                                    0 => hidio_capnp::node::manufacturing::LedTestSequenceArg::Disable,
+                                    1 => hidio_capnp::node::manufacturing::LedTestSequenceArg::Enable,
+                                    2 => hidio_capnp::node::manufacturing::LedTestSequenceArg::ActivateLedShortTest,
+                                    3 => hidio_capnp::node::manufacturing::LedTestSequenceArg::ActivateLedOpenCircuitTest,
+                                    _ => {
+                                        eprintln!("Manufacturing Test unknown arg: {}", cmd);
+                                        ::std::process::exit(1);
+                                    }
+                                });
+                                hidio_capnp::node::manufacturing::Command::LedTestSequence
+                            }
+                            2 => {
+                                request.get().get_cmd().unwrap().set_led_cycle_keypress_test(match arg {
+                                    0 => hidio_capnp::node::manufacturing::LedCycleKeypressTestArg::Disable,
+                                    1 => hidio_capnp::node::manufacturing::LedCycleKeypressTestArg::Enable,
+                                    _ => {
+                                        eprintln!("Manufacturing Test unknown arg: {}", cmd);
+                                        ::std::process::exit(1);
+                                    }
+                                });
+                                hidio_capnp::node::manufacturing::Command::LedCycleKeypressTest
+                            }
+                            3 => {
+                                request.get().get_cmd().unwrap().set_hall_effect_sensor_test(match arg {
+                                    0 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::DisableAll,
+                                    1 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::PassFailTestToggle,
+                                    2 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckToggle,
+                                    _ => {
+                                        eprintln!("Manufacturing Test unknown arg: {}", cmd);
+                                        ::std::process::exit(1);
+                                    }
+                                });
+                                hidio_capnp::node::manufacturing::Command::HallEffectSensorTest
+                            }
+                            _ => {
+                                eprintln!("Manufacturing Test unknown cmd: {}", cmd);
+                                ::std::process::exit(1);
+                            }
+                        };
+                        request.get().get_cmd().unwrap().set_command(command);
 
                         // Send command
                         match request.send().promise.await {

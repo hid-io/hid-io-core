@@ -901,24 +901,68 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     results,
                 };
 
-                // Send command
-                if let Err(e) = intf.h0050_manufacturing(h0050::Cmd {
-                    command: match h0050::Command::try_from(params.get_cmd()) {
-                        Ok(val) => val,
-                        Err(e) => {
-                            return Promise::err(capnp::Error {
-                                kind: ::capnp::ErrorKind::Failed,
-                                description: format!(
-                                    "Error (manufacturing_test) invalid command id: {:?}",
-                                    e
-                                ),
-                            });
+                // Lookup command
+                let command = match params.get_cmd().unwrap().get_command().unwrap() {
+                    hidio_capnp::node::manufacturing::Command::LedTestSequence => {
+                        h0050::Command::LedTestSequence
+                    }
+                    hidio_capnp::node::manufacturing::Command::LedCycleKeypressTest => {
+                        h0050::Command::LedCycleKeypressTest
+                    }
+                    hidio_capnp::node::manufacturing::Command::HallEffectSensorTest => {
+                        h0050::Command::HallEffectSensorTest
+                    }
+                };
+                let argument = match params.get_cmd().unwrap().which().unwrap() {
+                    hidio_capnp::node::manufacturing::Which::LedTestSequence(val) => {
+                        h0050::Argument {
+                            led_test_sequence: match val.unwrap() {
+                                hidio_capnp::node::manufacturing::LedTestSequenceArg::Disable => {
+                                    h0050::args::LedTestSequence::Disable
+                                }
+                                hidio_capnp::node::manufacturing::LedTestSequenceArg::Enable => {
+                                    h0050::args::LedTestSequence::Enable
+                                }
+                                hidio_capnp::node::manufacturing::LedTestSequenceArg::ActivateLedShortTest => {
+                                    h0050::args::LedTestSequence::ActivateLedShortTest
+                                }
+                                hidio_capnp::node::manufacturing::LedTestSequenceArg::ActivateLedOpenCircuitTest => {
+                                    h0050::args::LedTestSequence::ActivateLedOpenCircuitTest
+                                }
+                            },
                         }
-                    },
-                    argument: h0050::Argument {
-                        raw: params.get_arg(),
-                    },
-                }) {
+                    }
+                    hidio_capnp::node::manufacturing::Which::LedCycleKeypressTest(val) => {
+                        h0050::Argument {
+                            led_cycle_keypress_test: match val.unwrap() {
+                                hidio_capnp::node::manufacturing::LedCycleKeypressTestArg::Disable => {
+                                    h0050::args::LedCycleKeypressTest::Disable
+                                }
+                                hidio_capnp::node::manufacturing::LedCycleKeypressTestArg::Enable => {
+                                    h0050::args::LedCycleKeypressTest::Enable
+                                }
+                            },
+                        }
+                    }
+                    hidio_capnp::node::manufacturing::Which::HallEffectSensorTest(val) => {
+                        h0050::Argument {
+                            hall_effect_sensor_test: match val.unwrap() {
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::DisableAll => {
+                                    h0050::args::HallEffectSensorTest::DisableAll
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::PassFailTestToggle => {
+                                    h0050::args::HallEffectSensorTest::PassFailTestToggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckToggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckToggle
+                                }
+                            },
+                        }
+                    }
+                };
+
+                // Send command
+                if let Err(e) = intf.h0050_manufacturing(h0050::Cmd { command, argument }) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
                         description: format!("Error (manufacturing_test): {:?}", e),
@@ -2035,7 +2079,21 @@ async fn server_subscriptions_keyboard(
                                 .as_millis() as u64,
                         );
                         let mut result = signal.init_data().init_manufacturing();
-                        result.set_cmd(data.command as u16);
+                        let command = match data.command {
+                            h0051::Command::LedTestSequence => {
+                                keyboard_capnp::keyboard::signal::manufacturing_result::Command::LedTestSequence
+                            }
+                            h0051::Command::LedCycleKeypressTest => {
+                                keyboard_capnp::keyboard::signal::manufacturing_result::Command::LedCycleKeypressTest
+                            }
+                            h0051::Command::HallEffectSensorTest => {
+                                keyboard_capnp::keyboard::signal::manufacturing_result::Command::HallEffectSensorTest
+                            }
+                            _ => {
+                                return Err(h0051::Nak {});
+                            }
+                        };
+                        result.set_cmd(command);
                         result.set_arg(unsafe { data.argument.raw });
                         let mut result = result.init_data(data.data.len() as u32);
                         for (i, f) in data.data.iter().enumerate() {

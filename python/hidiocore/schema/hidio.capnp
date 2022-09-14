@@ -215,6 +215,40 @@ interface Node extends(Common.Node) {
         }
     }
 
+    struct Manufacturing {
+        enum Command {
+            ledTestSequence @0;
+            ledCycleKeypressTest @1;
+            hallEffectSensorTest @2;
+        }
+
+        enum LedTestSequenceArg {
+            disable @0;
+            enable @1;
+            activateLedShortTest @2;
+            activateLedOpenCircuitTest @3;
+        }
+
+        enum LedCycleKeypressTestArg {
+            disable @0;
+            enable @1;
+        }
+
+        enum HallEffectSensorTestArg {
+            disableAll @0;
+            passFailTestToggle @1;
+            levelCheckToggle @2;
+        }
+
+        command @0 :Command;
+
+        union {
+            ledTestSequence @1 :LedTestSequenceArg;
+            ledCycleKeypressTest @2 :LedCycleKeypressTestArg;
+            hallEffectSensorTest @3 :HallEffectSensorTestArg;
+        }
+    }
+
     struct ManufacturingStatus {
         struct Success {}
         struct Error {}
@@ -365,7 +399,7 @@ interface Node extends(Common.Node) {
     flashMode @2 () -> (status :FlashModeStatus);
     # Attempt to have the device enter flash mode
 
-    manufacturingTest @3 (cmd :UInt16, arg :UInt16) -> (status :ManufacturingStatus);
+    manufacturingTest @3 (cmd :Manufacturing) -> (status :ManufacturingStatus);
     # Send a device specific manufacturing test command
     # Must have full auth-level to use
 

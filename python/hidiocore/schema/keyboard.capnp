@@ -81,8 +81,14 @@ interface Keyboard extends(HidIo.Node) {
         }
 
         struct ManufacturingResult {
+            enum Command {
+                ledTestSequence @0;
+                ledCycleKeypressTest @1;
+                hallEffectSensorTest @2;
+            }
+
             # Cmd and Arg relate to the orignal manufacturingTest command used
-            cmd @0 :UInt16;
+            cmd @0 :Command;
             arg @1 :UInt16;
             # Free-form byte data from the result
             data @2 :List(UInt8);

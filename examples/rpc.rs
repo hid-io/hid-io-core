@@ -88,9 +88,9 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                 }
                 hid_io_core::keyboard_capnp::keyboard::signal::data::Which::Manufacturing(res) => {
                     let res = res.unwrap();
-                    println!("{}:{} => ", res.get_cmd(), res.get_arg());
-                    match res.get_cmd() {
-                        1 => match res.get_arg() {
+                    println!("{:?}:{} => ", res.get_cmd(), res.get_arg());
+                    match res.get_cmd().unwrap() {
+                        keyboard_capnp::keyboard::signal::manufacturing_result::Command::LedTestSequence => match res.get_arg() {
                             2 | 3 => {
                                 // LED short/open test
                                 let mut pos: usize = 0;
@@ -117,7 +117,7 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                                 println!("Manufacturing command {} not implemented", res.get_arg())
                             }
                         },
-                        3 => match res.get_arg() {
+                        keyboard_capnp::keyboard::signal::manufacturing_result::Command::HallEffectSensorTest => match res.get_arg() {
                             2 => {
                                 let split = res.get_data().unwrap().len() / 2 / 6;
                                 let mut tmp = vec![];
