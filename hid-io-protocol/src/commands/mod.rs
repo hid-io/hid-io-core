@@ -471,7 +471,6 @@ pub mod h0021 {
     }
 
     #[derive(Clone, Copy)]
-    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub union Argument {
         pub raw: u16,
         pub control: args::Control,
@@ -483,6 +482,13 @@ pub mod h0021 {
     impl core::fmt::Debug for Argument {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
             write!(f, "{}", unsafe { self.raw })
+        }
+    }
+
+    #[cfg(feature = "defmt")]
+    impl defmt::Format for Argument {
+        fn format(&self, fmt: defmt::Formatter) {
+            defmt::write!(fmt, "{}", unsafe { self.raw })
         }
     }
 
@@ -741,7 +747,6 @@ pub mod h0050 {
     }
 
     #[derive(Clone, Copy)]
-    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub union Argument {
         pub raw: u16,
         pub led_test_sequence: args::LedTestSequence,
@@ -752,6 +757,13 @@ pub mod h0050 {
     impl core::fmt::Debug for Argument {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
             write!(f, "{}", unsafe { self.raw })
+        }
+    }
+
+    #[cfg(feature = "defmt")]
+    impl defmt::Format for Argument {
+        fn format(&self, fmt: defmt::Formatter) {
+            defmt::write!(fmt, "{}", unsafe { self.raw })
         }
     }
 
@@ -815,7 +827,6 @@ pub mod h0051 {
     }
 
     #[derive(Clone, Copy)]
-    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
     pub union Argument {
         pub raw: u16,
         pub led_test_sequence: args::LedTestSequence,
@@ -826,6 +837,13 @@ pub mod h0051 {
     impl core::fmt::Debug for Argument {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
             write!(f, "{}", unsafe { self.raw })
+        }
+    }
+
+    #[cfg(feature = "defmt")]
+    impl defmt::Format for Argument {
+        fn format(&self, fmt: defmt::Formatter) {
+            defmt::write!(fmt, "{}", unsafe { self.raw })
         }
     }
 

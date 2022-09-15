@@ -607,8 +607,8 @@ impl<const H: usize> HidIoPacketBuffer<H> {
         let id_num = packet_id(packet_data)?;
         let id = match HidIoCommandId::try_from(id_num) {
             Ok(id) => id,
-            Err(_e) => {
-                error!("Failed to convert {} to HidIoCommandId: {}", id_num, _e);
+            Err(_) => {
+                error!("Failed to convert {} to HidIoCommandId", id_num);
                 return Err(HidIoParseError::InvalidHidIoCommandId(id_num));
             }
         };
