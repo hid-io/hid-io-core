@@ -806,8 +806,8 @@ pub mod h0051 {
         #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
         #[cfg_attr(feature = "defmt", derive(defmt::Format))]
         pub enum LedTestSequence {
-            ActivateLedShortTest = 0x0002,
-            ActivateLedOpenCircuitTest = 0x0003,
+            LedShortTest = 0x0002,
+            LedOpenCircuitTest = 0x0003,
         }
 
         #[repr(u16)]
