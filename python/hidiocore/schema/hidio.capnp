@@ -399,7 +399,7 @@ interface Node extends(Common.Node) {
     flashMode @2 () -> (status :FlashModeStatus);
     # Attempt to have the device enter flash mode
 
-    manufacturingTest @3 (cmd :Manufacturing) -> (status :ManufacturingStatus);
+    manufacturingTest @3 (command :Manufacturing) -> (status :ManufacturingStatus);
     # Send a device specific manufacturing test command
     # Must have full auth-level to use
 
@@ -419,6 +419,6 @@ interface Node extends(Common.Node) {
     # Configures LED settings
     # See pixelSet for updating specific LED channels
 
-    pixelSet @8 (data :PixelSet) -> (status :PixelSetStatus);
+    pixelSet @8 (command :PixelSet) -> (status :PixelSetStatus);
     # Sets specific LED channels
 }

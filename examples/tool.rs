@@ -18,7 +18,7 @@ extern crate tokio;
 
 use capnp::capability::Promise;
 use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use clap::{Arg, Command};
+use clap::{arg, Arg, Command};
 use futures::{AsyncReadExt, FutureExt};
 use hid_io_core::built_info;
 use hid_io_core::common_capnp::NodeType;
@@ -151,6 +151,66 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                         .required(true)
                         .help("Manufacturing command arg (16-int integer)"),
                 ),
+        )
+        .subcommand(
+            Command::new("pixel")
+                .about("Send pixel/led commands to the device")
+                .subcommand(
+                    Command::new("setting")
+                    .about("Pixel/led process control settings")
+                    .subcommand(
+                        Command::new("control")
+                            .about("Pixel/led process settings")
+                            .subcommand(
+                                Command::new("disable")
+                                .about("Disable HID-IO control of LEDs")
+                            )
+                            .subcommand(
+                                Command::new("enable-start")
+                                .about("Enable HID-IO control of LEDs in free-running mode")
+                            )
+                            .subcommand(
+                                Command::new("enable-pause")
+                                .about("Enable HID-IO control of LEDs in pause mode (see frame next-frame).")
+                            )
+                            .arg_required_else_help(true)
+                    )
+                    .subcommand(
+                        Command::new("reset")
+                            .about("LED controller reset")
+                            .subcommand(
+                                Command::new("soft-reset")
+                                .about("LED controller soft reset")
+                            )
+                            .subcommand(
+                                Command::new("hard-reset")
+                                .about("LED controller hard (chip) reset")
+                            )
+                            .arg_required_else_help(true)
+                    )
+                    .subcommand(
+                        Command::new("clear")
+                            .about("Clear current buffer if under HID-IO control")
+                    )
+                    .subcommand(
+                        Command::new("frame")
+                            .about("Frame control")
+                            .subcommand(
+                                Command::new("next-frame")
+                                    .about("Iterate to next display frame")
+                            )
+                            .arg_required_else_help(true)
+                    )
+                    .arg_required_else_help(true)
+                )
+                .arg_required_else_help(true)
+                .subcommand(
+                    Command::new("direct")
+                    .about("Directly manipulate led buffer, device/configuration dependent.")
+                    .arg_required_else_help(true)
+                    .arg(arg!(<START_ADDRESS> "16-bit starting address for data").value_parser(clap::value_parser!(u64).range(0..0xFFFF)))
+                    .arg(arg!(<DATA> ... "Channel data as 8 bit data (hex or int)").value_parser(clap::value_parser!(u64).range(0..0xFF)))
+                )
         )
         .subcommand(Command::new("sleep").about("Attempt to enable sleep mode on device"))
         .subcommand(
@@ -472,7 +532,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
 
                         let command = match cmd {
                             1 => {
-                                request.get().get_cmd().unwrap().set_led_test_sequence(match arg {
+                                request.get().get_command().unwrap().set_led_test_sequence(match arg {
                                     0 => hidio_capnp::node::manufacturing::LedTestSequenceArg::Disable,
                                     1 => hidio_capnp::node::manufacturing::LedTestSequenceArg::Enable,
                                     2 => hidio_capnp::node::manufacturing::LedTestSequenceArg::ActivateLedShortTest,
@@ -485,7 +545,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                 hidio_capnp::node::manufacturing::Command::LedTestSequence
                             }
                             2 => {
-                                request.get().get_cmd().unwrap().set_led_cycle_keypress_test(match arg {
+                                request.get().get_command().unwrap().set_led_cycle_keypress_test(match arg {
                                     0 => hidio_capnp::node::manufacturing::LedCycleKeypressTestArg::Disable,
                                     1 => hidio_capnp::node::manufacturing::LedCycleKeypressTestArg::Enable,
                                     _ => {
@@ -496,7 +556,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                 hidio_capnp::node::manufacturing::Command::LedCycleKeypressTest
                             }
                             3 => {
-                                request.get().get_cmd().unwrap().set_hall_effect_sensor_test(match arg {
+                                request.get().get_command().unwrap().set_hall_effect_sensor_test(match arg {
                                     0 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::DisableAll,
                                     1 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::PassFailTestToggle,
                                     2 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckToggle,
@@ -512,7 +572,8 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                 ::std::process::exit(1);
                             }
                         };
-                        request.get().get_cmd().unwrap().set_command(command);
+                        println!("Command: {:?}", command);
+                        request.get().get_command().unwrap().set_command(command);
 
                         // Send command
                         match request.send().promise.await {
@@ -534,6 +595,157 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     } else {
                         println!("NAK: Manufacturing Test set: {}:{} - FAILED", cmd, arg);
                     }
+                }
+            }
+            Some(("pixel", submatches)) => {
+                match submatches.subcommand() {
+                    Some(("setting", submatches)) => {
+                        if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(
+                            node,
+                        )) = device.get_node().which()
+                        {
+                            let node = node?;
+
+                            let setting_resp = {
+                                // Cast/transform keyboard node to a hidio node
+                                let mut request = hidio_capnp::node::Client {
+                                    client: node.client,
+                                }
+                                .pixel_setting_request();
+
+                                let command = match submatches.subcommand() {
+                                    Some(("clear", _)) => {
+                                        request.get().get_command().unwrap().set_clear(
+                                            hidio_capnp::node::pixel_setting::ClearArg::Clear,
+                                        );
+                                        hidio_capnp::node::pixel_setting::Command::Clear
+                                    }
+                                    Some(("control", submatches)) => {
+                                        let arg = match submatches.subcommand() {
+                                            Some(("disable", _)) => {
+                                                hidio_capnp::node::pixel_setting::ControlArg::Disable
+                                            }
+                                            Some(("enable-pause", _)) => {
+                                                hidio_capnp::node::pixel_setting::ControlArg::EnableStart
+                                            }
+                                            Some(("enable-start", _)) => {
+                                                hidio_capnp::node::pixel_setting::ControlArg::EnablePause
+                                            }
+                                            _ => todo!(),
+                                        };
+                                        request.get().get_command().unwrap().set_control(arg);
+                                        hidio_capnp::node::pixel_setting::Command::Control
+                                    }
+                                    Some(("frame", submatches)) => {
+                                        let arg = match submatches.subcommand() {
+                                            Some(("next-frame", _)) => {
+                                                hidio_capnp::node::pixel_setting::FrameArg::NextFrame
+                                            }
+                                            _ => todo!(),
+                                        };
+                                        request.get().get_command().unwrap().set_frame(arg);
+                                        hidio_capnp::node::pixel_setting::Command::Frame
+                                    }
+                                    Some(("reset", submatches)) => {
+                                        let arg = match submatches.subcommand() {
+                                            Some(("hard-reset", _)) => {
+                                                hidio_capnp::node::pixel_setting::ResetArg::HardReset
+                                            }
+                                            Some(("soft-reset", _)) => {
+                                                hidio_capnp::node::pixel_setting::ResetArg::SoftReset
+                                            }
+                                            _ => todo!(),
+                                        };
+                                        request.get().get_command().unwrap().set_reset(arg);
+                                        hidio_capnp::node::pixel_setting::Command::Reset
+                                    }
+                                    _ => todo!(),
+                                };
+                                request.get().get_command().unwrap().set_command(command);
+
+                                match request.send().promise.await {
+                                    Ok(response) => response,
+                                    Err(e) => {
+                                        eprintln!("Setting command request failed: {}", e);
+                                        ::std::process::exit(1);
+                                    }
+                                }
+                            };
+                            if setting_resp
+                                .get()
+                                .unwrap()
+                                .get_status()
+                                .unwrap()
+                                .has_success()
+                            {
+                                println!("Setting command successful");
+                            }
+                        }
+                    }
+                    Some(("direct", submatches)) => {
+                        if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(
+                            node,
+                        )) = device.get_node().which()
+                        {
+                            let node = node?;
+
+                            // Retrieve arguments
+                            let start_address: u16 = *submatches
+                                .get_one::<u16>("START_ADDRESS")
+                                .expect("Required");
+                            let data: Vec<u8> = submatches
+                                .get_many::<u8>("DATA")
+                                .into_iter()
+                                .flatten()
+                                .map(|f| f.clone())
+                                .collect::<Vec<_>>();
+
+                            let direct_resp = {
+                                // Cast/transform keyboard node to a hidio node
+                                let mut request = hidio_capnp::node::Client {
+                                    client: node.client,
+                                }
+                                .pixel_set_request();
+
+                                request
+                                    .get()
+                                    .get_command()
+                                    .unwrap()
+                                    .set_type(hidio_capnp::node::pixel_set::Type::DirectSet);
+                                request
+                                    .get()
+                                    .get_command()
+                                    .unwrap()
+                                    .set_start_address(start_address);
+                                request
+                                    .get()
+                                    .get_command()
+                                    .unwrap()
+                                    .set_direct_set_data(&data);
+
+                                // Send command
+                                match request.send().promise.await {
+                                    Ok(response) => response,
+                                    Err(e) => {
+                                        eprintln!("Pixel Set request failed: {}", e);
+                                        ::std::process::exit(1);
+                                    }
+                                }
+                            };
+                            if direct_resp
+                                .get()
+                                .unwrap()
+                                .get_status()
+                                .unwrap()
+                                .has_success()
+                            {
+                                println!("Pixel Set: {}:{:?}", start_address, data);
+                            } else {
+                                println!("NAK: Pixel Set: {}:{:?} - FAILED", start_address, data);
+                            }
+                        }
+                    }
+                    _ => todo!(),
                 }
             }
             Some(("sleep", _)) => {

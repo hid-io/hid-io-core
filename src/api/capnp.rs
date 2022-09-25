@@ -902,7 +902,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 };
 
                 // Lookup command
-                let command = match params.get_cmd().unwrap().get_command().unwrap() {
+                let command = match params.get_command().unwrap().get_command().unwrap() {
                     hidio_capnp::node::manufacturing::Command::LedTestSequence => {
                         h0050::Command::LedTestSequence
                     }
@@ -913,7 +913,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         h0050::Command::HallEffectSensorTest
                     }
                 };
-                let argument = match params.get_cmd().unwrap().which().unwrap() {
+                let argument = match params.get_command().unwrap().which().unwrap() {
                     hidio_capnp::node::manufacturing::Which::LedTestSequence(val) => {
                         h0050::Argument {
                             led_test_sequence: match val.unwrap() {
