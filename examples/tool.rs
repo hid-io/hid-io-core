@@ -697,7 +697,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                 .get_many::<u8>("DATA")
                                 .into_iter()
                                 .flatten()
-                                .map(|f| f.clone())
+                                .copied()
                                 .collect::<Vec<_>>();
 
                             let direct_resp = {
