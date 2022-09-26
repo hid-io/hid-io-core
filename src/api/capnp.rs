@@ -977,6 +977,188 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
         }
     }
 
+    fn pixel_set(
+        &mut self,
+        params: hidio_capnp::node::PixelSetParams,
+        _results: hidio_capnp::node::PixelSetResults,
+    ) -> Promise<(), Error> {
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+        struct CommandInterface {
+            src: mailbox::Address,
+            dst: mailbox::Address,
+            mailbox: mailbox::Mailbox,
+        }
+        impl
+            Commands<
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+            > for CommandInterface
+        {
+            fn tx_packetbuffer_send(
+                &mut self,
+                buf: &mut mailbox::HidIoPacketBuffer,
+            ) -> Result<(), CommandError> {
+                if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                    src: self.src,
+                    dst: self.dst,
+                    data: buf.clone(),
+                })? {
+                    // Handle ack/nak
+                    self.rx_message_handling(rcvmsg.data)?;
+                }
+                Ok(())
+            }
+
+            fn h0026_directset_ack(&mut self, _data: h0026::Ack) -> Result<(), CommandError> {
+                Ok(())
+            }
+        }
+        let mut intf = CommandInterface {
+            src,
+            dst,
+            mailbox: self.mailbox.clone(),
+        };
+
+        let params = params.get().unwrap();
+        let start_address: u16 = params.get_command().unwrap().get_start_address();
+
+        match params.get_command().unwrap().get_type().unwrap() {
+            hidio_capnp::node::pixel_set::Type::DirectSet => {
+                let data = match heapless::Vec::from_slice(
+                    params.get_command().unwrap().get_direct_set_data().unwrap(),
+                ) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        return Promise::err(capnp::Error {
+                            kind: ::capnp::ErrorKind::Failed,
+                            description: format!("Error (pixel_set - directset - data): {:?}", e),
+                        });
+                    }
+                };
+                if let Err(e) = intf.h0026_directset(
+                    h0026::Cmd {
+                        start_address,
+                        data,
+                    },
+                    true,
+                ) {
+                    return Promise::err(capnp::Error {
+                        kind: ::capnp::ErrorKind::Failed,
+                        description: format!("Error (pixel_set - directset): {:?}", e),
+                    });
+                }
+            }
+        }
+
+        Promise::ok(())
+    }
+
+    fn pixel_setting(
+        &mut self,
+        params: hidio_capnp::node::PixelSettingParams,
+        _results: hidio_capnp::node::PixelSettingResults,
+    ) -> Promise<(), Error> {
+        let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
+        let dst = mailbox::Address::DeviceHidio { uid: self.uid };
+
+        struct CommandInterface {
+            src: mailbox::Address,
+            dst: mailbox::Address,
+            mailbox: mailbox::Mailbox,
+        }
+        impl
+            Commands<
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
+                { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
+                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+            > for CommandInterface
+        {
+            fn tx_packetbuffer_send(
+                &mut self,
+                buf: &mut mailbox::HidIoPacketBuffer,
+            ) -> Result<(), CommandError> {
+                if let Some(rcvmsg) = self.mailbox.try_send_message(mailbox::Message {
+                    src: self.src,
+                    dst: self.dst,
+                    data: buf.clone(),
+                })? {
+                    // Handle ack/nak
+                    self.rx_message_handling(rcvmsg.data)?;
+                }
+                Ok(())
+            }
+
+            fn h0021_pixelsetting_ack(&mut self, _data: h0021::Ack) -> Result<(), CommandError> {
+                Ok(())
+            }
+        }
+        let mut intf = CommandInterface {
+            src,
+            dst,
+            mailbox: self.mailbox.clone(),
+        };
+
+        let params = params.get().unwrap();
+        let command = match params.get_command().unwrap().get_command().unwrap() {
+            hidio_capnp::node::pixel_setting::Command::Control => h0021::Command::Control,
+            hidio_capnp::node::pixel_setting::Command::Reset => h0021::Command::Reset,
+            hidio_capnp::node::pixel_setting::Command::Clear => h0021::Command::Clear,
+            hidio_capnp::node::pixel_setting::Command::Frame => h0021::Command::Frame,
+        };
+        let argument = match params.get_command().unwrap().which().unwrap() {
+            hidio_capnp::node::pixel_setting::Which::Control(val) => h0021::Argument {
+                control: match val.unwrap() {
+                    hidio_capnp::node::pixel_setting::ControlArg::Disable => {
+                        h0021::args::Control::Disable
+                    }
+                    hidio_capnp::node::pixel_setting::ControlArg::EnableStart => {
+                        h0021::args::Control::EnableStart
+                    }
+                    hidio_capnp::node::pixel_setting::ControlArg::EnablePause => {
+                        h0021::args::Control::EnablePause
+                    }
+                },
+            },
+            hidio_capnp::node::pixel_setting::Which::Reset(val) => h0021::Argument {
+                reset: match val.unwrap() {
+                    hidio_capnp::node::pixel_setting::ResetArg::SoftReset => {
+                        h0021::args::Reset::SoftReset
+                    }
+                    hidio_capnp::node::pixel_setting::ResetArg::HardReset => {
+                        h0021::args::Reset::HardReset
+                    }
+                },
+            },
+            hidio_capnp::node::pixel_setting::Which::Clear(val) => h0021::Argument {
+                clear: match val.unwrap() {
+                    hidio_capnp::node::pixel_setting::ClearArg::Clear => h0021::args::Clear::Clear,
+                },
+            },
+            hidio_capnp::node::pixel_setting::Which::Frame(val) => h0021::Argument {
+                frame: match val.unwrap() {
+                    hidio_capnp::node::pixel_setting::FrameArg::NextFrame => {
+                        h0021::args::Frame::NextFrame
+                    }
+                },
+            },
+        };
+
+        if let Err(e) = intf.h0021_pixelsetting(h0021::Cmd { command, argument }, true) {
+            return Promise::err(capnp::Error {
+                kind: ::capnp::ErrorKind::Failed,
+                description: format!("Error (pixel_setting): {:?}", e),
+            });
+        }
+        Promise::ok(())
+    }
+
     fn info(
         &mut self,
         _params: hidio_capnp::node::InfoParams,
