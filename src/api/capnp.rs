@@ -980,7 +980,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
     fn pixel_set(
         &mut self,
         params: hidio_capnp::node::PixelSetParams,
-        _results: hidio_capnp::node::PixelSetResults,
+        mut results: hidio_capnp::node::PixelSetResults,
     ) -> Promise<(), Error> {
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::DeviceHidio { uid: self.uid };
@@ -1026,6 +1026,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
 
         let params = params.get().unwrap();
         let start_address: u16 = params.get_command().unwrap().get_start_address();
+        let status = results.get().init_status();
 
         match params.get_command().unwrap().get_type().unwrap() {
             hidio_capnp::node::pixel_set::Type::DirectSet => {
@@ -1034,10 +1035,9 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 ) {
                     Ok(data) => data,
                     Err(e) => {
-                        return Promise::err(capnp::Error {
-                            kind: ::capnp::ErrorKind::Failed,
-                            description: format!("Error (pixel_set - directset - data): {:?}", e),
-                        });
+                        error!("Error (pixel_set - directset - data): {:?}", e);
+                        status.init_error();
+                        return Promise::ok(());
                     }
                 };
                 if let Err(e) = intf.h0026_directset(
@@ -1047,21 +1047,21 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     },
                     true,
                 ) {
-                    return Promise::err(capnp::Error {
-                        kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (pixel_set - directset): {:?}", e),
-                    });
+                    error!("Error (pixel_set - directset): {:?}", e);
+                    status.init_error();
+                    return Promise::ok(());
                 }
             }
         }
 
+        status.init_success();
         Promise::ok(())
     }
 
     fn pixel_setting(
         &mut self,
         params: hidio_capnp::node::PixelSettingParams,
-        _results: hidio_capnp::node::PixelSettingResults,
+        mut results: hidio_capnp::node::PixelSettingResults,
     ) -> Promise<(), Error> {
         let src = mailbox::Address::ApiCapnp { uid: self.node.uid };
         let dst = mailbox::Address::DeviceHidio { uid: self.uid };
@@ -1150,12 +1150,13 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
             },
         };
 
+        let status = results.get().init_status();
         if let Err(e) = intf.h0021_pixelsetting(h0021::Cmd { command, argument }, true) {
-            return Promise::err(capnp::Error {
-                kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (pixel_setting): {:?}", e),
-            });
+            status.init_error();
+            error!("Error (pixel_setting): {:?}", e);
+            return Promise::ok(());
         }
+        status.init_success();
         Promise::ok(())
     }
 
@@ -2623,12 +2624,14 @@ async fn server_subscriptions(
 /// Supported Ids by this module
 pub fn supported_ids() -> Vec<HidIoCommandId> {
     vec![
+        HidIoCommandId::DirectSet,
         HidIoCommandId::FlashMode,
         HidIoCommandId::GetInfo,
         HidIoCommandId::HostMacro,
         HidIoCommandId::KllState,
         HidIoCommandId::ManufacturingResult,
         HidIoCommandId::ManufacturingTest,
+        HidIoCommandId::PixelSetting,
         HidIoCommandId::SleepMode,
         HidIoCommandId::SupportedIds,
         HidIoCommandId::TerminalCmd,

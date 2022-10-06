@@ -626,10 +626,10 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                                 hidio_capnp::node::pixel_setting::ControlArg::Disable
                                             }
                                             Some(("enable-pause", _)) => {
-                                                hidio_capnp::node::pixel_setting::ControlArg::EnableStart
+                                                hidio_capnp::node::pixel_setting::ControlArg::EnablePause
                                             }
                                             Some(("enable-start", _)) => {
-                                                hidio_capnp::node::pixel_setting::ControlArg::EnablePause
+                                                hidio_capnp::node::pixel_setting::ControlArg::EnableStart
                                             }
                                             _ => todo!(),
                                         };
@@ -690,14 +690,17 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                             let node = node?;
 
                             // Retrieve arguments
-                            let start_address: u16 = *submatches
-                                .get_one::<u16>("START_ADDRESS")
-                                .expect("Required");
+                            let start_address: u16 = u16::try_from(
+                                *submatches
+                                    .get_one::<u64>("START_ADDRESS")
+                                    .expect("Required"),
+                            )
+                            .unwrap();
                             let data: Vec<u8> = submatches
-                                .get_many::<u8>("DATA")
+                                .get_many::<u64>("DATA")
                                 .into_iter()
                                 .flatten()
-                                .copied()
+                                .map(|val| u8::try_from(*val).unwrap())
                                 .collect::<Vec<_>>();
 
                             let direct_resp = {

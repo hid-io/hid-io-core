@@ -1735,13 +1735,13 @@ pub trait Commands<
     }
     fn h001a_sleepmode_ack(&mut self, _data: h001a::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::FlashMode,
+            HidIoCommandId::SleepMode,
             HidIoPacketType::Ack,
         ))
     }
     fn h001a_sleepmode_nak(&mut self, _data: h001a::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::FlashMode,
+            HidIoCommandId::SleepMode,
             HidIoPacketType::Nak,
         ))
     }
@@ -1800,19 +1800,19 @@ pub trait Commands<
     }
     fn h0020_klltrigger_nacmd(&mut self, _data: h0020::Cmd) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::KllState,
             HidIoPacketType::NaData,
         ))
     }
     fn h0020_klltrigger_ack(&mut self, _data: h0020::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::KllState,
             HidIoPacketType::Ack,
         ))
     }
     fn h0020_klltrigger_nak(&mut self, _data: h0020::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::KllState,
             HidIoPacketType::Nak,
         ))
     }
@@ -1876,19 +1876,19 @@ pub trait Commands<
     }
     fn h0021_pixelsetting_nacmd(&mut self, _data: h0021::Cmd) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::PixelSetting,
             HidIoPacketType::NaData,
         ))
     }
     fn h0021_pixelsetting_ack(&mut self, _data: h0021::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::PixelSetting,
             HidIoPacketType::Ack,
         ))
     }
     fn h0021_pixelsetting_nak(&mut self, _data: h0021::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::PixelSetting,
             HidIoPacketType::Nak,
         ))
     }
@@ -1967,19 +1967,19 @@ pub trait Commands<
     }
     fn h0026_directset_nacmd(&mut self, _data: h0026::Cmd<HSUB2>) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::DirectSet,
             HidIoPacketType::NaData,
         ))
     }
     fn h0026_directset_ack(&mut self, _data: h0026::Ack) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::DirectSet,
             HidIoPacketType::Ack,
         ))
     }
     fn h0026_directset_nak(&mut self, _data: h0026::Nak) -> Result<(), CommandError> {
         Err(CommandError::IdNotImplemented(
-            HidIoCommandId::UnicodeState,
+            HidIoCommandId::DirectSet,
             HidIoPacketType::Nak,
         ))
     }
