@@ -1,4 +1,4 @@
-# hid-io core
+# hid-io-core
 
 [![Linux Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20Linux/badge.svg)](https://github.com/hid-io/hid-io-core/actions)
 [![macOS Status](https://github.com/hid-io/hid-io-core/workflows/Rust%20macOS/badge.svg)](https://github.com/hid-io/hid-io-core/actions)

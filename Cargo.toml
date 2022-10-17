@@ -17,6 +17,7 @@ default-run   = "hid-io-core"
 
 [workspace]
 members = [
+  "hid-io-client",
   "hid-io-protocol",
 ]
 

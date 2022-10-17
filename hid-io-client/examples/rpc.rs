@@ -1,69 +1,36 @@
-#![cfg(feature = "api")]
 /* Copyright (C) 2019-2022 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
- * This file is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * This file is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * You should have received a copy of the GNU General Public License
- * along with this file.  If not, see <http://www.gnu.org/licenses/>.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  */
 
 extern crate tokio;
 
 use capnp::capability::Promise;
-use capnp_rpc::{pry, rpc_twoparty_capnp, twoparty, RpcSystem};
-use futures::{AsyncReadExt, FutureExt};
+use capnp_rpc::pry;
 use hid_io_core::common_capnp::NodeType;
 use hid_io_core::hidio_capnp;
-use hid_io_core::hidio_capnp::hid_io_server;
 use hid_io_core::keyboard_capnp;
+use hid_io_core::logging::setup_logging_lite;
 use rand::Rng;
-use std::fs;
 use std::io::Read;
 use std::io::Write;
-use std::net::ToSocketAddrs;
-use std::sync::Arc;
-use tokio_rustls::{rustls::ClientConfig, TlsConnector};
-
-const LISTEN_ADDR: &str = "localhost:7185";
-
-mod danger {
-    use std::time::SystemTime;
-    use tokio_rustls::rustls::{Certificate, ServerName};
-
-    pub struct NoCertificateVerification {}
-
-    impl rustls::client::ServerCertVerifier for NoCertificateVerification {
-        fn verify_server_cert(
-            &self,
-            _end_entity: &Certificate,
-            _intermediates: &[Certificate],
-            _server_name: &ServerName,
-            _scts: &mut dyn Iterator<Item = &[u8]>,
-            _ocsp_response: &[u8],
-            _now: SystemTime,
-        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
-            Ok(rustls::client::ServerCertVerified::assertion())
-        }
-    }
-}
-
-fn format_node(node: hid_io_core::common_capnp::destination::Reader<'_>) -> String {
-    format!(
-        "{}: {} ({})",
-        node.get_type().unwrap(),
-        node.get_name().unwrap_or(""),
-        node.get_serial().unwrap_or(""),
-    )
-}
 
 #[derive(Default)]
 pub struct KeyboardSubscriberImpl {
@@ -167,104 +134,34 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
 
 #[tokio::main]
 pub async fn main() -> Result<(), ::capnp::Error> {
+    setup_logging_lite().ok();
     tokio::task::LocalSet::new().run_until(try_main()).await
 }
 
 async fn try_main() -> Result<(), ::capnp::Error> {
-    let addr = LISTEN_ADDR
-        .to_socket_addrs()?
-        .next()
-        .expect("could not parse address");
-    println!("Connecting to {}", addr);
-
-    let config = ClientConfig::builder()
-        .with_safe_defaults()
-        .with_custom_certificate_verifier(Arc::new(danger::NoCertificateVerification {}))
-        .with_no_client_auth();
-    let connector = TlsConnector::from(Arc::new(config));
-
-    let domain = rustls::ServerName::try_from("localhost").unwrap();
+    // Prepare hid-io-core connection
+    let mut hidio_conn = hid_io_client::HidioConnection::new().unwrap();
+    let mut rng = rand::thread_rng();
 
     // Serial is used for automatic reconnection if hid-io goes away and comes back
     let mut serial = "".to_string();
 
     loop {
-        let stream = match tokio::net::TcpStream::connect(&addr).await {
-            Ok(stream) => stream,
-            Err(e) => {
-                println!("Failed to connect ({}): {}", addr, e);
-                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-                continue;
-            }
-        };
-        stream.set_nodelay(true)?;
-        let stream = connector.connect(domain.clone(), stream).await?;
-
-        let (reader, writer) = tokio_util::compat::TokioAsyncReadCompatExt::compat(stream).split();
-
-        let network = Box::new(twoparty::VatNetwork::new(
-            reader,
-            writer,
-            rpc_twoparty_capnp::Side::Client,
-            Default::default(),
-        ));
-        let mut rpc_system = RpcSystem::new(network, None);
-        let hidio_server: hid_io_server::Client =
-            rpc_system.bootstrap(rpc_twoparty_capnp::Side::Server);
-
-        let _rpc_disconnector = rpc_system.get_disconnector();
-        tokio::task::spawn_local(Box::pin(rpc_system.map(|_| ())));
-
-        // Display server version information
-        let request = hidio_server.version_request();
-        let response = request.send().promise.await?;
-        let value = response.get().unwrap().get_version().unwrap();
-        println!("Version:    {}", value.get_version().unwrap());
-        println!("Buildtime:  {}", value.get_buildtime().unwrap());
-        println!("Serverarch: {}", value.get_serverarch().unwrap());
-        println!("Compiler:   {}", value.get_compilerversion().unwrap());
-
-        // Lookup key location
-        let auth_key_file = {
-            let request = hidio_server.key_request();
-            let response = request.send().promise.await?;
-            let value = response.get().unwrap().get_key().unwrap();
-            value.get_auth_key_path().unwrap().to_string()
-        };
-        println!("Key Path:   {}", auth_key_file);
-
-        // Lookup key
-        let auth_key = fs::read_to_string(auth_key_file)?;
-        println!("Key:        {}", auth_key);
-
-        // Lookup uid
-        let uid = {
-            let request = hidio_server.id_request();
-            let response = request.send().promise.await?;
-            let value = response.get().unwrap().get_id();
-            value
-        };
-        println!("Id:         {}", uid);
-
-        // Make authentication request
-        let hidio = {
-            let mut request = hidio_server.auth_request();
-            let mut info = request.get().get_info()?;
-            let mut rng = rand::thread_rng();
-            info.set_type(NodeType::HidioApi);
-            info.set_name("RPC Test");
-            info.set_serial(&format!(
-                "{:x} - pid:{}",
-                rng.gen::<u64>(),
-                std::process::id()
-            ));
-            info.set_id(uid);
-            request.get().set_key(&auth_key);
-            request.send().pipeline.get_port()
-        };
+        // Connect and authenticate with hid-io-core
+        let (hidio_auth, _hidio_server) = hidio_conn
+            .connect(
+                hid_io_client::AuthType::Priviledged,
+                NodeType::HidioApi,
+                "RPC Test".to_string(),
+                format!("{:x} - pid:{}", rng.gen::<u64>(), std::process::id()),
+                true,
+                std::time::Duration::from_millis(1000),
+            )
+            .await?;
+        let hidio_auth = hidio_auth.expect("Could not authenticate to hid-io-core");
 
         let nodes_resp = {
-            let request = hidio.nodes_request();
+            let request = hidio_auth.nodes_request();
             request.send().promise.await.unwrap()
         };
         let nodes = nodes_resp.get()?.get_nodes()?;
@@ -282,7 +179,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                 // First attempt to match serial number
                 if !serial.is_empty() && serial_matched.len() == 1 {
                     let n = serial_matched[0];
-                    println!("Re-registering to {}", format_node(n));
+                    println!("Re-registering to {}", hid_io_client::format_node(n));
                     id = n.get_id();
                 } else {
                     let keyboards: Vec<_> = nodes
@@ -296,13 +193,13 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     // Next, if serial number is unset and there is only one keyboard, automatically attach
                     if serial.is_empty() && keyboards.len() == 1 {
                         let n = keyboards[0];
-                        println!("Registering to {}", format_node(n));
+                        println!("Registering to {}", hid_io_client::format_node(n));
                         id = n.get_id();
                     // Otherwise display a list of keyboard nodes
                     } else {
                         println!();
                         for n in keyboards {
-                            println!(" * {} - {}", n.get_id(), format_node(n));
+                            println!(" * {} - {}", n.get_id(), hid_io_client::format_node(n));
                         }
 
                         print!("Please choose a device: ");
@@ -419,8 +316,4 @@ async fn try_main() -> Result<(), ::capnp::Error> {
             }
         }
     }
-    /*
-    _rpc_disconnector.await?;
-    Ok(())
-    */
 }

@@ -76,7 +76,7 @@ pub mod keyboard_capnp {
 
 // ----- Functions -----
 
-use hid_io_protocol::HidIoCommandId;
+pub use hid_io_protocol::HidIoCommandId;
 use lazy_static::lazy_static;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
