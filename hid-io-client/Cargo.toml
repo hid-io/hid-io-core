@@ -1,0 +1,32 @@
+[package]
+name          = "hid-io-client"
+version       = "0.1.0"
+authors       = ["Jacob Alexander <haata@kiibohd.com>"]
+license       = "MIT OR Apache-2.0"
+description   = """
+HID-IO Client application for hid-io-core.
+"""
+
+homepage      = "https://github.com/hid-io/hid-io-core"
+repository    = "https://github.com/hid-io/hid-io-core"
+edition       = "2021"
+
+
+[lib]
+name = "hid_io_client"
+
+
+[dependencies]
+capnp        = { version = "0.14" }
+capnp-rpc    = { version = "0.14" }
+futures      = { version = "0.3" }
+hid-io-core  = { path = ".." }
+log          = { version = "0.4" }
+rand         = "0.8"
+rustls       = { version = "0.20", features = ["dangerous_configuration"] }
+tokio        = { version = "1.18", features = ["net", "rt-multi-thread", "macros", "sync", "time"] }
+tokio-rustls = { version = "0.23" }
+tokio-util   = { version = "0.7", features = ["compat"] }
+
+[dev-dependencies]
+clap         = "3.1"

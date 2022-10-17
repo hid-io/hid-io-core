@@ -226,7 +226,7 @@ impl hidio_capnp::hid_io_server::Server for HidIoServerImpl {
         if key != self.basic_key {
             return Promise::err(Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: "Authentication denied".to_string(),
+                description: "Authentication denied (basic)".to_string(),
             });
         }
 
@@ -254,7 +254,7 @@ impl hidio_capnp::hid_io_server::Server for HidIoServerImpl {
         if key != self.auth_key {
             return Promise::err(Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: "Authentication denied".to_string(),
+                description: "Authentication denied (auth)".to_string(),
             });
         }
 
