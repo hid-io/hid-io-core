@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 cython = "*"
-pycapnp = "==1.0.0"
+pycapnp = ">=1.2.1"
 pytest = "*"
 pygtail = "*"
 
@@ -13,4 +13,4 @@ pygtail = "*"
 flit = "*"
 
 [requires]
-python_version = "3.7"
+python_version = ">=3.7"
