@@ -5,10 +5,10 @@ more-itertools==8.0.2
 packaging==20.0
 pluggy==0.13.1
 py==1.10.0
-pycapnp==1.0.0
+pycapnp==1.2.1
 pygtail==0.11.1
 pyparsing==2.4.6
-pytest==5.3.2
+pytest==7.2.0
 six==1.13.0
 wcwidth==0.1.8
 zipp==0.6.0
