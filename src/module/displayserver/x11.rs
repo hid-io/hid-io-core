@@ -156,7 +156,7 @@ impl XConnection {
         if elapsed_ms > self.pending_delays {
             self.pending_delays = 0; // Safe to send the event immediately
         } else {
-            self.pending_delays -= elapsed_ms as i64 - 1; // Add a 1ms delay
+            self.pending_delays -= elapsed_ms - 1; // Add a 1ms delay
         }
     }
 

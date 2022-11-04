@@ -328,7 +328,7 @@ pub fn packet_id(packet_data: &[u8]) -> Result<u32, HidIoParseError> {
     // Iterate over bytes, constructing Id of either 16 or 32 bit width
     let mut id: u32 = 0;
     let offset = 2;
-    for idx in 0..id_width as usize {
+    for idx in 0..id_width {
         id |= u32::from(packet_data[offset + idx]) << (idx * 8);
     }
 
@@ -386,7 +386,7 @@ pub fn payload_start(packet_data: &[u8]) -> Result<usize, HidIoParseError> {
     }
 
     // Determine starting position
-    Ok(2 + id_width as usize)
+    Ok(2 + id_width)
 }
 
 // ----- Command Utility Functions -----

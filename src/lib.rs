@@ -23,6 +23,8 @@ extern crate log;
 
 use std::sync::atomic::Ordering;
 
+pub use tokio;
+
 // ----- Modules -----
 
 /// capnp interface for other programs to hook into
