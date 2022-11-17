@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.1.3 (2022-11-17)
 
+<csr-id-7fc1f117f4d060368aac0b26e232bfab123009ce/>
+
 ### Other
 
  - <csr-id-7fc1f117f4d060368aac0b26e232bfab123009ce/> Fix links
@@ -15,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 59 commits contributed to the release over the course of 663 calendar days.
+ - 61 commits contributed to the release over the course of 663 calendar days.
  - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -26,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Initial CHANGELOG.md ([`96b2f8f`](https://github.com/hid-io/hid-io-core/commit/96b2f8f3533bb53fd6ca3285b24723698132b7aa))
+    - Release hid-io-protocol v0.1.3 ([`e4579ca`](https://github.com/hid-io/hid-io-core/commit/e4579cad3b2b408c9c22e4b2ee9d99832fffefd5))
     - Add tokio as a public crate for easier library importing ([`3f9862b`](https://github.com/hid-io/hid-io-core/commit/3f9862b8d3429142658fbdbe1b885894a5cd9ceb))
     - Fixes for PixelSetting and DirectSet capnp rpc ([`5394d79`](https://github.com/hid-io/hid-io-core/commit/5394d79da0b9fbc4a56bc104ca468e992be1241e))
     - Small name cleanup ([`44698c1`](https://github.com/hid-io/hid-io-core/commit/44698c12bd4ac48a59aef6b4c4532d296493ea21))
