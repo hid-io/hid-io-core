@@ -1279,8 +1279,8 @@ mod test {
 
         // Make sure device is there (will poll for a while just in case uhid/kernel is slow)
         let device = match udev_find_input_event_device(
-            vhid::IC_VID as u16,
-            vhid::IC_PID_KEYBOARD as u16,
+            vhid::IC_VID,
+            vhid::IC_PID_KEYBOARD,
             "input".to_string(),
             uniq,
             std::time::Duration::new(10, 0),
