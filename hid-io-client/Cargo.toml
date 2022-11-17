@@ -4,7 +4,7 @@ version       = "0.1.0"
 authors       = ["Jacob Alexander <haata@kiibohd.com>"]
 license       = "MIT OR Apache-2.0"
 description   = """
-HID-IO Client application for hid-io-core.
+HID-IO Client library for hid-io-core.
 """
 
 homepage      = "https://github.com/hid-io/hid-io-core"
