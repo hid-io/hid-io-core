@@ -127,6 +127,10 @@ version = "1"
 features = ["prepush-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test"]
 
 
+[package.metadata.cargo-udeps.ignore]
+development = ["cargo-husky"]
+
+
 [target.'cfg(target_os = "linux")'.dependencies]
 evdev-rs             = { version = "0.5", optional = true }
 memmap2              = { version = "^0.5", optional = true }

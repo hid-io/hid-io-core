@@ -35,7 +35,6 @@ defmt = ["dep:defmt", "heapless/defmt-impl", "kll-core/defmt"]
 
 
 [dependencies]
-arraydeque      = { version = "0.4", default-features = false }
 defmt           = { version = "0.3", optional = true }
 heapless        = { version = "0.7" }
 kll-core        = { version = "0.1" }

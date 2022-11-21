@@ -29,3 +29,39 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: actions-rust-lang/audit@v1
         name: Audit Rust Dependencies
+
+  deny:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: cargo-binstall
+        run: |
+          mkdir -p ~/.cargo/bin
+          wget https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
+          tar xf cargo-binstall*.tgz -C ~/.cargo/bin
+      - run: cargo binstall --no-confirm cargo-deny
+      - name: Cargo Deny
+        run: cargo deny check licenses
+
+  pants:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: cargo-binstall
+        run: |
+          mkdir -p ~/.cargo/bin
+          wget https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
+          tar xf cargo-binstall*.tgz -C ~/.cargo/bin
+      - run: cargo binstall --no-confirm cargo-pants
+      - name: Cargo Pants
+        run: cargo pants

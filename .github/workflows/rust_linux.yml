@@ -149,3 +149,20 @@ jobs:
           sudo apt-get install -y ${{ env.deb_packages }}
       - name: Cargo Clippy
         run: cargo clippy --all-targets -- -D warnings
+
+  udeps:
+    name: cargo-udeps
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: cargo-binstall
+        run: |
+          mkdir -p ~/.cargo/bin
+          wget https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-unknown-linux-musl.tgz
+          tar xf cargo-binstall*.tgz -C ~/.cargo/bin
+      - run: cargo binstall --no-confirm cargo-udeps
+      - name: Cargo Udeps
+        run: cargo udeps --all-targets
