@@ -10,11 +10,8 @@ jobs:
       matrix:
         python-version: [3.7]
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v1
         with:
@@ -23,9 +20,8 @@ jobs:
         run: |
           brew install capnp
           python -m pip install --upgrade pip
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - name: Cargo Test
+        run: cargo test --all
       - name: Install pycapnp dependencies and run test
         working-directory: ./python
         run: |
@@ -37,18 +33,13 @@ jobs:
     name: Build
     runs-on: macOS-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Install dependencies
         run: |
           brew install capnp
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: --path . --bins --examples --root dist
+      - name: Cargo Install
+        run: cargo install --path . --bins --examples --root dist
       - uses: actions/upload-artifact@v1.0.0
         with:
           name: macos_release_binaries

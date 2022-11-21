@@ -25,18 +25,14 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ${{ env.deb_packages }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - name: Cargo Check
+        run: cargo check --all
 
   test:
     name: Test Suite
@@ -45,11 +41,8 @@ jobs:
       matrix:
         python-version: [3.7]
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v1
         with:
@@ -59,10 +52,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ${{ env.deb_packages }}
           python -m pip install --upgrade pip
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all
+      - name: Cargo Test
+        run: cargo test --all
       - name: Lint with flake8
         working-directory: ./python
         run: |
@@ -80,23 +71,16 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ${{ env.deb_packages }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all
-      - uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: --path . --bins --examples --root dist
+      - name: Cargo Build
+        run: cargo build --all
+      - name: Cargo Install
+        run: cargo install --path . --bins --examples --root dist
       - uses: actions/upload-artifact@v1.0.0
         with:
           name: linux_release_binaries
@@ -106,82 +90,62 @@ jobs:
     name: Lib Build (hidapi)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ${{ env.deb_packages }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --no-default-features --features "hidapi-devices"
+      - name: Cargo Build
+        run: cargo build --no-default-features --features "hidapi-devices"
 
   mingw_w64build:
     name: mingw-w64 Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
-          override: true
+          targets: x86_64-pc-windows-gnu
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ${{ env.deb_packages }}
           sudo apt-get install -y ${{ env.mingw_w64_packages }}
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - name: Cargo Test
+        run: cargo test --all --target x86_64-pc-windows-gnu
 
   hid-io-protocol_builddevice:
     name: hid-io-protocol Device Build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --manifest-path hid-io-protocol/Cargo.toml --no-default-features --features device --release
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Cargo Build
+        run: cargo build --manifest-path hid-io-protocol/Cargo.toml --no-default-features --features device --release
 
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+          componets: rustfmt
+      - name: Rustfmt Check
+        uses: actions-rust-lang/rustfmt@v1
 
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          toolchain: nightly
-          override: true
+          componets: clippy
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y ${{ env.deb_packages }}
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets -- -D warnings
+      - name: Cargo Clippy
+        run: cargo clippy --all-targets -- -D warnings
