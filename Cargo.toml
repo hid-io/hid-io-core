@@ -125,7 +125,7 @@ webpki          = "0.22"
 
 [dev-dependencies.cargo-husky]
 version = "1"
-features = ["prepush-hook", "run-cargo-fmt", "run-cargo-clippy", "run-cargo-test"]
+features = ["prepush-hook", "run-cargo-fmt"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
