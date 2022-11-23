@@ -58,11 +58,11 @@ displayserver = [
   "memmap2",
   "tempfile",
   "wayland-client",
+  "wayland-protocols-misc",
   "winapi",
   "winreg",
   "x11",
   "xkbcommon",
-  "zwp-virtual-keyboard",
 ]
 # hidapi_devices allows for communication directly with hid-io supported devices
 # This should be enabled in most scenarios unless you know what you are doing.
@@ -95,7 +95,7 @@ capnp-rpc       = { version = "0.14", optional = true }
 clap            = "3.1"
 ctrlc           = "3.2"
 lazy_static     = "1.4"
-flexi_logger    = { version = "0.22", features = ["use_chrono_for_offset"] }
+flexi_logger    = { version = "0.24" }
 futures         = { version = "0.3", optional = true }
 futures-util    = { version = "0.3", optional = true }
 glob            = { version = "0.3", optional = true }
@@ -132,14 +132,14 @@ development = ["cargo-husky"]
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
-evdev-rs             = { version = "0.5", optional = true }
-memmap2              = { version = "^0.5", optional = true }
-udev                 = { version = "^0.6", optional = true }
-uhid-virt            = { version = "0.0.5", optional = true, git = "https://github.com/haata/uhid-virt.git" }
-wayland-client       = { version = "0.29", optional = true, features = ["use_system_lib"] }
-xkbcommon            = { version = "^0.5.0-beta", optional = true, features = ["x11"] }
-x11                  = { version = "^2.19", optional = true }
-zwp-virtual-keyboard = { version = "0.2", optional = true }
+evdev-rs               = { version = "0.5", optional = true }
+memmap2                = { version = "^0.5", optional = true }
+udev                   = { version = "^0.6", optional = true }
+uhid-virt              = { version = "0.0.5", optional = true, git = "https://github.com/haata/uhid-virt.git" }
+wayland-client         = { version = "0.30.0-beta.13", optional = true }
+wayland-protocols-misc = { version = "0.1.0-beta.13", optional = true, features = ["client"] }
+xkbcommon              = { version = "^0.5.0-beta", optional = true, features = ["x11"] }
+x11                    = { version = "^2.19", optional = true }
 
 
 [target.'cfg(windows)'.dependencies]

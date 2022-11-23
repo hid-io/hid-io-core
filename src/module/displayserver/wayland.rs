@@ -23,9 +23,12 @@ use std::os::unix::io::IntoRawFd;
 use std::time::Instant;
 use tempfile::tempfile;
 
-use wayland_client::{protocol::wl_seat::WlSeat, Display, EventQueue, GlobalManager, Main};
-use zwp_virtual_keyboard::virtual_keyboard_unstable_v1::zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1;
-use zwp_virtual_keyboard::virtual_keyboard_unstable_v1::zwp_virtual_keyboard_v1::ZwpVirtualKeyboardV1;
+use wayland_client::{
+    protocol::{wl_registry, wl_seat},
+    Connection, Dispatch, EventQueue, QueueHandle,
+};
+use wayland_protocols_misc::zwp_virtual_keyboard_v1::client::zwp_virtual_keyboard_manager_v1;
+use wayland_protocols_misc::zwp_virtual_keyboard_v1::client::zwp_virtual_keyboard_v1;
 
 pub struct Key {
     pub keysym: xkbcommon::xkb::Keysym,
@@ -48,12 +51,12 @@ pub struct Keymap {
     base_time: std::time::Instant,
     keysym_lookup: HashMap<char, Key>, // UTF-8 -> (keysym, keycode, refcount)
     unused_keycodes: VecDeque<u32>,    // Used to keep track of unused keycodes
-    virtual_keyboard: Main<ZwpVirtualKeyboardV1>,
+    virtual_keyboard: zwp_virtual_keyboard_v1::ZwpVirtualKeyboardV1,
 }
 
 impl Keymap {
     pub fn new(
-        virtual_keyboard: Main<ZwpVirtualKeyboardV1>,
+        virtual_keyboard: zwp_virtual_keyboard_v1::ZwpVirtualKeyboardV1,
         automatic_layout_regen: bool,
     ) -> Keymap {
         let keysym_lookup = HashMap::new();
@@ -198,7 +201,7 @@ impl Keymap {
         // Allocate space in the file first
         keymap_file.seek(SeekFrom::Start(keymap_size_u64)).unwrap();
         keymap_file.write_all(&[0]).unwrap();
-        keymap_file.seek(SeekFrom::Start(0)).unwrap();
+        keymap_file.rewind().unwrap();
         let mut data = unsafe {
             memmap2::MmapOptions::new()
                 .map_mut(&keymap_file)
@@ -376,13 +379,9 @@ impl Keymap {
         };
         debug!("time:{} keycode:{}:{} state:{}", time, c, keycode, state);
 
-        // Prepare key event message
-        if self.virtual_keyboard.as_ref().is_alive() {
-            self.virtual_keyboard.key(time, keycode, state);
-            Ok(())
-        } else {
-            Err(DisplayOutputError::LostConnection)
-        }
+        // Send key event message
+        self.virtual_keyboard.key(time, keycode, state);
+        Ok(())
     }
 
     /// Press then release a specific UTF-8 symbol
@@ -400,22 +399,114 @@ impl Keymap {
         };
         debug!("time:{} keycode:{}:{}", time, c, keycode);
 
-        // Prepare key event message
-        if self.virtual_keyboard.as_ref().is_alive() {
-            self.virtual_keyboard.key(time, keycode, 1);
-            self.virtual_keyboard.key(time, keycode, 0);
-            Ok(())
-        } else {
-            Err(DisplayOutputError::LostConnection)
-        }
+        // Send key event message
+        self.virtual_keyboard.key(time, keycode, 1);
+        self.virtual_keyboard.key(time, keycode, 0);
+        Ok(())
     }
 }
 
 pub struct WaylandConnection {
-    _display: Display,
-    event_queue: EventQueue,
+    _conn: Connection,
+    event_queue: EventQueue<VirtKbdState>,
+    state: VirtKbdState,
     held: Vec<char>,
     keymap: Keymap,
+}
+
+struct VirtKbdState {
+    keyboard_manager: Option<zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1>,
+    seat: Option<wl_seat::WlSeat>,
+}
+
+impl VirtKbdState {
+    fn new() -> Self {
+        Self {
+            keyboard_manager: None,
+            seat: None,
+        }
+    }
+}
+
+impl Dispatch<wl_registry::WlRegistry, ()> for VirtKbdState {
+    fn event(
+        state: &mut Self,
+        registry: &wl_registry::WlRegistry,
+        event: wl_registry::Event,
+        _: &(),
+        _: &Connection,
+        qh: &QueueHandle<Self>,
+    ) {
+        // When receiving events from the wl_registry, we are only interested in the
+        // `global` event, which signals a new available global.
+        // When receiving this event, we just print its characteristics in this example.
+        if let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        {
+            trace!("[{}] {} (v{})", name, interface, version);
+
+            match &interface[..] {
+                "wl_seat" => {
+                    // Setup seat for keyboard
+                    let seat = registry.bind::<wl_seat::WlSeat, _, _>(name, 1, qh, ());
+                    state.seat = Some(seat);
+                }
+                "zwp_virtual_keyboard_manager_v1" => {
+                    let manager = registry
+                        .bind::<zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1, _, _>(
+                        name,
+                        1,
+                        qh,
+                        (),
+                    );
+                    state.keyboard_manager = Some(manager);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+impl Dispatch<zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1, ()> for VirtKbdState {
+    fn event(
+        _state: &mut Self,
+        _manager: &zwp_virtual_keyboard_manager_v1::ZwpVirtualKeyboardManagerV1,
+        event: zwp_virtual_keyboard_manager_v1::Event,
+        _: &(),
+        _: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        info!("Got a virtual keyboard manager event {:?}", event);
+    }
+}
+
+impl Dispatch<zwp_virtual_keyboard_v1::ZwpVirtualKeyboardV1, ()> for VirtKbdState {
+    fn event(
+        _state: &mut Self,
+        _manager: &zwp_virtual_keyboard_v1::ZwpVirtualKeyboardV1,
+        event: zwp_virtual_keyboard_v1::Event,
+        _: &(),
+        _: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        info!("Got a virtual keyboard event {:?}", event);
+    }
+}
+
+impl Dispatch<wl_seat::WlSeat, ()> for VirtKbdState {
+    fn event(
+        _: &mut Self,
+        _: &wl_seat::WlSeat,
+        event: wl_seat::Event,
+        _: &(),
+        _: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        info!("Got a seat event {:?}", event);
+    }
 }
 
 impl WaylandConnection {
@@ -423,11 +514,11 @@ impl WaylandConnection {
         let held = Vec::new();
 
         // Setup Wayland Connection
-        let display = Display::connect_to_env().or_else(|_| Display::connect_to_name("wayland-0"));
+        let conn = Connection::connect_to_env();
 
         // Make sure we made a connection
-        let display = match display {
-            Ok(display) => display,
+        let conn = match conn {
+            Ok(conn) => conn,
             Err(e) => {
                 error!("Failed to connect to Wayland");
                 return Err(DisplayOutputError::Connection(e.to_string()));
@@ -435,7 +526,7 @@ impl WaylandConnection {
         };
 
         // Check to see if there was an error trying to connect
-        if let Some(err) = display.protocol_error() {
+        if let Some(err) = conn.protocol_error() {
             error!(
                 "Unknown Wayland initialization failure: {} {} {} {}",
                 err.code, err.object_id, err.object_interface, err.message
@@ -444,51 +535,31 @@ impl WaylandConnection {
         }
 
         // Create the event queue
-        let mut event_queue = display.create_event_queue();
-        // Attach the display
-        let attached_display = display.attach(event_queue.token());
-        // Setup global manager
-        let global_mgr = GlobalManager::new(&attached_display);
+        let mut event_queue = conn.new_event_queue();
+        // Get queue handle
+        let qh = event_queue.handle();
 
-        // Pump async message processing
-        let res = event_queue.sync_roundtrip(&mut (), |event, object, _| {
-            trace!("{:?} {:?}", event, object);
-        });
-        if res.is_err() {
-            return Err(DisplayOutputError::General(
-                "Failed to process initial Wayland message queue".to_string(),
-            ));
-        }
+        // Start registry
+        let display = conn.display();
+        display.get_registry(&qh, ());
 
-        // Setup seat for keyboard
-        let seat = if let Ok(seat) = global_mgr.instantiate_exact::<WlSeat>(7) {
-            let seat: WlSeat = WlSeat::from(seat.as_ref().clone());
-            seat
-        } else {
-            return Err(DisplayOutputError::General(
-                "Failed to initialize seat".to_string(),
-            ));
-        };
-
-        // Setup virtual keyboard manager
-        let vk_mgr = if let Ok(mgr) = global_mgr.instantiate_exact::<ZwpVirtualKeyboardManagerV1>(1)
-        {
-            mgr
-        } else {
-            return Err(DisplayOutputError::General(
-                "Your compositor does not understand the virtual_keyboard protocol!".to_string(),
-            ));
-        };
+        // Dispatch events so we can setup a virtual keyboard
+        // This requires a wl_seat and zwp_virtual_keyboard_manager_v1
+        let mut state = VirtKbdState::new();
+        event_queue.roundtrip(&mut state).unwrap();
 
         // Setup Virtual Keyboard
-        let virtual_keyboard = vk_mgr.create_virtual_keyboard(&seat);
+        let seat = state.seat.as_ref().unwrap();
+        let vk_mgr = state.keyboard_manager.as_ref().unwrap();
+        let virtual_keyboard = vk_mgr.create_virtual_keyboard(seat, &qh, ());
 
         // Setup Keymap
         let keymap = Keymap::new(virtual_keyboard, true);
 
         Ok(WaylandConnection {
-            _display: display,
+            _conn: conn,
             event_queue,
+            state,
             held,
             keymap,
         })
@@ -528,11 +599,7 @@ impl DisplayOutput for WaylandConnection {
         }
 
         // Pump event queue
-        self.event_queue
-            .sync_roundtrip(&mut (), |event, object, _| {
-                trace!("{:?} {:?}", event, object)
-            })
-            .unwrap();
+        self.event_queue.roundtrip(&mut self.state).unwrap();
 
         // Deallocate keysyms in virtual keyboard layout
         self.keymap.add(string.chars())?;
@@ -585,11 +652,7 @@ impl DisplayOutput for WaylandConnection {
         }
 
         // Pump event queue
-        self.event_queue
-            .sync_roundtrip(&mut (), |event, object, _| {
-                trace!("{:?} {:?}", event, object)
-            })
-            .unwrap();
+        self.event_queue.roundtrip(&mut self.state).unwrap();
         Ok(())
     }
 }
@@ -608,12 +671,18 @@ mod test {
         setup_logging_lite().ok();
 
         // Setup Wayland Connection
-        let display = Display::connect_to_env()
-            .or_else(|_| Display::connect_to_name("wayland-0"))
-            .unwrap();
+        let conn = Connection::connect_to_env();
+
+        // Make sure we made a connection
+        let conn = match conn {
+            Ok(conn) => conn,
+            Err(e) => {
+                panic!("Failed to connect to Wayland {}", e);
+            }
+        };
 
         // Check to see if there was an error trying to connect
-        if let Some(err) = display.protocol_error() {
+        if let Some(err) = conn.protocol_error() {
             panic!(
                 "Unknown Wayland initialization failure: {} {} {} {}",
                 err.code, err.object_id, err.object_interface, err.message
@@ -621,36 +690,23 @@ mod test {
         }
 
         // Create the event queue
-        let mut event_queue = display.create_event_queue();
+        let mut event_queue = conn.new_event_queue();
+        // Get queue handle
+        let qh = event_queue.handle();
 
-        // Attach the display
-        let attached_display = display.attach(event_queue.token());
-        // Setup global manager
-        let global_mgr = GlobalManager::new(&attached_display);
+        // Start registry
+        let display = conn.display();
+        display.get_registry(&qh, ());
 
-        // Pump async message processing
-        event_queue
-            .sync_roundtrip(&mut (), |event, object, _| {
-                info!("{:?} {:?}", event, object)
-            })
-            .unwrap();
-
-        // Setup seat for keyboard
-        let seat = WlSeat::from(
-            global_mgr
-                .instantiate_exact::<WlSeat>(7)
-                .unwrap()
-                .as_ref()
-                .clone(),
-        );
-
-        // Setup virtual keyboard manager
-        let vk_mgr = global_mgr
-            .instantiate_exact::<ZwpVirtualKeyboardManagerV1>(1)
-            .unwrap();
+        // Dispatch events so we can setup a virtual keyboard
+        // This requires a wl_seat and zwp_virtual_keyboard_manager_v1
+        let mut vkstate = VirtKbdState::new();
+        event_queue.roundtrip(&mut vkstate).unwrap();
 
         // Setup Virtual Keyboard
-        let virtual_keyboard = vk_mgr.create_virtual_keyboard(&seat);
+        let seat = vkstate.seat.as_ref().unwrap();
+        let vk_mgr = vkstate.keyboard_manager.as_ref().unwrap();
+        let virtual_keyboard = vk_mgr.create_virtual_keyboard(&seat, &qh, ());
 
         // Setup Keymap for tests
         let mut keymap = Keymap::new(virtual_keyboard, false);
@@ -708,10 +764,6 @@ mod test {
 
         // Attempt to apply layout
         keymap.apply_layout(layout).unwrap();
-        event_queue
-            .sync_roundtrip(&mut (), |event, object, _| {
-                info!("{:?} {:?}", event, object)
-            })
-            .unwrap(); // Pump wayland messages
+        event_queue.roundtrip(&mut vkstate).unwrap();
     }
 }

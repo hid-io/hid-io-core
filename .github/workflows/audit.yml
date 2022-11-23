@@ -29,6 +29,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - uses: actions-rust-lang/audit@v1
         name: Audit Rust Dependencies
+        with:
+          ignore: RUSTSEC-2020-0071,RUSTSEC-2021-0139
 
   deny:
     runs-on: ubuntu-latest
