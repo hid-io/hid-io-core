@@ -706,7 +706,7 @@ mod test {
         // Setup Virtual Keyboard
         let seat = vkstate.seat.as_ref().unwrap();
         let vk_mgr = vkstate.keyboard_manager.as_ref().unwrap();
-        let virtual_keyboard = vk_mgr.create_virtual_keyboard(&seat, &qh, ());
+        let virtual_keyboard = vk_mgr.create_virtual_keyboard(seat, &qh, ());
 
         // Setup Keymap for tests
         let mut keymap = Keymap::new(virtual_keyboard, false);

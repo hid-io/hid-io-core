@@ -146,7 +146,7 @@ impl Drop for DisplayConnection {
 impl DisplayOutput for DisplayConnection {
     fn get_layout(&self) -> Result<String, DisplayOutputError> {
         let result = Command::new("powershell")
-            .args(&["-Command", "Get-WinUserLanguageList"])
+            .args(["-Command", "Get-WinUserLanguageList"])
             .output()
             .expect("Failed to exec");
         let output = String::from_utf8_lossy(&result.stdout);
@@ -164,7 +164,7 @@ impl DisplayOutput for DisplayConnection {
 
     fn set_layout(&self, layout: &str) -> Result<(), DisplayOutputError> {
         match Command::new("powershell")
-            .args(&[
+            .args([
                 "-Command",
                 &format!("Set-WinUserLanguageList -Force '{}'", &layout),
             ])

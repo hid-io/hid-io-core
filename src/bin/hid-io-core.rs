@@ -124,7 +124,7 @@ fn stop() {
 
 #[cfg(windows)]
 mod service {
-    use flexi_logger::{opt_format, Logger};
+    use flexi_logger::{opt_format, FileSpec, Logger};
     use hid_io_core::built_info;
     use windows_service::service_dispatcher;
 
@@ -153,8 +153,7 @@ mod service {
     fn my_service_main(arguments: Vec<OsString>) {
         Logger::try_with_env()
             .unwrap()
-            .log_to_file()
-            .directory("log_files")
+            .log_to_file(FileSpec::default().directory("log_files"))
             .format(opt_format)
             .start()
             .unwrap_or_else(|e| panic!("Logger initialization failed {}", e));
