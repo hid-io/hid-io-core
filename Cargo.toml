@@ -1,6 +1,6 @@
 [package]
 name          = "hid-io-core"
-version       = "0.1.1"
+version       = "0.1.2"
 authors       = ["Jacob Alexander <haata@kiibohd.com>"]
 license       = "GPL-3.0-or-later"
 description   = """
@@ -101,7 +101,7 @@ futures-util    = { version = "0.3", optional = true }
 glob            = { version = "0.3", optional = true }
 heapless        = { version = "0.7" }
 hidapi          = { version = "1.4.1", default-features = false, features = ["linux-static-hidraw"], optional = true }
-hid-io-protocol = { path = "hid-io-protocol", version = "^0.1.3" }
+hid-io-protocol = { path = "hid-io-protocol", version = "^0.1.4" }
 libc            = { version = "0.2", optional = true }
 log             = "0.4"
 nanoid          = { version = "0.4", optional = true }

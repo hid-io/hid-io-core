@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.4 (2022-11-29)
 
 ### Major Changes
 
@@ -15,8 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release over the course of 6 calendar days.
- - 10 days passed between releases.
+ - 3 commits contributed to the release over the course of 7 calendar days.
+ - 11 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Update CHANGELOGs ([`de7b156`](https://github.com/hid-io/hid-io-core/commit/de7b156c3b0b51410e0d40b4c843cb35513f9924))
     - Replace zwp-virtual-keyboard with wayland-protocols-misc ([`9c048a2`](https://github.com/hid-io/hid-io-core/commit/9c048a2e06de93e6fb0a455cb6343353a00795af))
     - Add more auditing GitHub Action checks ([`6d9d763`](https://github.com/hid-io/hid-io-core/commit/6d9d76331965cd2eba0ec613e8dbf75df78fb036))
 </details>

@@ -1,6 +1,6 @@
 [package]
 name          = "hid-io-protocol"
-version       = "0.1.3"
+version       = "0.1.4"
 authors       = ["Jacob Alexander <haata@kiibohd.com>"]
 license       = "MIT OR Apache-2.0"
 description   = """
