@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Major Changes
+
+- Replace zwp-virtual-keyboard with wayland-protocols-misc
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 3 commits contributed to the release over the course of 10 calendar days.
+ - 10 days passed between releases.
+ - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Fix clippy and Windows build issues ([`a735bd5`](https://github.com/hid-io/hid-io-core/commit/a735bd5693485b90940cbcce16bc4057aeb44621))
+    - Replace zwp-virtual-keyboard with wayland-protocols-misc ([`9c048a2`](https://github.com/hid-io/hid-io-core/commit/9c048a2e06de93e6fb0a455cb6343353a00795af))
+    - Fix clippy warnings ([`33c4c07`](https://github.com/hid-io/hid-io-core/commit/33c4c0751d797858b07ed395aa0bcd81cb6e9198))
+</details>
+
+## 0.1.1 (2022-11-17)
+
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
