@@ -98,7 +98,7 @@ fn default_output_event(
                 // Unknown errors
                 uhid_virt::StreamError::UnknownEventType(code) => Err(Error::new(
                     ErrorKind::Other,
-                    format!("Unknown error code: {}", code),
+                    format!("Unknown error code: {code}"),
                 )),
             }
         }
@@ -706,8 +706,8 @@ pub fn udev_find_device(
                     .unwrap_or_else(|| std::ffi::OsStr::new(""))
                     .to_str()
                     .unwrap();
-                if found_vid == format!("{:04x}", vid)
-                    && found_pid == format!("{:04x}", pid)
+                if found_vid == format!("{vid:04x}")
+                    && found_pid == format!("{pid:04x}")
                     && found_uniq == uniq
                 {
                     return Ok(event.device());

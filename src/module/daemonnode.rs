@@ -36,7 +36,7 @@ impl DaemonNode {
         let uid = match mailbox.clone().assign_uid("".to_string(), "".to_string()) {
             Ok(uid) => uid,
             Err(e) => {
-                panic!("Only 1 daemon node may be allocated: {}", e);
+                panic!("Only 1 daemon node may be allocated: {e}");
             }
         };
 

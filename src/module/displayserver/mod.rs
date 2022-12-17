@@ -77,15 +77,15 @@ pub enum DisplayOutputError {
 impl std::fmt::Display for DisplayOutputError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DisplayOutputError::AllocationFailed(e) => write!(f, "Allocation failed: {}", e),
-            DisplayOutputError::Connection(e) => write!(f, "Connection: {}", e),
-            DisplayOutputError::Format(e) => write!(f, "Format: {}", e),
-            DisplayOutputError::General(e) => write!(f, "General: {}", e),
+            DisplayOutputError::AllocationFailed(e) => write!(f, "Allocation failed: {e}"),
+            DisplayOutputError::Connection(e) => write!(f, "Connection: {e}"),
+            DisplayOutputError::Format(e) => write!(f, "Format: {e}"),
+            DisplayOutputError::General(e) => write!(f, "General: {e}"),
             DisplayOutputError::LostConnection => write!(f, "Lost connection"),
             DisplayOutputError::NoKeycode => write!(f, "No keycode mapped"),
-            DisplayOutputError::SetLayoutFailed(e) => write!(f, "set_layout() failed: {}", e),
+            DisplayOutputError::SetLayoutFailed(e) => write!(f, "set_layout() failed: {e}"),
             DisplayOutputError::Unimplemented => write!(f, "Unimplemented"),
-            DisplayOutputError::Utf(e) => write!(f, "UTF: {}", e),
+            DisplayOutputError::Utf(e) => write!(f, "UTF: {e}"),
         }
     }
 }

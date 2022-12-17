@@ -90,7 +90,7 @@ pub struct BuildInfo {
 pub fn lib_info() -> BuildInfo {
     let pkg_version = built_info::PKG_VERSION.to_string();
     let git_version =
-        built_info::GIT_VERSION.map_or_else(|| "unknown".to_owned(), |v| format!("git {}", v));
+        built_info::GIT_VERSION.map_or_else(|| "unknown".to_owned(), |v| format!("git {v}"));
     let profile = built_info::PROFILE.to_string();
     let rust_c_version = built_info::RUSTC_VERSION.to_string();
     let host = built_info::HOST.to_string();

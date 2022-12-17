@@ -73,7 +73,7 @@ fn start() {
         let version_info = format!(
             "{}{} - {}",
             built_info::PKG_VERSION,
-            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v)),
+            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {v})")),
             built_info::PROFILE,
         );
         info!("Version: {}", version_info);

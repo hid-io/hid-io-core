@@ -37,7 +37,7 @@ pub fn setup_logging() -> Result<(), std::io::Error> {
     {
         Err(msg) => Err(std::io::Error::new(
             std::io::ErrorKind::Other,
-            format!("Could not start logger {}", msg),
+            format!("Could not start logger {msg}"),
         )),
         Ok(_) => {
             info!("-------------------------- HID-IO Core starting! --------------------------");
@@ -58,7 +58,7 @@ pub fn setup_logging_lite() -> Result<(), std::io::Error> {
     {
         Err(msg) => Err(std::io::Error::new(
             std::io::ErrorKind::Other,
-            format!("Could not start logger {}", msg),
+            format!("Could not start logger {msg}"),
         )),
         Ok(_) => Ok(()),
     }

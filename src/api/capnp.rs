@@ -275,7 +275,7 @@ impl hidio_capnp::hid_io_server::Server for HidIoServerImpl {
         version.set_version(&format!(
             "{}{}",
             built_info::PKG_VERSION,
-            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {})", v))
+            built_info::GIT_VERSION.map_or_else(|| "".to_owned(), |v| format!(" (git {v})"))
         ));
         version.set_buildtime(built_info::BUILT_TIME_UTC);
         version.set_serverarch(built_info::TARGET);
@@ -423,7 +423,7 @@ impl hidio_capnp::hid_io::Server for HidIoImpl {
             Err(e) => {
                 return Promise::err(capnp::Error {
                     kind: ::capnp::ErrorKind::Failed,
-                    description: format!("Failed to get sid lock: {}", e),
+                    description: format!("Failed to get sid lock: {e}"),
                 });
             }
         };
@@ -621,7 +621,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 if let Err(e) = intf.h0031_terminalcmd(cmd.clone(), false) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (cli_command): {:?} {:?}", cmd, e),
+                        description: format!("Error (cli_command): {cmd:?} {e:?}"),
                     });
                 }
 
@@ -630,7 +630,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                     Ok(_msg) => Promise::ok(()),
                     Err(e) => Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (cli_command): {:?}", e),
+                        description: format!("Error (cli_command): {e:?}"),
                     }),
                 }
             }
@@ -708,7 +708,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 if let Err(e) = intf.h001a_sleepmode(h001a::Cmd {}) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (sleepmode): {:?}", e),
+                        description: format!("Error (sleepmode): {e:?}"),
                     });
                 }
 
@@ -825,7 +825,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 if let Err(e) = intf.h0016_flashmode(h0016::Cmd {}) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (flashmode): {:?}", e),
+                        description: format!("Error (flashmode): {e:?}"),
                     });
                 }
                 Promise::ok(())
@@ -965,7 +965,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 if let Err(e) = intf.h0050_manufacturing(h0050::Cmd { command, argument }) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (manufacturing_test): {:?}", e),
+                        description: format!("Error (manufacturing_test): {e:?}"),
                     });
                 }
                 Promise::ok(())
@@ -1316,7 +1316,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         for (i, id) in data.ids.iter().enumerate() {
                             let mut entry = self.results.get().get_ids().unwrap().get(i as u32);
                             entry.set_uid(*id as u32);
-                            entry.set_name(format!("{:?}", id).as_str());
+                            entry.set_name(format!("{id:?}").as_str());
                         }
                         Ok(())
                     }
@@ -1332,7 +1332,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 if let Err(e) = intf.h0000_supported_ids(h0000::Cmd {}) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (supported_ids): {:?}", e),
+                        description: format!("Error (supported_ids): {e:?}"),
                     });
                 }
                 Promise::ok(())
@@ -1412,7 +1412,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 ) {
                     return Promise::err(capnp::Error {
                         kind: ::capnp::ErrorKind::Failed,
-                        description: format!("Error (supported_ids): {:?}", e),
+                        description: format!("Error (supported_ids): {e:?}"),
                     });
                 }
                 Promise::ok(())
@@ -1446,7 +1446,7 @@ impl keyboard_capnp::keyboard::Server for KeyboardNodeImpl {
             Err(e) => {
                 return Promise::err(capnp::Error {
                     kind: ::capnp::ErrorKind::Failed,
-                    description: format!("Error reading subscription options: {}", e),
+                    description: format!("Error reading subscription options: {e}"),
                 });
             }
         };
@@ -1673,7 +1673,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         if let Err(e) = intf.h0017_unicodetext(cmd.clone(), false) {
             return Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicodetext): {:?} {:?}", cmd, e),
+                description: format!("Error (unicodetext): {cmd:?} {e:?}"),
             });
         }
 
@@ -1682,7 +1682,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             Ok(_msg) => Promise::ok(()),
             Err(msg) => Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicode_text): {:?}", msg),
+                description: format!("Error (unicode_text): {msg:?}"),
             }),
         }
     }
@@ -1747,7 +1747,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
         if let Err(e) = intf.h0018_unicodestate(cmd.clone(), false) {
             return Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicodetext): {:?} {:?}", cmd, e),
+                description: format!("Error (unicodetext): {cmd:?} {e:?}"),
             });
         }
 
@@ -1756,7 +1756,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
             Ok(_msg) => Promise::ok(()),
             Err(msg) => Promise::err(capnp::Error {
                 kind: ::capnp::ErrorKind::Failed,
-                description: format!("Error (unicode_text): {:?}", msg),
+                description: format!("Error (unicode_text): {msg:?}"),
             }),
         }
     }
@@ -1858,7 +1858,7 @@ async fn server_bind(
         .expect("could not parse address");
     trace!("Address: {}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
-    println!("API: Listening on {}", addr);
+    println!("API: Listening on {addr}");
 
     // Generate new self-signed public/private key
     // Private key is not written to disk and generated each time

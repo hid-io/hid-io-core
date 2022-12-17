@@ -59,8 +59,8 @@ impl HidIoEndpoint {
                     let ret = buffer.decode_packet(slice);
                     if let Err(e) = ret {
                         error!("recv_chunk({}) {:?}", len, e);
-                        println!("received: {:?}", slice);
-                        println!("current state: {:?}", buffer);
+                        println!("received: {slice:?}");
+                        println!("current state: {buffer:?}");
                         std::process::exit(2);
                     } else {
                         debug!("R{} {:x?}", buffer.data.len(), buffer);

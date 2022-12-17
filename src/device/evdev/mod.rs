@@ -679,7 +679,7 @@ fn evdev2basehid(code: evdev_rs::enums::EventCode) -> std::io::Result<(HidIoComm
         }
         _ => Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            format!("No hid code lookup for ev code: {}", code),
+            format!("No hid code lookup for ev code: {code}"),
         )),
     }
 }
@@ -971,7 +971,7 @@ fn device_type(
     } else {
         Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
-            format!("{} is not a keyboard, mouse or joystick", fd_path),
+            format!("{fd_path} is not a keyboard, mouse or joystick"),
         ))
     }
 }

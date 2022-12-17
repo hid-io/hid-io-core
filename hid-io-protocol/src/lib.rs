@@ -917,7 +917,7 @@ impl fmt::Display for HidIoPacketType {
             HidIoPacketType::NaData => "HidIoPacketBuffer::NaData",
             HidIoPacketType::NaContinued => "HidIoPacketBuffer::NaContinued",
         };
-        write!(f, "{}", ptype_name)
+        write!(f, "{ptype_name}")
     }
 }
 

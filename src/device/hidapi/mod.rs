@@ -62,7 +62,7 @@ impl std::io::Read for HidApiDevice {
                 warn!("Read - {:?}", e);
                 Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("{:?}", e),
+                    format!("{e:?}"),
                 ))
             }
         }
@@ -110,7 +110,7 @@ impl std::io::Write for HidApiDevice {
                 warn!("Write - {:?} {:x?}", e, buf);
                 Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
-                    format!("{:?}", e),
+                    format!("{e:?}"),
                 ))
             }
         }
@@ -136,10 +136,10 @@ fn device_name(device_info: &::hidapi::DeviceInfo) -> String {
         string += m;
     }
     if let Some(p) = &device_info.product_string() {
-        write!(string, " {}", p).unwrap();
+        write!(string, " {p}").unwrap();
     }
     if let Some(s) = &device_info.serial_number() {
-        write!(string, " ({})", s).unwrap();
+        write!(string, " ({s})").unwrap();
     }
     string
 }
@@ -277,7 +277,7 @@ async fn processing(mailbox: mailbox::Mailbox) {
                     debug!("Attempting to setup {:#?}", node);
                     match hid_device {
                         Ok(device) => {
-                            println!("Connected to {}", node);
+                            println!("Connected to {node}");
                             let device = HidApiDevice::new(device, TIMEOUT_MS);
                             let mut device = HidIoEndpoint::new(
                                 Box::new(device),

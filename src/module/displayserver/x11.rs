@@ -118,7 +118,7 @@ impl XConnection {
 
     pub fn lookup_sym(symbol: char) -> u64 {
         let hex: u32 = symbol.into();
-        let s = format!("U{:x}", hex);
+        let s = format!("U{hex:x}");
         let xs = CString::new(s).unwrap();
         unsafe { XStringToKeysym(xs.as_ptr()) }
     }
