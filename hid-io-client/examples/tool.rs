@@ -429,6 +429,7 @@ async fn try_main() -> Result<(), capnp::Error> {
                                     0 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::DisableAll,
                                     1 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::PassFailTestToggle,
                                     2 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckToggle,
+                                    3 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::AdcTestModeToggle,
                                     0x11 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn1Toggle,
                                     0x12 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn2Toggle,
                                     0x13 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn3Toggle,

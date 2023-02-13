@@ -1,4 +1,4 @@
-/* Copyright (C) 2020-2022 by Jacob Alexander
+/* Copyright (C) 2020-2023 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -743,6 +743,7 @@ pub mod h0050 {
             DisableAll = 0x0000,
             PassFailTestToggle = 0x0001,
             LevelCheckToggle = 0x0002,
+            AdcTestModeToggle = 0x0003,
             LevelCheckColumn1Toggle = 0x0011,
             LevelCheckColumn2Toggle = 0x0012,
             LevelCheckColumn3Toggle = 0x0013,
