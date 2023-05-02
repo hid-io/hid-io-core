@@ -43,4 +43,4 @@ num_enum        = { version = "0.5", default-features = false }
 
 
 [dev-dependencies]
-flexi_logger    = "0.24"
+flexi_logger    = "0.25"

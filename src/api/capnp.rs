@@ -2537,7 +2537,7 @@ async fn server_subscriptions(
             );
 
             let subs = &mut subscriptions.write().unwrap().nodes.subscribers;
-            for (&idx, mut subscriber) in subs.iter_mut() {
+            for (&idx, subscriber) in subs.iter_mut() {
                 if subscriber.requests_in_flight < 5 {
                     subscriber.requests_in_flight += 1;
                     let mut request = subscriber.client.nodes_update_request();
