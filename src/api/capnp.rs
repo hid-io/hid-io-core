@@ -577,7 +577,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                        1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                        0,
                     > for CommandInterface
                 {
                     fn tx_packetbuffer_send(
@@ -663,7 +663,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                        1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                        0,
                     > for CommandInterface
                 {
                     fn tx_packetbuffer_send(
@@ -768,7 +768,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                        1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                        0,
                     > for CommandInterface
                 {
                     fn tx_packetbuffer_send(
@@ -860,7 +860,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                        1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                        0,
                     > for CommandInterface
                 {
                     fn tx_packetbuffer_send(
@@ -1071,7 +1071,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                0,
             > for CommandInterface
         {
             fn tx_packetbuffer_send(
@@ -1152,7 +1152,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                0,
             > for CommandInterface
         {
             fn tx_packetbuffer_send(
@@ -1255,7 +1255,7 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                0,
             > for CommandInterface
         {
             fn tx_packetbuffer_send(
@@ -1710,7 +1710,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                0,
             > for CommandInterface
         {
             fn tx_packetbuffer_send(
@@ -1784,7 +1784,7 @@ impl daemon_capnp::daemon::Server for DaemonNodeImpl {
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                 { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                0,
             > for CommandInterface
         {
             fn tx_packetbuffer_send(
@@ -2275,7 +2275,7 @@ async fn server_subscriptions_keyboard(
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 1 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 2 },
                         { mailbox::HIDIO_PKT_BUF_DATA_SIZE - 4 },
-                        1, // TODO(HaaTa): https://github.com/japaric/heapless/issues/252
+                        0,
                     > for CommandInterface
                 {
                     fn tx_packetbuffer_send(
