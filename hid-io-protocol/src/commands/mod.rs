@@ -765,6 +765,9 @@ pub mod h0050 {
             LevelCheckColumn20Toggle = 0x0024,
             LevelCheckColumn21Toggle = 0x0025,
             LevelCheckColumn22Toggle = 0x0026,
+            ModeSetNormal = 0x0100,
+            ModeSetLowLatency = 0x0101,
+            ModeSetTest = 0x0102,
         }
     }
 
