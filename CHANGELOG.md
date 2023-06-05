@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.3 (2023-06-05)
+
+### Bug Fixes
+
+ - <csr-id-62af0b510a7399645469e72f10fbfeffdb5edc7a/> Update dependencies and small fixes
+   - Fix hid-io-client example tool pixel direct range
+   - flexi_logger 0.24 -> 0.25
+   - uhid-virt 0.0.5 -> official 0.0.6
+   - clippy fixes
+ - <csr-id-559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2/> latest clippy warnings (format string identifiers)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release over the course of 169 calendar days.
+ - 187 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Update dependencies and small fixes ([`62af0b5`](https://github.com/hid-io/hid-io-core/commit/62af0b510a7399645469e72f10fbfeffdb5edc7a))
+    - Latest clippy warnings (format string identifiers) ([`5597572`](https://github.com/hid-io/hid-io-core/commit/559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2))
+</details>
+
 ## 0.1.2 (2022-11-29)
 
 ### Major Changes

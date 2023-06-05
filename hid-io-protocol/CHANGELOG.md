@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.5 (2023-06-05)
+
+### New Features
+
+ - <csr-id-cd67bfe34a323b3a69f244998969a9b713c67358/> Add ModeSet HallEffectSensorTest manufacturing commands
+ - <csr-id-0b92a8036a4c74def1e25f5151cf6056b2ac9fe4/> Add more HallEffectSensorTest commands (h0050)
+
+### Bug Fixes
+
+ - <csr-id-62af0b510a7399645469e72f10fbfeffdb5edc7a/> Update dependencies and small fixes
+   - Fix hid-io-client example tool pixel direct range
+   - flexi_logger 0.24 -> 0.25
+   - uhid-virt 0.0.5 -> official 0.0.6
+   - clippy fixes
+ - <csr-id-559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2/> latest clippy warnings (format string identifiers)
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 4 commits contributed to the release over the course of 169 calendar days.
+ - 187 days passed between releases.
+ - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Add ModeSet HallEffectSensorTest manufacturing commands ([`cd67bfe`](https://github.com/hid-io/hid-io-core/commit/cd67bfe34a323b3a69f244998969a9b713c67358))
+    - Update dependencies and small fixes ([`62af0b5`](https://github.com/hid-io/hid-io-core/commit/62af0b510a7399645469e72f10fbfeffdb5edc7a))
+    - Latest clippy warnings (format string identifiers) ([`5597572`](https://github.com/hid-io/hid-io-core/commit/559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2))
+    - Add more HallEffectSensorTest commands (h0050) ([`0b92a80`](https://github.com/hid-io/hid-io-core/commit/0b92a8036a4c74def1e25f5151cf6056b2ac9fe4))
+</details>
+
 ## 0.1.4 (2022-11-29)
 
 ### Major Changes
@@ -15,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 3 commits contributed to the release over the course of 7 calendar days.
+ - 4 commits contributed to the release over the course of 7 calendar days.
  - 11 days passed between releases.
  - 0 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -27,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release hid-io-protocol v0.1.4, hid-io-core v0.1.2 ([`6906d29`](https://github.com/hid-io/hid-io-core/commit/6906d29ea854e02dbf58ef6531b4468362c0abb3))
     - Update CHANGELOGs ([`de7b156`](https://github.com/hid-io/hid-io-core/commit/de7b156c3b0b51410e0d40b4c843cb35513f9924))
     - Replace zwp-virtual-keyboard with wayland-protocols-misc ([`9c048a2`](https://github.com/hid-io/hid-io-core/commit/9c048a2e06de93e6fb0a455cb6343353a00795af))
     - Add more auditing GitHub Action checks ([`6d9d763`](https://github.com/hid-io/hid-io-core/commit/6d9d76331965cd2eba0ec613e8dbf75df78fb036))
@@ -102,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Fixing Sync packets ([`b83f996`](https://github.com/hid-io/hid-io-core/commit/b83f9960bd52eb0fbb4e31acaf66296fd2b6d72c))
     - Fixes to get GitHub Actions passing again ([`e0cb9ab`](https://github.com/hid-io/hid-io-core/commit/e0cb9ab95c1f26e02ff3f863a170d068cb6edb88))
     - Adding sync and no payload data serialization/deserialization tests ([`7b3c25c`](https://github.com/hid-io/hid-io-core/commit/7b3c25cafc1a713b36da0458f8a4c3c479e00a16))
-    - hid-io-kiibohd additions ([`73fd32e`](https://github.com/hid-io/hid-io-core/commit/73fd32e0c9f90d130d6cf6d3412c54b188301f8a))
+    - Hid-io-kiibohd additions ([`73fd32e`](https://github.com/hid-io/hid-io-core/commit/73fd32e0c9f90d130d6cf6d3412c54b188301f8a))
     - Adding more commands to hid-io-kiibohd ([`7860399`](https://github.com/hid-io/hid-io-core/commit/786039953c657af9658be32ff74941bc79f889fb))
     - Integrated h0031 and h0034 into hid-io-core ([`32956aa`](https://github.com/hid-io/hid-io-core/commit/32956aadcec61588a433a03e5173406a21f7cf38))
     - Adding more hid-io commands ([`d835b13`](https://github.com/hid-io/hid-io-core/commit/d835b13ed0bb3645c7a0c3db6691dc88c42abddb))
@@ -114,7 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Adding h0003 skeleton ([`1962b55`](https://github.com/hid-io/hid-io-core/commit/1962b557effa17ec95786b989b8b8a6e8eef00bf))
     - Splitting commands.rs to mod.rs and test.rs ([`d2bdbb7`](https://github.com/hid-io/hid-io-core/commit/d2bdbb71c7bbd6f96a0dae02dc98f402cf57fcda))
     - Adding h0002 (test packet) ([`450174b`](https://github.com/hid-io/hid-io-core/commit/450174bd4a2b1bd6bf75e24562646654caf8d0ce))
-    - h0001 - Get Info added ([`758d03e`](https://github.com/hid-io/hid-io-core/commit/758d03e208ecdccb33dd1909000d9e6751ad1ba3))
+    - H0001 - Get Info added ([`758d03e`](https://github.com/hid-io/hid-io-core/commit/758d03e208ecdccb33dd1909000d9e6751ad1ba3))
     - First test case working ([`833ea59`](https://github.com/hid-io/hid-io-core/commit/833ea5911cc41f541df075bec1221cd84066db60))
     - Splitting out hid-io-protocol into it's own crate ([`46503de`](https://github.com/hid-io/hid-io-core/commit/46503de936dded5cfe6816637d286a1f47ad864a))
 </details>

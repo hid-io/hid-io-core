@@ -20,7 +20,7 @@ name = "hid_io_client"
 capnp        = { version = "0.14" }
 capnp-rpc    = { version = "0.14" }
 futures      = { version = "0.3" }
-hid-io-core  = { version = "^0.1.2", path = ".." }
+hid-io-core  = { version = "^0.1.3", path = ".." }
 log          = { version = "0.4" }
 rand         = "0.8"
 rustls       = { version = "0.20", features = ["dangerous_configuration"] }
