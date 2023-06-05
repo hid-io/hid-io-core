@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2020 by Jacob Alexander
+# Copyright (C) 2017-2023 by Jacob Alexander
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -238,6 +238,31 @@ interface Node extends(Common.Node) {
             disableAll @0;
             passFailTestToggle @1;
             levelCheckToggle @2;
+            levelCheckColumn1Toggle @3;
+            levelCheckColumn2Toggle @4;
+            levelCheckColumn3Toggle @5;
+            levelCheckColumn4Toggle @6;
+            levelCheckColumn5Toggle @7;
+            levelCheckColumn6Toggle @8;
+            levelCheckColumn7Toggle @9;
+            levelCheckColumn8Toggle @10;
+            levelCheckColumn9Toggle @11;
+            levelCheckColumn10Toggle @12;
+            levelCheckColumn11Toggle @13;
+            levelCheckColumn12Toggle @14;
+            levelCheckColumn13Toggle @15;
+            levelCheckColumn14Toggle @16;
+            levelCheckColumn15Toggle @17;
+            levelCheckColumn16Toggle @18;
+            levelCheckColumn17Toggle @19;
+            levelCheckColumn18Toggle @20;
+            levelCheckColumn19Toggle @21;
+            levelCheckColumn20Toggle @22;
+            levelCheckColumn21Toggle @23;
+            levelCheckColumn22Toggle @24;
+            modeSetNormal @25;
+            modeSetLowLatency @26;
+            modeSetTest @27;
         }
 
         command @0 :Command;

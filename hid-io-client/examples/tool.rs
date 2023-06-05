@@ -1,4 +1,4 @@
-/* Copyright (C) 2020-2022 by Jacob Alexander
+/* Copyright (C) 2020-2023 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -428,6 +428,31 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                                     0 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::DisableAll,
                                     1 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::PassFailTestToggle,
                                     2 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckToggle,
+                                    0x11 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn1Toggle,
+                                    0x12 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn2Toggle,
+                                    0x13 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn3Toggle,
+                                    0x14 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn4Toggle,
+                                    0x15 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn5Toggle,
+                                    0x16 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn6Toggle,
+                                    0x17 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn7Toggle,
+                                    0x18 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn8Toggle,
+                                    0x19 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn9Toggle,
+                                    0x1A => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn10Toggle,
+                                    0x1B => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn11Toggle,
+                                    0x1C => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn12Toggle,
+                                    0x1D => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn13Toggle,
+                                    0x1E => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn14Toggle,
+                                    0x1F => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn15Toggle,
+                                    0x20 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn16Toggle,
+                                    0x21 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn17Toggle,
+                                    0x22 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn18Toggle,
+                                    0x23 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn19Toggle,
+                                    0x24 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn20Toggle,
+                                    0x25 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn21Toggle,
+                                    0x26 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn22Toggle,
+                                    0x100 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::ModeSetNormal,
+                                    0x101 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::ModeSetLowLatency,
+                                    0x102 => hidio_capnp::node::manufacturing::HallEffectSensorTestArg::ModeSetTest,
                                     _ => {
                                         eprintln!("Manufacturing Test unknown arg: {}", cmd);
                                         ::std::process::exit(1);

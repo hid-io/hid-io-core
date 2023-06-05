@@ -1,5 +1,5 @@
 #![cfg(feature = "api")]
-/* Copyright (C) 2017-2022 by Jacob Alexander
+/* Copyright (C) 2017-2023 by Jacob Alexander
  *
  * This file is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -955,6 +955,81 @@ impl hidio_capnp::node::Server for KeyboardNodeImpl {
                                 }
                                 hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckToggle => {
                                     h0050::args::HallEffectSensorTest::LevelCheckToggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn1Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn1Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn2Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn2Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn3Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn3Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn4Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn4Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn5Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn5Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn6Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn6Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn7Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn7Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn8Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn8Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn9Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn9Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn10Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn10Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn11Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn11Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn12Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn12Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn13Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn13Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn14Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn14Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn15Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn15Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn16Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn16Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn17Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn17Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn18Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn18Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn19Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn19Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn20Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn20Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn21Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn21Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::LevelCheckColumn22Toggle => {
+                                    h0050::args::HallEffectSensorTest::LevelCheckColumn22Toggle
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::ModeSetNormal => {
+                                    h0050::args::HallEffectSensorTest::ModeSetNormal
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::ModeSetLowLatency => {
+                                    h0050::args::HallEffectSensorTest::ModeSetLowLatency
+                                }
+                                hidio_capnp::node::manufacturing::HallEffectSensorTestArg::ModeSetTest => {
+                                    h0050::args::HallEffectSensorTest::ModeSetTest
                                 }
                             },
                         }
