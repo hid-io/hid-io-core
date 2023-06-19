@@ -187,7 +187,7 @@ impl Mailbox {
         info!("Unregistering endpoint: {}", uid);
         let mut nodes = self.nodes.write().unwrap();
         *nodes = nodes
-            .drain_filter(|dev| dev.uid() != uid)
+            .extract_if(|dev| dev.uid() != uid)
             .collect::<Vec<_>>();
     }
 
