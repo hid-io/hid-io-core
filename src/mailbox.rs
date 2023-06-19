@@ -186,9 +186,7 @@ impl Mailbox {
     pub fn unregister_node(&mut self, uid: u64) {
         info!("Unregistering endpoint: {}", uid);
         let mut nodes = self.nodes.write().unwrap();
-        *nodes = nodes
-            .extract_if(|dev| dev.uid() != uid)
-            .collect::<Vec<_>>();
+        *nodes = nodes.extract_if(|dev| dev.uid() != uid).collect::<Vec<_>>();
     }
 
     /// Convenience function to send a HidIo Command to device using the mailbox
