@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2022 by Jacob Alexander
+/* Copyright (C) 2019-2023 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,12 +22,14 @@
 
 extern crate tokio;
 
-use capnp::capability::Promise;
-use capnp_rpc::pry;
-use hid_io_core::common_capnp::NodeType;
-use hid_io_core::hidio_capnp;
-use hid_io_core::keyboard_capnp;
-use hid_io_core::logging::setup_logging_lite;
+use hid_io_client::capnp;
+use hid_io_client::capnp::capability::Promise;
+use hid_io_client::capnp_rpc;
+use hid_io_client::capnp_rpc::pry;
+use hid_io_client::common_capnp::NodeType;
+use hid_io_client::hidio_capnp;
+use hid_io_client::keyboard_capnp;
+use hid_io_client::setup_logging_lite;
 use rand::Rng;
 use std::io::Read;
 use std::io::Write;
@@ -49,12 +51,14 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
         // Only read cli messages
         if let Ok(signaltype) = signal.get_data().which() {
             match signaltype {
-                hid_io_core::keyboard_capnp::keyboard::signal::data::Which::Cli(cli) => {
+                hid_io_client::keyboard_capnp::keyboard::signal::data::Which::Cli(cli) => {
                     let cli = cli.unwrap();
                     print!("{}", cli.get_output().unwrap());
                     std::io::stdout().flush().unwrap();
                 }
-                hid_io_core::keyboard_capnp::keyboard::signal::data::Which::Manufacturing(res) => {
+                hid_io_client::keyboard_capnp::keyboard::signal::data::Which::Manufacturing(
+                    res,
+                ) => {
                     let res = res.unwrap();
                     match res.get_cmd().unwrap() {
                         keyboard_capnp::keyboard::signal::manufacturing_result::Command::LedTestSequence => match res.get_arg() {
@@ -153,12 +157,12 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
 }
 
 #[tokio::main]
-pub async fn main() -> Result<(), ::capnp::Error> {
+pub async fn main() -> Result<(), capnp::Error> {
     setup_logging_lite().ok();
     tokio::task::LocalSet::new().run_until(try_main()).await
 }
 
-async fn try_main() -> Result<(), ::capnp::Error> {
+async fn try_main() -> Result<(), capnp::Error> {
     // Prepare hid-io-core connection
     let mut hidio_conn = hid_io_client::HidioConnection::new().unwrap();
     let mut rng = rand::thread_rng();
@@ -248,8 +252,8 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         // Subscribe to cli messages
         let subscribe_req = {
             let node = match device.get_node().which().unwrap() {
-                hid_io_core::common_capnp::destination::node::Which::Keyboard(n) => n.unwrap(),
-                hid_io_core::common_capnp::destination::node::Which::Daemon(_) => {
+                hid_io_client::common_capnp::destination::node::Which::Keyboard(n) => n.unwrap(),
+                hid_io_client::common_capnp::destination::node::Which::Daemon(_) => {
                     std::process::exit(1);
                 }
             };
@@ -313,7 +317,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
 
             if let Ok(nodetype) = device.get_node().which() {
                 match nodetype {
-                    hid_io_core::common_capnp::destination::node::Which::Keyboard(node) => {
+                    hid_io_client::common_capnp::destination::node::Which::Keyboard(node) => {
                         let node = node?;
                         let _command_resp = {
                             // Cast/transform keyboard node to a hidio node
@@ -331,7 +335,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                             }
                         };
                     }
-                    hid_io_core::common_capnp::destination::node::Which::Daemon(_node) => {}
+                    hid_io_client::common_capnp::destination::node::Which::Daemon(_node) => {}
                 }
             }
         }

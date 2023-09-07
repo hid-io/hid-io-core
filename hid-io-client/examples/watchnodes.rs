@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2022 by Jacob Alexander
+/* Copyright (C) 2019-2023 by Jacob Alexander
  * Copyright (C) 2019 by Rowan Decker
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -22,11 +22,13 @@
 
 extern crate tokio;
 
-use capnp::capability::Promise;
-use hid_io_core::common_capnp::NodeType;
-use hid_io_core::hidio_capnp::hid_io;
-use hid_io_core::logging::setup_logging_lite;
-use hid_io_core::HidIoCommandId;
+use hid_io_client::capnp;
+use hid_io_client::capnp::capability::Promise;
+use hid_io_client::capnp_rpc;
+use hid_io_client::common_capnp::NodeType;
+use hid_io_client::hidio_capnp::hid_io;
+use hid_io_client::setup_logging_lite;
+use hid_io_client::HidIoCommandId;
 use rand::Rng;
 use std::collections::HashMap;
 use std::convert::TryFrom;

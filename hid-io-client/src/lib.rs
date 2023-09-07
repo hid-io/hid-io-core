@@ -1,4 +1,4 @@
-/* Copyright (C) 2022 by Jacob Alexander
+/* Copyright (C) 2022-2023 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,9 +21,18 @@
 
 extern crate tokio;
 
+pub use capnp;
+pub use capnp_rpc;
+pub use hid_io_core::built_info;
+pub use hid_io_core::common_capnp;
+pub use hid_io_core::daemon_capnp;
+pub use hid_io_core::hidio_capnp;
+pub use hid_io_core::keyboard_capnp;
+pub use hid_io_core::logging::setup_logging_lite;
+pub use hid_io_core::HidIoCommandId;
+
 use capnp_rpc::{rpc_twoparty_capnp, twoparty, Disconnector, RpcSystem};
 use futures::{AsyncReadExt, FutureExt};
-use hid_io_core::built_info;
 use hid_io_core::common_capnp::NodeType;
 use hid_io_core::hidio_capnp::{hid_io, hid_io_server};
 use log::{debug, trace, warn};

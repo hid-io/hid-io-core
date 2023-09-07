@@ -22,20 +22,21 @@
 extern crate tokio;
 
 use clap::{arg, Arg, Command};
-use hid_io_core::built_info;
-use hid_io_core::common_capnp::NodeType;
-use hid_io_core::hidio_capnp;
-use hid_io_core::logging::setup_logging_lite;
+use hid_io_client::built_info;
+use hid_io_client::capnp;
+use hid_io_client::common_capnp::NodeType;
+use hid_io_client::hidio_capnp;
+use hid_io_client::setup_logging_lite;
 use rand::Rng;
 use std::io::Write;
 
 #[tokio::main]
-pub async fn main() -> Result<(), ::capnp::Error> {
+pub async fn main() -> Result<(), capnp::Error> {
     setup_logging_lite().ok();
     tokio::task::LocalSet::new().run_until(try_main()).await
 }
 
-async fn try_main() -> Result<(), ::capnp::Error> {
+async fn try_main() -> Result<(), capnp::Error> {
     let version_info = format!(
         "{}{} - {}",
         built_info::PKG_VERSION,
@@ -283,7 +284,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
     match matches.subcommand() {
         Some(("flash", _)) => {
             // Flash mode command
-            if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+            if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(node)) =
                 device.get_node().which()
             {
                 let node = node?;
@@ -316,7 +317,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
             }
         }
         Some(("ids", _)) => {
-            if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+            if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(node)) =
                 device.get_node().which()
             {
                 let node = node?;
@@ -344,7 +345,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         }
         Some(("info", _)) => {
             // Flash mode command
-            if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+            if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(node)) =
                 device.get_node().which()
             {
                 let node = node?;
@@ -382,7 +383,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         }
         Some(("manufacturing", submatches)) => {
             // Flash mode command
-            if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+            if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(node)) =
                 device.get_node().which()
             {
                 let node = node?;
@@ -493,8 +494,9 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         Some(("pixel", submatches)) => {
             match submatches.subcommand() {
                 Some(("setting", submatches)) => {
-                    if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
-                        device.get_node().which()
+                    if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(
+                        node,
+                    )) = device.get_node().which()
                     {
                         let node = node?;
 
@@ -575,8 +577,9 @@ async fn try_main() -> Result<(), ::capnp::Error> {
                     }
                 }
                 Some(("direct", submatches)) => {
-                    if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
-                        device.get_node().which()
+                    if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(
+                        node,
+                    )) = device.get_node().which()
                     {
                         let node = node?;
 
@@ -644,7 +647,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
         }
         Some(("sleep", _)) => {
             // Sleep mode command
-            if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+            if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(node)) =
                 device.get_node().which()
             {
                 let node = node?;
@@ -676,7 +679,7 @@ async fn try_main() -> Result<(), ::capnp::Error> {
             }
         }
         Some(("test", submatches)) => {
-            if let Ok(hid_io_core::common_capnp::destination::node::Which::Keyboard(node)) =
+            if let Ok(hid_io_client::common_capnp::destination::node::Which::Keyboard(node)) =
                 device.get_node().which()
             {
                 let node = node?;
