@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.3 (2023-09-07)
+
+### Bug Fixes
+
+ - <csr-id-c63371c87e2373f2d6af3767bb80f682139e6b08/> Only use api feature from hid-io-core in hid-io-client
+   - hid-io-client should not have access to control display server,
+     capture hid devices or communicate with hid endpoints
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 1 commit contributed to the release.
+ - 1 commit was understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Only use api feature from hid-io-core in hid-io-client ([`c63371c`](https://github.com/hid-io/hid-io-core/commit/c63371c87e2373f2d6af3767bb80f682139e6b08))
+</details>
+
 ## 0.1.2 (2023-09-07)
 
 ### Bug Fixes
@@ -17,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <csr-read-only-do-not-edit/>
 
- - 2 commits contributed to the release.
+ - 3 commits contributed to the release.
  - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
 
@@ -28,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release hid-io-client v0.1.2 ([`0e4321c`](https://github.com/hid-io/hid-io-core/commit/0e4321c0ff7010823c239e1c3d2e4a0904f4b987))
     - Adjust README.md after dependency fixes ([`78b443f`](https://github.com/hid-io/hid-io-core/commit/78b443f8a607e23b1630fe657afb13f0acf74a0e))
     - Expose hid-io-client hid-io-core,capnp dependencies ([`ceb5c43`](https://github.com/hid-io/hid-io-core/commit/ceb5c43ed0c208c30f38ee01fd0997fb1a7e0d85))
 </details>
@@ -40,9 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
  - <csr-id-62af0b510a7399645469e72f10fbfeffdb5edc7a/> Update dependencies and small fixes
    - Fix hid-io-client example tool pixel direct range
-- flexi_logger 0.24 -> 0.25
-- uhid-virt 0.0.5 -> official 0.0.6
-- clippy fixes
 
 ### New Features
 
@@ -79,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 </details>
 
 <csr-unknown>
- latest clippy warnings (format string identifiers) Add levelcheck column and mode set commands to hid-io-core + capnp<csr-unknown/>
+flexi_logger 0.24 -> 0.25uhid-virt 0.0.5 -> official 0.0.6clippy fixes<csr-unknown/>
 
 ## 0.1.0 (2022-11-17)
 
