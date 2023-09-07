@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.6 (2023-09-07)
+
+### Bug Fixes
+
+ - <csr-id-3a10cc739257cac1ff172a48146a1643cb33bf65/> Remove internal lang_items feature
+ - <csr-id-61815a23bfcf7a8387966818be4d0e2e6333c879/> https://github.com/japaric/heapless/issues/252 was fixed
+   - Can use zero length arrays as originally intended
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 2 commits contributed to the release over the course of 94 calendar days.
+ - 94 days passed between releases.
+ - 2 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Remove internal lang_items feature ([`3a10cc7`](https://github.com/hid-io/hid-io-core/commit/3a10cc739257cac1ff172a48146a1643cb33bf65))
+    - Https://github.com/japaric/heapless/issues/252 was fixed ([`61815a2`](https://github.com/hid-io/hid-io-core/commit/61815a23bfcf7a8387966818be4d0e2e6333c879))
+</details>
+
 ## 0.1.5 (2023-06-05)
 
 ### New Features
@@ -14,18 +42,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Bug Fixes
 
+<csr-id-559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2/>
+
  - <csr-id-62af0b510a7399645469e72f10fbfeffdb5edc7a/> Update dependencies and small fixes
    - Fix hid-io-client example tool pixel direct range
-   - flexi_logger 0.24 -> 0.25
-   - uhid-virt 0.0.5 -> official 0.0.6
-   - clippy fixes
- - <csr-id-559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2/> latest clippy warnings (format string identifiers)
+- flexi_logger 0.24 -> 0.25
+- uhid-virt 0.0.5 -> official 0.0.6
+- clippy fixes
 
 ### Commit Statistics
 
 <csr-read-only-do-not-edit/>
 
- - 4 commits contributed to the release over the course of 169 calendar days.
+ - 5 commits contributed to the release over the course of 169 calendar days.
  - 187 days passed between releases.
  - 4 commits were understood as [conventional](https://www.conventionalcommits.org).
  - 0 issues like '(#ID)' were seen in commit messages
@@ -37,11 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <details><summary>view details</summary>
 
  * **Uncategorized**
+    - Release hid-io-protocol v0.1.5, hid-io-core v0.1.3 ([`95088fc`](https://github.com/hid-io/hid-io-core/commit/95088fc5e913226d1f55b3d83ec8a7553b916368))
     - Add ModeSet HallEffectSensorTest manufacturing commands ([`cd67bfe`](https://github.com/hid-io/hid-io-core/commit/cd67bfe34a323b3a69f244998969a9b713c67358))
     - Update dependencies and small fixes ([`62af0b5`](https://github.com/hid-io/hid-io-core/commit/62af0b510a7399645469e72f10fbfeffdb5edc7a))
     - Latest clippy warnings (format string identifiers) ([`5597572`](https://github.com/hid-io/hid-io-core/commit/559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2))
     - Add more HallEffectSensorTest commands (h0050) ([`0b92a80`](https://github.com/hid-io/hid-io-core/commit/0b92a8036a4c74def1e25f5151cf6056b2ac9fe4))
 </details>
+
+<csr-unknown>
+ latest clippy warnings (format string identifiers)<csr-unknown/>
 
 ## 0.1.4 (2022-11-29)
 

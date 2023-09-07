@@ -5,16 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.4 (2023-09-07)
+
+### New Features
+
+ - <csr-id-87cd06d6ea76bebb924629d86fb78fa5b9f67fe2/> Add hall effect manu test data tracking
+   - Supports partial strobe data updates (only printing after getting
+     enough data for a full scan)
+ - <csr-id-6d44300e247b0e74459c8e2ad54061b5346a01ce/> Add levelcheck column and mode set commands to hid-io-core + capnp
+
+### Bug Fixes
+
+ - <csr-id-5057f664cb2f929b2cce1a3f08167123ffa6e6e2/> clippy: usage of an `Arc` that is not `Send` or `Sync`
+ - <csr-id-1fa6aa9333157f08ac6f0a01ebac280fd693db16/> Update packages and fix nightly drain_filter
+ - <csr-id-61815a23bfcf7a8387966818be4d0e2e6333c879/> https://github.com/japaric/heapless/issues/252 was fixed
+   - Can use zero length arrays as originally intended
+
+### Commit Statistics
+
+<csr-read-only-do-not-edit/>
+
+ - 5 commits contributed to the release over the course of 94 calendar days.
+ - 94 days passed between releases.
+ - 5 commits were understood as [conventional](https://www.conventionalcommits.org).
+ - 0 issues like '(#ID)' were seen in commit messages
+
+### Commit Details
+
+<csr-read-only-do-not-edit/>
+
+<details><summary>view details</summary>
+
+ * **Uncategorized**
+    - Clippy: usage of an `Arc` that is not `Send` or `Sync` ([`5057f66`](https://github.com/hid-io/hid-io-core/commit/5057f664cb2f929b2cce1a3f08167123ffa6e6e2))
+    - Add hall effect manu test data tracking ([`87cd06d`](https://github.com/hid-io/hid-io-core/commit/87cd06d6ea76bebb924629d86fb78fa5b9f67fe2))
+    - Update packages and fix nightly drain_filter ([`1fa6aa9`](https://github.com/hid-io/hid-io-core/commit/1fa6aa9333157f08ac6f0a01ebac280fd693db16))
+    - Https://github.com/japaric/heapless/issues/252 was fixed ([`61815a2`](https://github.com/hid-io/hid-io-core/commit/61815a23bfcf7a8387966818be4d0e2e6333c879))
+    - Add levelcheck column and mode set commands to hid-io-core + capnp ([`6d44300`](https://github.com/hid-io/hid-io-core/commit/6d44300e247b0e74459c8e2ad54061b5346a01ce))
+</details>
+
 ## 0.1.3 (2023-06-05)
 
 ### Bug Fixes
 
+<csr-id-559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2/>
+
  - <csr-id-62af0b510a7399645469e72f10fbfeffdb5edc7a/> Update dependencies and small fixes
    - Fix hid-io-client example tool pixel direct range
-   - flexi_logger 0.24 -> 0.25
-   - uhid-virt 0.0.5 -> official 0.0.6
-   - clippy fixes
- - <csr-id-559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2/> latest clippy warnings (format string identifiers)
+- flexi_logger 0.24 -> 0.25
+- uhid-virt 0.0.5 -> official 0.0.6
+- clippy fixes
 
 ### Commit Statistics
 
@@ -35,6 +75,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Update dependencies and small fixes ([`62af0b5`](https://github.com/hid-io/hid-io-core/commit/62af0b510a7399645469e72f10fbfeffdb5edc7a))
     - Latest clippy warnings (format string identifiers) ([`5597572`](https://github.com/hid-io/hid-io-core/commit/559757292afa1cb1e7a8d0ee28d75a3ae8a26ab2))
 </details>
+
+<csr-unknown>
+ latest clippy warnings (format string identifiers)<csr-unknown/>
 
 ## 0.1.2 (2022-11-29)
 
