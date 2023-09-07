@@ -1,4 +1,4 @@
-/* Copyright (C) 2017-2022 by Jacob Alexander
+/* Copyright (C) 2017-2023 by Jacob Alexander
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,6 @@
 // ----- Modules -----
 
 #![no_std]
-#![feature(lang_items)]
 #![feature(associated_type_defaults)]
 
 pub mod buffer;
