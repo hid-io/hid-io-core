@@ -10,17 +10,18 @@ Please see [hid-io-client-ffi](../hid-io-client-ffi) if you are looking for an F
 ```rust
 extern crate tokio;
 
-use hid_io_core::common_capnp::NodeType;
-use hid_io_core::logging::setup_logging_lite;
+use hid_io_client::capnp;
+use hid_io_client::common_capnp::NodeType;
+use hid_io_client::setup_logging_lite;
 use rand::Rng;
 
 #[tokio::main]
-pub async fn main() -> Result<(), ::capnp::Error> {
+pub async fn main() -> Result<(), capnp::Error> {
     setup_logging_lite().ok();
     tokio::task::LocalSet::new().run_until(try_main()).await
 }
 
-async fn try_main() -> Result<(), ::capnp::Error> {
+async fn try_main() -> Result<(), capnp::Error> {
     // Prepare hid-io-core connection
     let mut hidio_conn = hid_io_client::HidioConnection::new().unwrap();
     let mut rng = rand::thread_rng();
