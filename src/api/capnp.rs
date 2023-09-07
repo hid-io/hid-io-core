@@ -39,6 +39,7 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::net::ToSocketAddrs;
+use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
@@ -123,7 +124,7 @@ struct HidIoServerImpl {
     basic_key_dir: tempfile::TempDir,
     auth_key_file: tempfile::NamedTempFile,
 
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 }
 
 impl HidIoServerImpl {
@@ -131,7 +132,7 @@ impl HidIoServerImpl {
         mailbox: mailbox::Mailbox,
         connections: Arc<RwLock<HashMap<u64, Vec<u64>>>>,
         uid: u64,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
     ) -> HidIoServerImpl {
         // Create temp file for basic key
         let basic_key_dir = tempfile::Builder::new()
@@ -353,7 +354,7 @@ struct HidIoImpl {
     mailbox: mailbox::Mailbox,
     node: Endpoint,
     auth: AuthLevel,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 }
 
 impl HidIoImpl {
@@ -361,7 +362,7 @@ impl HidIoImpl {
         mailbox: mailbox::Mailbox,
         node: Endpoint,
         auth: AuthLevel,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
     ) -> HidIoImpl {
         HidIoImpl {
             mailbox,
@@ -487,7 +488,7 @@ struct NodesSubscriptionImpl {
     mailbox: mailbox::Mailbox,
     _node: Endpoint, // API Node information
     uid: u64,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
     sid: u64,
 }
 
@@ -496,7 +497,7 @@ impl NodesSubscriptionImpl {
         mailbox: mailbox::Mailbox,
         node: Endpoint,
         uid: u64,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
         sid: u64,
     ) -> NodesSubscriptionImpl {
         NodesSubscriptionImpl {
@@ -529,7 +530,7 @@ struct KeyboardNodeImpl {
     node: Endpoint, // API Node information
     uid: u64,       // Device uid
     auth: AuthLevel,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 }
 
 impl KeyboardNodeImpl {
@@ -538,7 +539,7 @@ impl KeyboardNodeImpl {
         node: Endpoint,
         uid: u64,
         auth: AuthLevel,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
     ) -> KeyboardNodeImpl {
         KeyboardNodeImpl {
             mailbox,
@@ -1583,7 +1584,7 @@ struct KeyboardSubscriptionImpl {
     _node: Endpoint, // API Node information
     uid: u64,        // Device endpoint uid
     sid: u64,        // Subscription id
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 }
 
 impl KeyboardSubscriptionImpl {
@@ -1592,7 +1593,7 @@ impl KeyboardSubscriptionImpl {
         node: Endpoint,
         uid: u64,
         sid: u64,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
     ) -> KeyboardSubscriptionImpl {
         KeyboardSubscriptionImpl {
             mailbox,
@@ -1627,7 +1628,7 @@ struct DaemonNodeImpl {
     node: Endpoint, // API Node information
     uid: u64,       // Device uid
     auth: AuthLevel,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 }
 
 impl DaemonNodeImpl {
@@ -1636,7 +1637,7 @@ impl DaemonNodeImpl {
         node: Endpoint,
         uid: u64,
         auth: AuthLevel,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
     ) -> DaemonNodeImpl {
         DaemonNodeImpl {
             mailbox,
@@ -1880,7 +1881,7 @@ struct DaemonSubscriptionImpl {
     mailbox: mailbox::Mailbox,
     _node: Endpoint, // API Node information
     uid: u64,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
     sid: u64,
 }
 
@@ -1889,7 +1890,7 @@ impl DaemonSubscriptionImpl {
         mailbox: mailbox::Mailbox,
         node: Endpoint,
         uid: u64,
-        subscriptions: Arc<RwLock<Subscriptions>>,
+        subscriptions: Rc<RwLock<Subscriptions>>,
         sid: u64,
     ) -> DaemonSubscriptionImpl {
         DaemonSubscriptionImpl {
@@ -1923,7 +1924,7 @@ impl daemon_capnp::daemon::subscription::Server for DaemonSubscriptionImpl {}
 /// Capnproto Server
 async fn server_bind(
     mailbox: mailbox::Mailbox,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Open secured capnproto interface
     trace!("Building address");
@@ -2094,7 +2095,7 @@ async fn server_bind(
 /// Daemon node subscriptions
 async fn server_subscriptions_daemon(
     mailbox: mailbox::Mailbox,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
     mut last_daemon_next_id: u64,
 ) -> Result<u64, Box<dyn std::error::Error>> {
     while subscriptions.read().unwrap().daemon_node_next_id > last_daemon_next_id {
@@ -2192,7 +2193,7 @@ async fn server_subscriptions_daemon(
 /// Keyboard node subscriptions
 async fn server_subscriptions_keyboard(
     mailbox: mailbox::Mailbox,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
     mut last_keyboard_next_id: u64,
 ) -> Result<u64, Box<dyn std::error::Error>> {
     while subscriptions.read().unwrap().keyboard_node_next_id > last_keyboard_next_id {
@@ -2411,7 +2412,7 @@ async fn server_subscriptions_keyboard(
 /// hidiowatcher subscriptions
 async fn server_subscriptions_hidiowatcher(
     mailbox: mailbox::Mailbox,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
     mut last_node_next_id: u64,
 ) -> Result<u64, Box<dyn std::error::Error>> {
     while subscriptions.read().unwrap().nodes_next_id > last_node_next_id {
@@ -2534,7 +2535,7 @@ async fn server_subscriptions_hidiowatcher(
 /// Capnproto node subscriptions
 async fn server_subscriptions(
     mailbox: mailbox::Mailbox,
-    subscriptions: Arc<RwLock<Subscriptions>>,
+    subscriptions: Rc<RwLock<Subscriptions>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Setting up api subscriptions...");
 
@@ -2730,7 +2731,7 @@ pub async fn initialize(mailbox: mailbox::Mailbox) {
     rt.clone()
         .spawn_blocking(move || {
             rt.block_on(async {
-                let subscriptions = Arc::new(RwLock::new(Subscriptions::new()));
+                let subscriptions = Rc::new(RwLock::new(Subscriptions::new()));
 
                 let local = tokio::task::LocalSet::new();
 
