@@ -1005,7 +1005,7 @@ mod test {
         rt.spawn(async move {
             // Looking for this sequence of active event codes
             // All modifiers, plus only the first 6 sent key events
-            let expected_codes = vec![225, 226, 227, 228, 229, 230, 231, 4, 5, 6, 7, 8, 9];
+            let expected_codes = [225, 226, 227, 228, 229, 230, 231, 4, 5, 6, 7, 8, 9];
 
             loop {
                 match receiver.recv().await {
