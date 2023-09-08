@@ -36,7 +36,6 @@ api = [
   "glob",
   "nanoid",
   "rcgen",
-  "rustls",
   "tempfile",
   "tokio-rustls",
   "tokio-stream",
@@ -108,7 +107,6 @@ nanoid          = { version = "0.4", optional = true }
 open            = "3.0"
 rcgen           = { version = "0.11", optional = true }
 regex           = { version = "1.8", optional = true }
-rustls          = { version = "0.21", optional = true, features = ["dangerous_configuration"] }
 sys-info        = "0.9"
 tempfile        = { version = "3.6", optional = true }
 tokio           = { version = "1.18", features = ["net", "rt-multi-thread", "macros", "sync", "time"] }

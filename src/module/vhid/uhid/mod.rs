@@ -869,7 +869,7 @@ mod test {
         rt.spawn(async move {
             // Looking for this sequence of active event codes
             // All modifiers, plus 11 keys (minimum for nkro)
-            let expected_codes = vec![
+            let expected_codes = [
                 225, 226, 227, 228, 229, 230, 231, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
             ];
 
@@ -1057,9 +1057,12 @@ mod test {
             // TODO integrate layouts-rs from HID-IO (to have symbolic testing inputs)
             // Testing 6kro limit handling
             keyboard
-                .send(vec![
-                    4, 5, 6, 7, 8, 9, 10, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
-                ])
+                .send(
+                    [
+                        4, 5, 6, 7, 8, 9, 10, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7,
+                    ]
+                    .to_vec(),
+                )
                 .unwrap();
             keyboard.send(vec![]).unwrap();
 
