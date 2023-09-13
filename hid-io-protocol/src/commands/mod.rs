@@ -445,6 +445,103 @@ pub mod h001a {
     }
 }
 
+/// Get Activation/Deactivation point
+pub mod h001b {
+    use heapless::Vec;
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum Error {
+        InvalidIndex = 0x00,
+        InvalidLength = 0x01,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Cmd {
+        pub index: u16,
+        pub len: u16,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Ack<const L: usize> {
+        pub activation: Vec<i16, L>,
+        pub deactivation: Vec<i16, L>,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Nak {
+        pub error: Error,
+    }
+}
+
+/// Set Activation/Deactivation point
+pub mod h001c {
+    use heapless::Vec;
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum Error {
+        InvalidIndex = 0x00,
+        InvalidActivation = 0x01,
+        InvalidDeactivation = 0x02,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Cmd<const L: usize> {
+        pub index: u16,
+        pub activation: Vec<i16, L>,
+        pub deactivation: Vec<i16, L>,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Ack {}
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Nak {
+        pub error: Error,
+    }
+}
+
+/// Set all Activation/Deactivation points
+pub mod h001d {
+    use num_enum::TryFromPrimitive;
+
+    #[repr(u8)]
+    #[derive(PartialEq, Eq, Clone, Copy, Debug, TryFromPrimitive)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub enum Error {
+        InvalidActivation = 0x00,
+        InvalidDeactivation = 0x01,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Cmd {
+        pub activation: i16,
+        pub deactivation: i16,
+    }
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Ack {}
+
+    #[derive(Clone, Debug)]
+    #[cfg_attr(feature = "defmt", derive(defmt::Format))]
+    pub struct Nak {
+        pub error: Error,
+    }
+}
+
 /// KLL Trigger State
 pub mod h0020 {
     pub struct Cmd {

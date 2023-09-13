@@ -12,6 +12,7 @@ Unlike the KLL spec which puts some very heavy processing/resource requirements 
 * 2020-07-29 - Added No Acknowledgement Data and Continued packet types - v0.1.4 (HaaTa)
 * 2020-10-13 - Added generic HID keyboard packet - v0.1.5 (HaaTa)
 * 2022-06-14 - Added open URL - v0.1.6 (HaaTa)
+* 2023-09-13 - Add activation/deactivation point - v0.1.7
 
 ## Glossary
 
@@ -482,6 +483,43 @@ WARNING: Do not allow flash mode without some sort of physical interaction as th
  * 0x02 - Not ready (Some internal error condition preventing the transition to a sleep state)
 ```
 
+#### Get Activation/Deactivation Points
+```
+0x1B <index> <length>
+
+Retrieves the activation/deactivation points from each specified switch on the keyboard.
+
++> <index:16 bit> <length:16 bit>
+-> Error code
+ * 0x00 - Invalid index
+ * 0x01 - Invalid length
+```
+
+#### Set Activation/Deactivation Points
+```
+0x1C <index:16 bit> [<activation point:16 bit> <deactivation point:16 bit>..]
+
+Sets the activation and deactivation points starting at the given index.
+
++> <index:16 bit> <activation 1:signed 16-bit> <deactivation 1:signed 16 bit> <activation 2:signed 16-bit> <deactivation 2:signed 16-bit> ...
+-> Error code
+ * 0x00 - Invalid index
+ * 0x01 - Invalid activation point
+ * 0x02 - Invalid deactivation point
+```
+
+#### Set All Activation/Deactivation Points
+```
+0x1D <activation point:16 bit> <deactivation point:16 bit>
+
+Sets activation and deactivation points for all switch sensors.
+
++> <activation:signed 16-bit> <deactivation:signed 16 bit>
+-> Error code
+ * 0x00 - Invalid activation point
+ * 0x01 - Invalid deactivation point
+```
+
 #### Pixel Setting
 ```
 0x21 <command:16 bits> <argument:16 bits>
@@ -600,6 +638,18 @@ If the device is not configured for direct set (or pixel set), a NAK is returned
 -> (No payload)
 ```
 
+#### Open URL
+```
+0x30 <utf-8 url>
+
+Opens the given URL (e.g. https://, file://, etc.) with the OS default application.
+Most commonly used to open the web-browser to the specified URL.
+
++> (No payload)
+-> (No payload)
+  NAKs if failed to open successfully (no application found).
+```
+
 #### HID Keyboard State
 ```
 0x40 <keyboard hid code bitmask 32 bytes long, 0-255>
@@ -616,21 +666,9 @@ For example, to encode A + B (which is 0x04 and 0x05):
 -> (No payload)
 ```
 
-#### Open URL
-```
-0x30 <utf-8 url>
-
-Opens the given URL (e.g. https://, file://, etc.) with the OS default application.
-Most commonly used to open the web-browser to the specified URL.
-
-+> (No payload)
--> (No payload)
-  NAKs if failed to open successfully (no application found).
-```
-
 #### HID Keyboard LED State
 ```
-0x40 <keyboard led hid code bitmask 1 byte>
+0x41 <keyboard led hid code bitmask 1 byte>
 
 This is the standard HID keyboard LED bitmask.
 
@@ -729,6 +767,9 @@ Various test commands used during manufacturing to validate the hardware.
 * 0x18 - (Device)      [UTF-8 State](#utf-8-state)
 * 0x19 - (Device)      [Trigger Host Macro](#trigger-host-macro)
 * 0x1A - (Host)        [Sleep Mode](#sleep-mode)
+* 0x1B - (Host)        [Get Activation/deactivation point](#get-activation-deactivation-point)
+* 0x1C - (Host)        [Set Activation/deactivation point](#set-activation-deactivation-point)
+* 0x1D - (Host)        [Set All Activation/deactivation point](#set-all-activation-deactivation-point)
 * 0x20 - (Device)      [KLL Trigger State](#kll-trigger-state)
 * 0x21 - (Host)        [Pixel Setting](#pixel-setting)
 * 0x22 - (Host)        [Pixel Set (1 ch, 8 bit)](#pixel-set-1-ch-8-bit)
