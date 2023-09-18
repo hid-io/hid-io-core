@@ -36,7 +36,8 @@ use std::io::Write;
 
 #[derive(Default)]
 pub struct KeyboardSubscriberImpl {
-    pub hall_effect_switch_data: Vec<Vec<u16>>,
+    /// Switch matrix (raw, calibration offset)
+    pub hall_effect_switch_data: Vec<Vec<(u16, i16)>>,
     pub hall_effect_switch_data_cur_strobe: u8,
 }
 
@@ -99,7 +100,7 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                                     }
 
                                     tmp.push(byte);
-                                    if tmp.len() == 2 {
+                                    if tmp.len() == 4 {
                                         // Check if header (strobe) or sense data
                                         if pos % 7 == 0 {
                                             let strobe = tmp[0];
@@ -108,8 +109,13 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                                                 println!("{:?}:{} => ", res.get_cmd(), res.get_arg());
                                                 for (i, data) in self.hall_effect_switch_data.iter().enumerate() {
                                                 print!("{:>4} ", i);
-                                                for data in data {
-                                                    print!("{:>4} ", data);
+                                                // Print raw
+                                                for elem in data {
+                                                    print!("{:>4} ", elem.0);
+                                                }
+                                                // Print offset
+                                                for elem in data {
+                                                    print!("{:>4} ", elem.1);
                                                 }
                                                 println!();
                                                 }
@@ -123,7 +129,8 @@ impl keyboard_capnp::keyboard::subscriber::Server for KeyboardSubscriberImpl {
                                             self.hall_effect_switch_data[strobe as usize] = vec![];
                                         } else {
                                             let data = u16::from_le_bytes([tmp[0], tmp[1]]);
-                                            self.hall_effect_switch_data[self.hall_effect_switch_data_cur_strobe as usize].push(data);
+                                            let offset = i16::from_le_bytes([tmp[2], tmp[3]]);
+                                            self.hall_effect_switch_data[self.hall_effect_switch_data_cur_strobe as usize].push((data, offset));
                                         }
                                         tmp.clear();
                                         pos += 1;
