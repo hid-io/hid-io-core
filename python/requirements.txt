@@ -11,4 +11,4 @@ pyparsing==2.4.6
 pytest==7.2.0
 six==1.13.0
 wcwidth==0.1.8
-zipp==0.6.0
+zipp==3.19.1
